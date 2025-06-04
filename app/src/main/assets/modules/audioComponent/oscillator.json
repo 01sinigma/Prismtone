@@ -1,0 +1,30 @@
+{
+  "id": "oscillator",
+  "type": "audioComponent",
+  "name": "Oscillator",
+  "version": "1.0.1",
+  "description": "Core sound generator with portamento support",
+  "active": true,
+  "managerScript": "js/managers/oscillatorManager.js",
+  "category": "core",
+  "isOptional": false,
+  "parameters": [
+    {"name": "type", "label": "Type", "options": ["sine", "square", "sawtooth", "triangle", "pwm", "pulse", "fatsine", "fatsquare", "fatsawtooth", "fattriangle", "amsine", "amsquare", "amsawtooth", "amtriangle", "fmsine", "fmsquare", "fmsawtooth", "fmtriangle", "white", "pink", "brown"], "default": "triangle"},
+    {"name": "phase", "label": "Phase", "min": 0, "max": 360, "default": 0, "step": 1},
+
+    {"name": "portamento", "label": "Portamento", "min": 0, "max": 2, "default": 0, "step": 0.01},
+
+    {"name": "width", "label": "Width (Pulse)", "min": 0, "max": 1, "default": 0.5, "step": 0.01},
+    {"name": "modulationFrequency", "label": "Mod Freq (PWM)", "min": 0.1, "max": 20, "default": 0.5, "step": 0.1, "logScale": true},
+    {"name": "harmonicity", "label": "Harmonicity (FM/AM)", "min": 0.1, "max": 10, "default": 1, "step": 0.01},
+    {"name": "modulationIndex", "label": "Mod Index (FM)", "min": 0.1, "max": 100, "default": 10, "step": 0.1, "logScale": true},
+    {"name": "modulationType", "label": "Mod Type (FM/AM)", "options": ["sine", "square", "sawtooth", "triangle"], "default": "square"},
+    {"name": "count", "label": "Count (Fat)", "min": 1, "max": 8, "default": 3, "step": 1},
+    {"name": "spread", "label": "Spread (Fat, cents)", "min": 0, "max": 100, "default": 20, "step": 1}
+  ],
+  "defaultSettings": {
+    "type": "triangle",
+    "phase": 0,
+    "portamento": 0
+  }
+}

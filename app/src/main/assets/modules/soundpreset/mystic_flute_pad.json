@@ -1,0 +1,70 @@
+{
+  "id": "mystic_flute_pad",
+  "type": "soundpreset",
+  "name": "Mystic Flute Pad",
+  "version": "1.0.1",
+  "description": "Pad imitating a breathy flute sound with a slow attack and custom Y-Axis effect send.",
+  "active": true,
+  "data": {
+    "oscillator": {
+      "params": {
+        "type": "fmtriangle",
+        "harmonicity": 0.5,
+        "modulationIndex": 2,
+        "modulationType": "sine"
+      }
+    },
+    "amplitudeEnv": {
+      "params": {
+        "attack": 0.6,
+        "decay": 0.8,
+        "sustain": 0.9,
+        "release": 1.5,
+        "attackCurve": "sine"
+      }
+    },
+    "filter": {
+      "enabled": true,
+      "params": {
+        "type": "lowpass",
+        "frequency": 2200,
+        "Q": 1.0
+      }
+    },
+    "outputGain": { "params": { "gain": 0 } },
+    "pitchEnvelope": { "enabled": false },
+    "filterEnvelope": {
+      "enabled": true,
+      "params": {
+        "attack": 0.7,
+        "decay": 0.5,
+        "sustain": 0.7,
+        "release": 1.0,
+        "amount": 1000
+      }
+    },
+    "lfo1": {
+      "enabled": true,
+      "params": {
+        "type": "sine",
+        "rate": 0.4,
+        "depth": 0.15,
+        "target": "filter.frequency"
+      }
+    },
+    "portamento": { "enabled": false },
+
+    "yAxisControls": {
+      "effects": {
+        "minOutput": -30,
+        "maxOutput": -25,
+        "yThreshold": 0.3,
+        "curveType": "exponential",
+        "curveFactor": 1.5,
+        "outputType": "db"
+      }
+    },
+
+    "colors": { "primary": "#4DB6AC", "text": "#FFFFFF" }
+  }
+}

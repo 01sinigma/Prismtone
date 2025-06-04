@@ -1,0 +1,9 @@
+
+<resources>
+    <string name="app_name">Prismtone</string>
+    <string name="loading">Loading...</string>
+    <string name="error_loading">Error loading application</string>
+    <string name="permission_storage_rationale">Storage permission is needed to save recordings and custom presets</string>
+    <string name="permission_record_audio_rationale">Microphone permission is needed for recording audio</string>
+    <string name="permission_denied">Permission denied. Some features may not work properly.</string>
+</resources>

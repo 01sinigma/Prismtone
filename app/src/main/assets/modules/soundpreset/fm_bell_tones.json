@@ -1,0 +1,58 @@
+{
+  "id": "fm_bell_tones",
+  "type": "soundpreset",
+  "name": "FM Bell Tones",
+  "version": "1.0.0",
+  "description": "Metallic, bell-like tones using FM synthesis.",
+  "active": true,
+  "data": {
+    "oscillator": {
+      "params": {
+        "type": "fmsine",
+        "harmonicity": 3.5,
+        "modulationIndex": 20,
+        "modulationType": "sine"
+      }
+    },
+    "amplitudeEnv": {
+      "params": {
+        "attack": 0.002,
+        "decay": 0.8,
+        "sustain": 0.05,
+        "release": 0.6
+      }
+    },
+    "filter": {
+      "enabled": true,
+      "params": {
+        "type": "lowpass",
+        "frequency": 12000,
+        "Q": 0.7
+      }
+    },
+    "outputGain": { "params": { "gain": 0 } },
+    "pitchEnvelope": {
+      "enabled": true,
+      "params": {
+        "attack": 0.001,
+        "decay": 0.03,
+        "sustain": 0,
+        "release": 0.01,
+        "amount": 200
+      }
+    },
+    "filterEnvelope": { "enabled": false },
+    "lfo1": {
+      "enabled": true,
+      "params": {
+        "type": "sine",
+        "rate": 0.3,
+        "depth": 0.1,
+        "target": "oscillator.modulationIndex",
+        "retrigger": false
+      }
+    },
+    "portamento": { "enabled": false },
+    "colors": { "primary": "#FFEE58", "text": "#3E2723" }
+  }
+}

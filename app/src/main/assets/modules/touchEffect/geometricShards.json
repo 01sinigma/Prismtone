@@ -1,0 +1,29 @@
+{
+  "id": "geometricShards",
+  "type": "touchEffect",
+  "name": "Live Geometric Shards",
+  "version": "1.1.0",
+  "description": "Continuously emits and animates geometric shards from touch point.",
+  "active": true,
+  "data": {
+    "rendererScript": "js/touchEffects/geometricShardsEffect.js",
+    "settings": {
+      "colorSource": "note",
+      "emitRate": 15,
+      "maxActiveShardsPerTouch": 50,
+      "shardTypes": ["triangle", "rectangle", "line"],
+      "shardMaxSize": 18,
+      "shardMinSize": 5,
+      "shardLife": 800,
+      "launchSpeedBase": 0.5,
+      "launchSpeedYMultiplier": 1.5,
+      "rotationSpeed": 0.03,
+      "shrinkFactor": 0.98,
+      "fadeOutFactor": 0.97,
+      "gravity": 0.02,
+      "baseOpacity": 0.9,
+      "compositeOperation": "lighter",
+      "fadeDurationOnUp": 300
+    }
+  }
+}

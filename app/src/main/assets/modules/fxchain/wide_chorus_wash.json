@@ -1,0 +1,85 @@
+{
+  "id": "wide_chorus_wash",
+  "type": "fxchain",
+  "name": "Wide Chorus Wash",
+  "version": "1.0.0",
+  "description": "A wide and enveloping chorus effect, great for pads and synths.",
+  "active": false,
+  "data": {
+    "effects": [
+      {
+        "type": "chorus",
+        "enabled": true,
+        "params": {
+          "frequency": 1.2,
+          "depth": 0.85,
+          "delayTime": 6.0,
+          "wet": 0.75
+        }
+      },
+      {
+        "type": "reverb",
+        "enabled": true,
+        "params": {
+          "roomSize": 0.6,
+          "wet": 0.25
+        }
+      },
+      {
+        "type": "delay",
+        "enabled": false,
+        "params": {"wet": 0}
+      },
+      {
+        "type": "distortion",
+        "enabled": false,
+        "params": {"wet": 0}
+      },
+      {
+        "type": "filter",
+        "enabled": false,
+        "params": {"wet": 0}
+      }
+    ],
+    "yAxisControls": {
+      "volume": {
+        "minOutput": 0.0,
+        "maxOutput": 1.0,
+        "yThreshold": 0.0,
+        "curveType": "linear",
+        "curveFactor": 1.0,
+        "outputType": "gain"
+      },
+      "effects": {
+        "minOutput": -50,
+        "maxOutput": -4,
+        "yThreshold": 0.0,
+        "curveType": "linear",
+        "curveFactor": 1.0,
+        "outputType": "db"
+      }
+    },
+    "macroDefaults": {
+      "Space": 0.4,
+      "Time": 0.5,
+      "Motion": 0.7,
+      "Tone": 0.5
+    },
+    "macroMappings": {
+      "Space": [
+        { "effect": "chorus", "param": "wet", "range": [0.2, 1.0] },
+        { "effect": "reverb", "param": "wet", "range": [0.0, 0.5] }
+      ],
+      "Time": [
+        { "effect": "chorus", "param": "delayTime", "range": [2.5, 10.0] }
+      ],
+      "Motion": [
+        { "effect": "chorus", "param": "depth", "range": [0.3, 1.0] },
+        { "effect": "chorus", "param": "frequency", "range": [0.5, 3.0] }
+      ],
+      "Tone": [
+        { "effect": "reverb", "param": "roomSize", "range": [0.2, 0.8] }
+      ]
+    }
+  }
+}

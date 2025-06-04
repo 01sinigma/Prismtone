@@ -1,0 +1,59 @@
+{
+  "id": "angelic_choir_pad",
+  "type": "soundpreset",
+  "name": "Angelic Choir Pad",
+  "version": "1.0.0",
+  "description": "Simulated choir/vocal pad using multiple detuned fat oscillators.",
+  "active": true,
+  "data": {
+    "oscillator": {
+      "params": {
+        "type": "fatsawtooth",
+        "count": 5,
+        "spread": 35
+      }
+    },
+    "amplitudeEnv": {
+      "params": {
+        "attack": 1.8,
+        "decay": 1.5,
+        "sustain": 0.8,
+        "release": 3.5
+      }
+    },
+    "filter": {
+      "enabled": true,
+      "params": {
+        "type": "lowpass",
+        "frequency": 2000,
+        "Q": 1.8
+      }
+    },
+    "outputGain": { "params": { "gain": 0 } },
+    "pitchEnvelope": { "enabled": false },
+    "filterEnvelope": {
+      "enabled": true,
+      "params": {
+        "attack": 2.0,
+        "decay": 1.0,
+        "sustain": 0.7,
+        "release": 3.0,
+        "amount": 1500
+      }
+    },
+    "lfo1": {
+      "enabled": true,
+      "params": {
+        "type": "sine",
+        "rate": 0.3,
+        "depth": 0.03,
+        "target": "oscillator.detune"
+      }
+    },
+    "portamento": {
+      "enabled": true,
+      "time": 0.15
+    },
+    "colors": { "primary": "#E1F5FE", "text": "#01579B" }
+  }
+}

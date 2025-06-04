@@ -1,0 +1,93 @@
+{
+  "id": "rhythmic_filter_groove",
+  "type": "fxchain",
+  "name": "Rhythmic Filter Groove",
+  "version": "1.0.0",
+  "description": "Pulsating rhythmic delays combined with a sweeping filter.",
+  "active": false,
+  "data": {
+    "effects": [
+      {
+        "type": "delay",
+        "enabled": true,
+        "params": {
+          "delayTime": 0.25,
+          "feedback": 0.5,
+          "wet": 0.6
+        }
+      },
+      {
+        "type": "filter",
+        "enabled": true,
+        "params": {
+          "type": "bandpass",
+          "frequency": 800,
+          "Q": 5,
+          "wet": 1.0,
+          "rolloff": -24
+        }
+      },
+      {
+        "type": "reverb",
+        "enabled": false,
+        "params": {
+          "roomSize": 0.3,
+          "wet": 0
+        }
+      },
+      {
+        "type": "chorus",
+        "enabled": false,
+        "params": {
+          "wet": 0
+        }
+      },
+      {
+        "type": "distortion",
+        "enabled": false,
+        "params": {
+          "wet": 0
+        }
+      }
+    ],
+    "yAxisControls": {
+      "volume": {
+        "minOutput": 0.0,
+        "maxOutput": 1.0,
+        "yThreshold": 0.0,
+        "curveType": "linear",
+        "curveFactor": 1.0,
+        "outputType": "gain"
+      },
+      "effects": {
+        "minOutput": -50,
+        "maxOutput": -6,
+        "yThreshold": 0.05,
+        "curveType": "exponential",
+        "curveFactor": 1.8,
+        "outputType": "db"
+      }
+    },
+    "macroDefaults": {
+      "Space": 0.3,
+      "Time": 0.25,
+      "Motion": 0.5,
+      "Tone": 0.4
+    },
+    "macroMappings": {
+      "Space": [
+        { "effect": "delay", "param": "wet", "range": [0.1, 0.8] }
+      ],
+      "Time": [
+        { "effect": "delay", "param": "delayTime", "range": [0.05, 0.6] }
+      ],
+      "Motion": [
+        { "effect": "delay", "param": "feedback", "range": [0.2, 0.85] },
+        { "effect": "filter", "param": "Q", "range": [1, 15] }
+      ],
+      "Tone": [
+        { "effect": "filter", "param": "frequency", "range": [200, 7000], "curve": "logarithmic" }
+      ]
+    }
+  }
+}

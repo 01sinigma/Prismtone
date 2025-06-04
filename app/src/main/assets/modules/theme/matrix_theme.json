@@ -1,0 +1,32 @@
+{
+  "id": "matrix",
+  "type": "theme",
+  "name": "Matrix",
+  "version": "1.0.0",
+  "description": "A digital rain matrix theme with falling green code",
+  "active": true,
+  "data": {
+    "colors": {
+      "background": "#000000",
+      "surface": "#001100",
+      "primary": "#00ff00",
+      "primaryLight": "#33ff33",
+      "primaryDark": "#00cc00",
+      "accent": "#00ff66",
+      "textPrimary": "#00ff00",
+      "textSecondary": "#33ff33",
+      "border": "#003300"
+    },
+    "effects": {
+      "knobGlow": true,
+      "knobGlowIntensity": 1.8,
+      "touchGlow": true,
+      "touchGlowIntensity": 1.6,
+      "textGlow": true,
+      "textGlowIntensity": 1.4,
+      "matrixRain": true,
+      "rainSpeed": 20,
+      "rainDensity": 40
+    }
+  }
+} 

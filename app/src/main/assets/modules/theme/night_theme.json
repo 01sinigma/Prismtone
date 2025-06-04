@@ -1,0 +1,21 @@
+{
+  "id": "night",
+  "type": "theme",
+  "name": "Night",
+  "version": "1.0.0",
+  "description": "A dark theme with purple accents",
+  "active": true,
+  "data": {
+    "colors": {
+      "background": "#121212",
+      "surface": "#1e1e1e",
+      "primary": "#bb86fc",
+      "primaryLight": "#d9b6fc",
+      "primaryDark": "#9d4edd",
+      "accent": "#03dac6",
+      "textPrimary": "#e0e0e0",
+      "textSecondary": "#a0a0a0",
+      "border": "#333333"
+    }
+  }
+}

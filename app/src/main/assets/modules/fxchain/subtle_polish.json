@@ -1,0 +1,80 @@
+{
+  "id": "subtle_polish",
+  "type": "fxchain",
+  "name": "Subtle Polish",
+  "version": "1.0.0",
+  "description": "A gentle touch of reverb and filtering to enhance clarity.",
+  "active": false,
+  "data": {
+    "effects": [
+      {
+        "type": "reverb",
+        "enabled": true,
+        "params": {
+          "roomSize": 0.3,
+          "wet": 0.15
+        }
+      },
+      {
+        "type": "filter",
+        "enabled": true,
+        "params": {
+          "type": "highpass",
+          "frequency": 80,
+          "Q": 0.7,
+          "wet": 1.0
+        }
+      },
+      {
+        "type": "delay",
+        "enabled": false,
+        "params": {"wet": 0}
+      },
+      {
+        "type": "chorus",
+        "enabled": false,
+        "params": {"wet": 0}
+      },
+      {
+        "type": "distortion",
+        "enabled": false,
+        "params": {"wet": 0}
+      }
+    ],
+    "yAxisControls": {
+      "volume": {
+        "minOutput": 0.0,
+        "maxOutput": 1.0,
+        "yThreshold": 0.0,
+        "curveType": "linear",
+        "curveFactor": 1.0,
+        "outputType": "gain"
+      },
+      "effects": {
+        "minOutput": -60,
+        "maxOutput": -15,
+        "yThreshold": 0.2,
+        "curveType": "linear",
+        "curveFactor": 1.0,
+        "outputType": "db"
+      }
+    },
+    "macroDefaults": {
+      "Space": 0.2,
+      "Time": 0.5,
+      "Motion": 0.5,
+      "Tone": 0.1
+    },
+    "macroMappings": {
+      "Space": [
+        { "effect": "reverb", "param": "wet", "range": [0.0, 0.4] },
+        { "effect": "reverb", "param": "roomSize", "range": [0.1, 0.6] }
+      ],
+      "Time": [],
+      "Motion": [],
+      "Tone": [
+        { "effect": "filter", "param": "frequency", "range": [40, 200] }
+      ]
+    }
+  }
+}

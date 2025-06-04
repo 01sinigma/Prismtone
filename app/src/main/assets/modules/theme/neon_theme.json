@@ -1,0 +1,21 @@
+{
+  "id": "neon",
+  "type": "theme",
+  "name": "Neon",
+  "version": "1.0.0",
+  "description": "A dark cyberpunk theme with bright neon colors",
+  "active": true,
+  "data": {
+    "colors": {
+      "background": "#000000",
+      "surface": "#0a1a2a",
+      "primary": "#00ff41",
+      "primaryLight": "#92ff9d",
+      "primaryDark": "#00cc33",
+      "accent": "#ff00ff",
+      "textPrimary": "#00ff41",
+      "textSecondary": "#00cc33",
+      "border": "#004411"
+    }
+  }
+}

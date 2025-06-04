@@ -1,0 +1,19 @@
+{
+  "id": "touch_trails",
+  "type": "visualizer",
+  "name": "Touch Trails Visualizer",
+  "version": "1.0.0",
+  "description": "Displays trails following touch movements.",
+  "active": false,
+  "data": {
+    "rendererScript": "js/visualizers/touchTrailsRenderer.js",
+    "settings": {
+      "trailColorSource": "note",
+      "trailDuration": 1000,
+      "trailBaseWidth": 3,
+      "trailWidthMultiplierY": 1.5,
+      "maxPoints": 30,
+      "opacity": 0.7
+    }
+  }
+} 

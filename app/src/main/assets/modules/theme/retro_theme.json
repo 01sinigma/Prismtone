@@ -1,0 +1,29 @@
+{
+  "id": "retro",
+  "type": "theme",
+  "name": "Retro",
+  "version": "1.0.0",
+  "description": "A warm retro theme with vintage colors",
+  "active": true,
+  "data": {
+    "colors": {
+      "background": "#fff8e1",
+      "surface": "#ffe0b2",
+      "primary": "#ff5722",
+      "primaryLight": "#ff8a65",
+      "primaryDark": "#e64a19",
+      "accent": "#795548",
+      "textPrimary": "#5d4037",
+      "textSecondary": "#8d6e63",
+      "border": "#bcaaa4"
+    },
+    "textures": {
+      "background": "grid",
+      "gridSize": 60,
+      "gridColor": "rgba(188, 170, 164, 0.1)",
+      "xyPadGrid": true,
+      "xyPadGridSize": 20,
+      "xyPadGridColor": "rgba(188, 170, 164, 0.05)"
+    }
+  }
+}

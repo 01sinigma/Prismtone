@@ -1,0 +1,23 @@
+{
+  "id": "marker",
+  "type": "touchEffect",
+  "name": "Marker",
+  "version": "1.0.0",
+  "description": "Creates a glowing trail that follows touch movement",
+  "active": true,
+  "data": {
+    "rendererScript": "js/touchEffects/markerEffect.js",
+    "settings": {
+      "colorSource": "note",
+      "baseOpacity": 1.0,
+      "maxPoints": 50,
+      "maxWidth": 20,
+      "minWidth": 5,
+      "reactToAudio": true,
+      "audioReactivity": {
+        "widthMultiplier": 1.5,
+        "opacityMultiplier": 1.2
+      }
+    }
+  }
+} 

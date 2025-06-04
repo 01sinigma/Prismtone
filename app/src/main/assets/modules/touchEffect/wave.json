@@ -1,0 +1,21 @@
+{
+  "id": "wave",
+  "type": "touchEffect",
+  "name": "Ripple Waves",
+  "version": "1.1.0",
+  "description": "Creates expanding ripple waves from touch points.",
+  "active": true,
+  "data": {
+    "rendererScript": "js/touchEffects/waveEffect.js",
+    "settings": {
+      "colorSource": "note",
+      "baseOpacity": 0.8,
+      "waveSpeed": 3,
+      "waveInterval": 300,
+      "maxRadius": 1000,
+      "minRadius": 40,
+      "fadeDuration": 1000,
+      "compositeOperation": "lighter"
+    }
+  }
+} 

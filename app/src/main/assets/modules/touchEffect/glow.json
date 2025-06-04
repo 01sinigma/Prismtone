@@ -1,0 +1,23 @@
+{
+  "id": "glow",
+  "type": "touchEffect",
+  "name": "Glow",
+  "version": "1.0.0",
+  "description": "Creates glowing effects at touch points",
+  "active": true,
+  "data": {
+    "rendererScript": "js/touchEffects/glowEffect.js",
+    "settings": {
+      "colorSource": "note",
+      "baseOpacity": 0.7,
+      "duration": 350,
+      "maxRadius": 60,
+      "reactToTouches": true,
+      "reactToAudio": true,
+      "audioReactivity": {
+        "radiusMultiplier": 1.5,
+        "opacityMultiplier": 1.2
+      }
+    }
+  }
+} 

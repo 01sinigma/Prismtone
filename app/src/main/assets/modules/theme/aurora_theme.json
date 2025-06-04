@@ -1,0 +1,31 @@
+{
+  "id": "aurora",
+  "type": "theme",
+  "name": "Aurora",
+  "version": "1.0.0",
+  "description": "A cosmic theme inspired by northern lights with cyan and magenta accents",
+  "active": true,
+  "data": {
+    "colors": {
+      "background": "#0a0a1a",
+      "surface": "#1a1a2e",
+      "primary": "#00ffcc",
+      "primaryLight": "#66ffeb",
+      "primaryDark": "#00cc9f",
+      "accent": "#ff00ff",
+      "textPrimary": "#e0e0ff",
+      "textSecondary": "#a0a0ff",
+      "border": "#2a2a4a"
+    },
+    "effects": {
+      "knobGlow": true,
+      "knobGlowIntensity": 1.5,
+      "touchGlow": true,
+      "touchGlowIntensity": 1.2,
+      "textGlow": true,
+      "textGlowIntensity": 1.3,
+      "gradientBackground": true,
+      "gradientAngle": 45
+    }
+  }
+} 

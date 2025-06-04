@@ -1,0 +1,32 @@
+{
+  "id": "crystal",
+  "type": "theme",
+  "name": "Crystal",
+  "version": "1.0.0",
+  "description": "A crystalline theme with prismatic light effects",
+  "active": true,
+  "data": {
+    "colors": {
+      "background": "#000033",
+      "surface": "#000066",
+      "primary": "#00ffff",
+      "primaryLight": "#66ffff",
+      "primaryDark": "#00cccc",
+      "accent": "#ff00ff",
+      "textPrimary": "#00ffff",
+      "textSecondary": "#66ffff",
+      "border": "#000099"
+    },
+    "effects": {
+      "knobGlow": true,
+      "knobGlowIntensity": 1.8,
+      "touchGlow": true,
+      "touchGlowIntensity": 1.6,
+      "textGlow": true,
+      "textGlowIntensity": 1.4,
+      "crystalShine": true,
+      "shineSpeed": 8,
+      "prismEffect": true
+    }
+  }
+} 

@@ -1,0 +1,307 @@
+/* Theme variables - colors with RGB values for transparency */
+
+/* Night Theme */
+.theme-night {
+    --color-background: #121212;
+    --color-background-rgb: 18, 18, 18;
+    --color-surface: #1e1e1e;
+    --color-surface-rgb: 30, 30, 30;
+    --color-primary: #bb86fc;
+    --color-primary-rgb: 187, 134, 252;
+    --color-primary-light: #d9b6fc;
+    --color-primary-dark: #9d4edd;
+    --color-accent: #03dac6;
+    --color-accent-rgb: 3, 218, 198;
+    --color-text-primary: #e0e0e0;
+    --color-text-secondary: #a0a0a0;
+    --color-border: #333333;
+    --color-border-rgb: 51, 51, 51;
+    --osc-icon-invert: 100%;
+}
+
+/* Retro Theme */
+.theme-retro {
+    --color-background: #fff8e1;
+    --color-background-rgb: 255, 248, 225;
+    --color-surface: #ffe0b2;
+    --color-surface-rgb: 255, 224, 178;
+    --color-primary: #ff5722;
+    --color-primary-rgb: 255, 87, 34;
+    --color-primary-light: #ff8a65;
+    --color-primary-dark: #e64a19;
+    --color-accent: #795548;
+    --color-accent-rgb: 121, 85, 72;
+    --color-text-primary: #5d4037;
+    --color-text-secondary: #8d6e63;
+    --color-border: #bcaaa4;
+    --color-border-rgb: 188, 170, 164;
+     --osc-icon-invert: 0%;
+}
+
+/* Retro theme specific effects */
+.theme-retro { background-image: radial-gradient(rgba(188, 170, 164, 0.1) 15%, transparent 16%), radial-gradient(rgba(188, 170, 164, 0.1) 15%, transparent 16%); background-size: 60px 60px; background-position: 0 0, 30px 30px; }
+.theme-retro #xy-pad-container { background-image: linear-gradient(rgba(188, 170, 164, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(188, 170, 164, 0.05) 1px, transparent 1px); background-size: 20px 20px; }
+.theme-retro .knob { background-image: radial-gradient(circle, var(--color-surface) 0%, var(--color-background) 100%); }
+
+/* Aurora Theme */
+.theme-aurora {
+    --color-background: #0a0a1a;
+    --color-background-rgb: 10, 10, 26;
+    --color-surface: #1a1a2e;
+    --color-surface-rgb: 26, 26, 46;
+    --color-primary: #00ffcc;
+    --color-primary-rgb: 0, 255, 204;
+    --color-primary-light: #66ffeb;
+    --color-primary-dark: #00cc9f;
+    --color-accent: #ff00ff;
+    --color-accent-rgb: 255, 0, 255;
+    --color-text-primary: #e0e0ff;
+    --color-text-secondary: #a0a0ff;
+    --color-border: #2a2a4a;
+    --color-border-rgb: 42, 42, 74;
+    --osc-icon-invert: 100%;
+}
+
+/* Aurora theme specific effects */
+.theme-aurora .knob-dial { box-shadow: 0 0 15px var(--color-primary), 0 0 30px var(--color-accent); }
+.theme-aurora .xy-touch { box-shadow: 0 0 25px rgba(var(--color-primary-rgb), 0.8), 0 0 40px rgba(var(--color-accent-rgb), 0.4); }
+.theme-aurora button { text-shadow: 0 0 8px var(--color-primary); }
+.theme-aurora #app-title { text-shadow: 0 0 15px var(--color-primary), 0 0 30px var(--color-accent); }
+.theme-aurora #xy-pad-container { background-image: linear-gradient(45deg, rgba(var(--color-primary-rgb), 0.1), rgba(var(--color-accent-rgb), 0.1)); }
+
+/* Ocean Theme */
+.theme-ocean {
+    --color-background: #001f3f;
+    --color-background-rgb: 0, 31, 63;
+    --color-surface: #003366;
+    --color-surface-rgb: 0, 51, 102;
+    --color-primary: #00bfff;
+    --color-primary-rgb: 0, 191, 255;
+    --color-primary-light: #66d9ff;
+    --color-primary-dark: #0099cc;
+    --color-accent: #ff6b6b;
+    --color-accent-rgb: 255, 107, 107;
+    --color-text-primary: #e0f7ff;
+    --color-text-secondary: #a0d8ff;
+    --color-border: #004080;
+    --color-border-rgb: 0, 64, 128;
+    --osc-icon-invert: 100%;
+}
+
+/* Ocean theme specific effects */
+.theme-ocean .knob-dial { box-shadow: 0 0 10px var(--color-primary), 0 0 20px rgba(var(--color-primary-rgb), 0.5); }
+.theme-ocean .xy-touch { box-shadow: 0 0 20px rgba(var(--color-primary-rgb), 0.6); }
+.theme-ocean button { text-shadow: 0 0 5px var(--color-primary); }
+.theme-ocean #app-title { text-shadow: 0 0 10px var(--color-primary); }
+.theme-ocean #xy-pad-container { background-image: linear-gradient(180deg, rgba(var(--color-primary-rgb), 0.1), rgba(var(--color-surface-rgb), 0.2)); }
+
+/* Cyberpunk Theme */
+.theme-cyberpunk {
+    --color-background: #000000;
+    --color-background-rgb: 0, 0, 0;
+    --color-surface: #1a1a1a;
+    --color-surface-rgb: 26, 26, 26;
+    --color-primary: #39ff14;
+    --color-primary-rgb: 57, 255, 20;
+    --color-primary-light: #7fff00;
+    --color-primary-dark: #32cd32;
+    --color-accent: #ff00ff;
+    --color-accent-rgb: 255, 0, 255;
+    --color-text-primary: #39ff14;
+    --color-text-secondary: #7fff00;
+    --color-border: #333333;
+    --color-border-rgb: 51, 51, 51;
+    --osc-icon-invert: 100%;
+}
+
+/* Cyberpunk theme specific effects */
+.theme-cyberpunk .knob-dial { 
+    box-shadow: 0 0 20px var(--color-primary), 0 0 40px var(--color-accent);
+    background: linear-gradient(45deg, var(--color-primary), var(--color-accent));
+}
+.theme-cyberpunk .xy-touch { 
+    box-shadow: 0 0 30px rgba(var(--color-primary-rgb), 0.9), 0 0 50px rgba(var(--color-accent-rgb), 0.5);
+    background: radial-gradient(circle at center, var(--color-primary) 0%, transparent 70%);
+}
+.theme-cyberpunk button { 
+    text-shadow: 0 0 10px var(--color-primary), 0 0 20px var(--color-accent);
+    background: linear-gradient(45deg, var(--color-surface), var(--color-background));
+}
+.theme-cyberpunk #app-title { 
+    text-shadow: 0 0 20px var(--color-primary), 0 0 40px var(--color-accent);
+    background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.theme-cyberpunk #xy-pad-container { 
+    background-image: 
+        linear-gradient(45deg, rgba(var(--color-primary-rgb), 0.2), rgba(var(--color-accent-rgb), 0.2)),
+        repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(var(--color-primary-rgb), 0.1) 10px, rgba(var(--color-primary-rgb), 0.1) 20px);
+}
+
+/* Fire Theme */
+.theme-fire {
+    --color-background: #1a0000;
+    --color-background-rgb: 26, 0, 0;
+    --color-surface: #330000;
+    --color-surface-rgb: 51, 0, 0;
+    --color-primary: #ff3300;
+    --color-primary-rgb: 255, 51, 0;
+    --color-primary-light: #ff6633;
+    --color-primary-dark: #cc2900;
+    --color-accent: #ffcc00;
+    --color-accent-rgb: 255, 204, 0;
+    --color-text-primary: #ff3300;
+    --color-text-secondary: #ffcc00;
+    --color-border: #4d0000;
+    --color-border-rgb: 77, 0, 0;
+    --osc-icon-invert: 100%;
+}
+
+/* Fire theme specific effects */
+.theme-fire #xy-pad-container {
+    background: 
+        radial-gradient(circle at center,
+            rgba(255, 51, 0, 0.3) 0%,
+            rgba(255, 204, 0, 0.2) 30%,
+            rgba(255, 51, 0, 0.1) 60%,
+            transparent 100%);
+    animation: fireFlicker 2s ease-in-out infinite;
+    position: relative;
+    overflow: hidden;
+}
+
+.theme-fire #xy-pad-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        radial-gradient(circle at center,
+            rgba(255, 51, 0, 0.4) 0%,
+            rgba(255, 204, 0, 0.2) 40%,
+            transparent 80%);
+    animation: fireWave 4s ease-in-out infinite;
+    mix-blend-mode: screen;
+}
+
+@keyframes fireFlicker {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.02); }
+}
+
+@keyframes fireWave {
+    0% { transform: translateY(0) scale(1); opacity: 0.8; }
+    50% { transform: translateY(-10px) scale(1.1); opacity: 1; }
+    100% { transform: translateY(0) scale(1); opacity: 0.8; }
+}
+
+/* Matrix Theme */
+.theme-matrix {
+    --color-background: #000000;
+    --color-background-rgb: 0, 0, 0;
+    --color-surface: #001100;
+    --color-surface-rgb: 0, 17, 0;
+    --color-primary: #00ff00;
+    --color-primary-rgb: 0, 255, 0;
+    --color-primary-light: #33ff33;
+    --color-primary-dark: #00cc00;
+    --color-accent: #00ff66;
+    --color-accent-rgb: 0, 255, 102;
+    --color-text-primary: #00ff00;
+    --color-text-secondary: #33ff33;
+    --color-border: #003300;
+    --color-border-rgb: 0, 51, 0;
+    --osc-icon-invert: 100%;
+}
+
+.theme-matrix #xy-pad-container {
+    background-image: 
+        linear-gradient(180deg, rgba(0, 255, 0, 0.1) 0%, transparent 100%),
+        repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(0, 255, 0, 0.1) 20px, rgba(0, 255, 0, 0.1) 40px);
+    animation: matrixRain 20s linear infinite;
+}
+
+@keyframes matrixRain {
+    0% { background-position: 0 0, 0 0; }
+    100% { background-position: 0 100%, 0 100%; }
+}
+
+/* Hologram Theme */
+.theme-hologram {
+    --color-background: #000000;
+    --color-background-rgb: 0, 0, 0;
+    --color-surface: #001a1a;
+    --color-surface-rgb: 0, 26, 26;
+    --color-primary: #00ffff;
+    --color-primary-rgb: 0, 255, 255;
+    --color-primary-light: #66ffff;
+    --color-primary-dark: #00cccc;
+    --color-accent: #ff00ff;
+    --color-accent-rgb: 255, 0, 255;
+    --color-text-primary: #00ffff;
+    --color-text-secondary: #66ffff;
+    --color-border: #003333;
+    --color-border-rgb: 0, 51, 51;
+    --osc-icon-invert: 100%;
+}
+
+.theme-hologram #xy-pad-container {
+    background: 
+        linear-gradient(45deg, 
+            rgba(0, 255, 255, 0.1) 25%, 
+            transparent 25%, 
+            transparent 50%, 
+            rgba(0, 255, 255, 0.1) 50%, 
+            rgba(0, 255, 255, 0.1) 75%, 
+            transparent 75%, 
+            transparent);
+    background-size: 20px 20px;
+    animation: hologramScan 4s linear infinite;
+}
+
+@keyframes hologramScan {
+    0% { background-position: 0 0; }
+    100% { background-position: 40px 40px; }
+}
+
+/* Crystal Theme */
+.theme-crystal {
+    --color-background: #000033;
+    --color-background-rgb: 0, 0, 51;
+    --color-surface: #000066;
+    --color-surface-rgb: 0, 0, 102;
+    --color-primary: #00ffff;
+    --color-primary-rgb: 0, 255, 255;
+    --color-primary-light: #66ffff;
+    --color-primary-dark: #00cccc;
+    --color-accent: #ff00ff;
+    --color-accent-rgb: 255, 0, 255;
+    --color-text-primary: #00ffff;
+    --color-text-secondary: #66ffff;
+    --color-border: #000099;
+    --color-border-rgb: 0, 0, 153;
+    --osc-icon-invert: 100%;
+}
+
+.theme-crystal #xy-pad-container {
+    background: 
+        linear-gradient(60deg,
+            rgba(0, 255, 255, 0.1) 25%,
+            rgba(255, 0, 255, 0.1) 50%,
+            rgba(0, 255, 255, 0.1) 75%);
+    background-size: 200% 200%;
+    animation: crystalShine 8s linear infinite;
+}
+
+@keyframes crystalShine {
+    0% { background-position: 0% 0%; }
+    100% { background-position: 200% 200%; }
+}
+
+/* Transitions for theme switching */
+body, button, .knob, .toggle-slider, .side-panel, .top-panel, #xy-pad-container, #xy-visualizer, .osc-icon {
+    transition: background-color 0.5s, background-image 0.5s, color 0.5s, border-color 0.5s, box-shadow 0.5s, filter 0.5s;
+}

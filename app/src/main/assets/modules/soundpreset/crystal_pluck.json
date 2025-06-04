@@ -1,0 +1,57 @@
+{
+  "id": "crystal_pluck",
+  "type": "soundpreset",
+  "name": "Crystal Pluck",
+  "version": "1.0.0",
+  "description": "Short, bright, percussive pluck sound.",
+  "active": true,
+  "data": {
+    "oscillator": {
+      "params": {
+        "type": "fmtriangle",
+        "harmonicity": 2.5,
+        "modulationIndex": 15
+      }
+    },
+    "amplitudeEnv": {
+      "params": {
+        "attack": 0.005,
+        "decay": 0.15,
+        "sustain": 0.0,
+        "release": 0.1
+      }
+    },
+    "filter": {
+      "enabled": true,
+      "params": {
+        "type": "highpass",
+        "frequency": 800,
+        "Q": 1.0
+      }
+    },
+    "outputGain": { "params": { "gain": 0 } },
+    "pitchEnvelope": {
+      "enabled": true,
+      "params": {
+        "attack": 0.001,
+        "decay": 0.05,
+        "sustain": 0,
+        "release": 0.01,
+        "amount": 1200
+      }
+    },
+    "filterEnvelope": {
+      "enabled": true,
+      "params": {
+        "attack": 0.01,
+        "decay": 0.1,
+        "sustain": 0,
+        "release": 0.05,
+        "amount": 4000
+      }
+    },
+    "lfo1": { "enabled": false },
+    "portamento": { "enabled": false },
+    "colors": { "primary": "#4DD0E1", "text": "#006064" }
+  }
+}

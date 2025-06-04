@@ -1,0 +1,11 @@
+{
+  "id": "major",
+  "type": "scale",
+  "name": "Major",
+  "version": "1.0.0",
+  "description": "Standard major scale (Ionian mode)",
+  "active": true,
+  "data": {
+    "intervals": [0, 2, 4, 5, 7, 9, 11]
+  }
+}

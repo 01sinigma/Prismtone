@@ -1,0 +1,21 @@
+{
+  "id": "filter",
+  "type": "audioComponent",
+  "name": "Filter",
+  "version": "1.0.0",
+  "description": "Shapes the sound spectrum",
+  "active": true,
+  "managerScript": "js/managers/filterManager.js",
+  "category": "core",
+  "isOptional": false,
+  "parameters": [
+    {"name": "frequency", "label": "Frequency", "min": 20, "max": 20000, "default": 5000, "step": 1, "logScale": true},
+    {"name": "Q", "label": "Q / Resonance", "min": 0.01, "max": 20, "default": 1, "step": 0.01},
+    {"name": "type", "label": "Type", "options": ["lowpass", "highpass", "bandpass", "lowshelf", "highshelf", "notch", "allpass", "peaking"], "default": "lowpass"},
+    {"name": "rolloff", "label": "Rolloff", "options": [-12, -24, -48, -96], "default": -12},
+    {"name": "gain", "label": "Gain (dB)", "min": -40, "max": 40, "default": 0, "step": 0.1}
+  ],
+  "defaultSettings": {
+    "frequency": 5000, "Q": 1, "type": "lowpass", "rolloff": -12, "gain": 0
+  }
+}

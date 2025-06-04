@@ -1,0 +1,11 @@
+{
+  "id": "pentatonic",
+  "type": "scale",
+  "name": "Pentatonic",
+  "version": "1.0.0",
+  "description": "Major pentatonic scale (5 notes per octave)",
+  "active": true,
+  "data": {
+    "intervals": [0, 2, 4, 7, 9]
+  }
+}

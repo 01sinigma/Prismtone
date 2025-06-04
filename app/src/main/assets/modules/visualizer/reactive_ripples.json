@@ -1,0 +1,36 @@
+{
+  "id": "reactive_ripples",
+  "type": "visualizer",
+  "name": "Reactive Ripples",
+  "version": "1.0.0",
+  "description": "Touch-activated ripples on the surface, can overlay other visuals",
+  "active": true,
+  "data": {
+    "rendererScript": "js/visualizers/reactiveRipplesRenderer.js",
+    "settings": {
+      "rippleColor": "accent",
+      "rippleMaxRadius": 150,
+      "rippleDuration": 1000,
+      "rippleLineWidth": 2,
+      "rippleCountPerTouch": 3,
+      "rippleDelayBetween": 150,
+      "rippleFadeOut": true,
+      "rippleWidthFade": true,
+      "backgroundVisualizer": "waves",
+      "reactToTouches": true,
+      "reactToAudio": true,
+      "audioReactivity": {
+        "radiusMultiplier": 1.5,
+        "opacityMultiplier": 1.2,
+        "lineWidthMultiplier": 1.3
+      },
+      "colors": {
+        "primary": "#4CAF50",
+        "secondary": "#81C784",
+        "accent": "#FF4081",
+        "background": "#000000",
+        "text": "#FFFFFF"
+      }
+    }
+  }
+} 

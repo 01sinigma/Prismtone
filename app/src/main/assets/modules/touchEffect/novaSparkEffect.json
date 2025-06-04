@@ -1,0 +1,61 @@
+{
+  "id": "novaSpark",
+  "type": "touchEffect",
+  "name": "Nova Spark",
+  "version": "1.0.0",
+  "description": "A pulsating core based on note color, emitting colored sparks. Connects with other touches via a powerful arc.",
+  "active": true,
+  "data": {
+    "rendererScript": "js/touchEffects/novaSparkEffect.js",
+    "settings": {
+
+      "coreColorSource": "note",
+      "coreBrightnessFactor": 0.95,
+      "coreMinRadius": 7,
+      "coreMaxRadiusYFactor": 15,
+      "corePulseSpeed": 2.0,
+      "corePulseAmount": 0.15,
+      "auraRadiusFactor": 2.2,
+      "auraOpacityFactor": 0.35,
+
+
+      "sparkEmitIntervalMs": 40,
+      "sparksPerEmit": 2,
+      "sparkCoreBrightnessFactor": 0.9,
+      "sparkGlowColorSource": "note",
+      "sparkLineWidthBase": 1.0,
+      "sparkLineWidthYFactor": 0.6,
+      "sparkMaxSegments": 3,
+      "sparkSegmentLengthBase": 12,
+      "sparkSegmentLengthYFactor": 35,
+      "sparkJitter": 7,
+      "sparkLifeTimeMs": 400,
+      "sparkOpacityCore": 0.8,
+      "sparkOpacityGlow": 0.6,
+      "sparkAngleSpreadDeg": 140,
+      "sparkBranchChance": 0.1,
+
+
+      "connectionCoreCenterColor": "rgba(255, 255, 255, 1.0)",
+      "connectionCoreEdgeBrightnessFactor": 0.85,
+      "connectionGlowColorMixType": "gradient",
+      "connectionLineWidthBase": 3.0,
+      "connectionLineWidthYFactor": 2.0,
+      "connectionWidthBoost": 1.9,
+      "connectionMaxSegments": 9,
+      "connectionJitter": 20,
+      "connectionBranchChanceMain": 0.12,
+      "connectionBranchColorSource": "mixed",
+      "opacityConnectionCore": 1.0,
+      "opacityConnectionGlow": 0.9,
+
+
+      "lineGlowRadiusFactor": 1.6,
+      "lineGlowOpacityFactor": 0.65,
+      "attractionRadiusPx": 180,
+      "targetAttractionFactor": 0.3,
+      "fadeDurationMs": 200,
+      "compositeOperation": "lighter"
+    }
+  }
+}

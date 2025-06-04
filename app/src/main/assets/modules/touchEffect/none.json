@@ -1,0 +1,12 @@
+{
+  "id": "none",
+  "type": "touchEffect",
+  "name": "None",
+  "version": "1.0.0",
+  "description": "Disables touch visual effects.",
+  "active": true,
+  "data": {
+    "rendererScript": null,
+    "settings": {}
+  }
+}

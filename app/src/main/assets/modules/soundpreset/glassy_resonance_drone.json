@@ -1,0 +1,59 @@
+{
+  "id": "glassy_resonance_drone",
+  "type": "soundpreset",
+  "name": "Glassy Resonance Drone",
+  "version": "1.0.0",
+  "description": "High-frequency resonant drone with a metallic character.",
+  "active": true,
+  "data": {
+    "oscillator": {
+      "params": {
+        "type": "fmtriangle",
+        "harmonicity": 2.0,
+        "modulationIndex": 5,
+        "modulationType": "sine"
+      }
+    },
+    "amplitudeEnv": {
+      "params": {
+        "attack": 2.0,
+        "decay": 1.5,
+        "sustain": 1.0,
+        "release": 4.5
+      }
+    },
+    "filter": {
+      "enabled": true,
+      "params": {
+        "type": "bandpass",
+        "frequency": 2500,
+        "Q": 18,
+        "rolloff": -24
+      }
+    },
+    "outputGain": { "params": { "gain": 0 } },
+    "pitchEnvelope": { "enabled": false },
+    "filterEnvelope": {
+      "enabled": true,
+      "params": {
+        "attack": 3.0,
+        "decay": 1.0,
+        "sustain": 0.8,
+        "release": 2.0,
+        "amount": 1500
+      }
+    },
+    "lfo1": {
+      "enabled": true,
+      "params": {
+        "type": "sine",
+        "rate": 0.08,
+        "depth": 0.3,
+        "target": "filter.Q",
+        "retrigger": false
+      }
+    },
+    "portamento": { "enabled": false },
+    "colors": { "primary": "#B2EBF2", "text": "#006064" }
+  }
+}

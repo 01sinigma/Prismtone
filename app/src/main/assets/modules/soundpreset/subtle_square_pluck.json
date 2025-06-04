@@ -1,0 +1,46 @@
+{
+  "id": "subtle_square_pluck",
+  "type": "soundpreset",
+  "name": "Subtle Square Pluck",
+  "version": "1.0.0",
+  "description": "Soft, slightly hollow pluck sound with a square wave.",
+  "active": true,
+  "data": {
+    "oscillator": {
+      "params": {
+        "type": "square"
+      }
+    },
+    "amplitudeEnv": {
+      "params": {
+        "attack": 0.002,
+        "decay": 0.25,
+        "sustain": 0.0,
+        "release": 0.1
+      }
+    },
+    "filter": {
+      "enabled": true,
+      "params": {
+        "type": "lowpass",
+        "frequency": 1200,
+        "Q": 1.0
+      }
+    },
+    "outputGain": { "params": { "gain": 0 } },
+    "pitchEnvelope": { "enabled": false },
+    "filterEnvelope": {
+      "enabled": true,
+      "params": {
+        "attack": 0.005,
+        "decay": 0.1,
+        "sustain": 0,
+        "release": 0.08,
+        "amount": 2500
+      }
+    },
+    "lfo1": { "enabled": false },
+    "portamento": { "enabled": false },
+    "colors": { "primary": "#80CBC4", "text": "#004D40" }
+  }
+}

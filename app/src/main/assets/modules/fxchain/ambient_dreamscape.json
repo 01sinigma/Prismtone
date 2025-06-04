@@ -1,0 +1,98 @@
+{
+  "id": "ambient_dreamscape",
+  "type": "fxchain",
+  "name": "Ambient Dreamscape",
+  "version": "1.0.0",
+  "description": "Lush and spacious ambient textures with long reverb and evolving delays.",
+  "active": false,
+  "data": {
+    "effects": [
+      {
+        "type": "delay",
+        "enabled": true,
+        "params": {
+          "delayTime": 0.75,
+          "feedback": 0.65,
+          "wet": 0.55
+        }
+      },
+      {
+        "type": "reverb",
+        "enabled": true,
+        "params": {
+          "roomSize": 0.9,
+          "wet": 0.7
+        }
+      },
+      {
+        "type": "chorus",
+        "enabled": true,
+        "params": {
+          "frequency": 0.2,
+          "depth": 0.4,
+          "delayTime": 7.5,
+          "wet": 0.35
+        }
+      },
+      {
+        "type": "filter",
+        "enabled": true,
+        "params": {
+          "type": "lowpass",
+          "frequency": 6000,
+          "Q": 0.7,
+          "wet": 1.0
+        }
+      },
+      {
+        "type": "distortion",
+        "enabled": false,
+        "params": {
+          "distortion": 0.1,
+          "wet": 0
+        }
+      }
+    ],
+    "yAxisControls": {
+      "volume": {
+        "minOutput": 0.0,
+        "maxOutput": 1.0,
+        "yThreshold": 0.0,
+        "curveType": "linear",
+        "curveFactor": 1.0,
+        "outputType": "gain"
+      },
+      "effects": {
+        "minOutput": -40,
+        "maxOutput": -3,
+        "yThreshold": 0.1,
+        "curveType": "sCurve",
+        "curveFactor": 2.5,
+        "outputType": "db"
+      }
+    },
+    "macroDefaults": {
+      "Space": 0.7,
+      "Time": 0.6,
+      "Motion": 0.3,
+      "Tone": 0.7
+    },
+    "macroMappings": {
+      "Space": [
+        { "effect": "reverb", "param": "roomSize", "range": [0.5, 0.98] },
+        { "effect": "reverb", "param": "wet", "range": [0.3, 0.9] }
+      ],
+      "Time": [
+        { "effect": "delay", "param": "delayTime", "range": [0.3, 1.0] },
+        { "effect": "delay", "param": "feedback", "range": [0.4, 0.75] }
+      ],
+      "Motion": [
+        { "effect": "chorus", "param": "depth", "range": [0.1, 0.8] },
+        { "effect": "chorus", "param": "wet", "range": [0.1, 0.5] }
+      ],
+      "Tone": [
+        { "effect": "filter", "param": "frequency", "range": [2000, 12000], "curve": "logarithmic" }
+      ]
+    }
+  }
+}

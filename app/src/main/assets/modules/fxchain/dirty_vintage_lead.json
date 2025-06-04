@@ -1,0 +1,94 @@
+{
+  "id": "dirty_vintage_lead",
+  "type": "fxchain",
+  "name": "Dirty Vintage Lead",
+  "version": "1.0.0",
+  "description": "Gritty distortion with a touch of chorus for a classic lead sound.",
+  "active": false,
+  "data": {
+    "effects": [
+      {
+        "type": "distortion",
+        "enabled": true,
+        "params": {
+          "distortion": 0.6,
+          "wet": 0.7
+        }
+      },
+      {
+        "type": "chorus",
+        "enabled": true,
+        "params": {
+          "frequency": 0.8,
+          "depth": 0.3,
+          "delayTime": 5.0,
+          "wet": 0.25
+        }
+      },
+      {
+        "type": "filter",
+        "enabled": true,
+        "params": {
+          "type": "peaking",
+          "frequency": 1500,
+          "Q": 1.2,
+          "gain": 3,
+          "wet": 1.0
+        }
+      },
+      {
+        "type": "delay",
+        "enabled": false,
+        "params": {
+          "wet": 0
+        }
+      },
+      {
+        "type": "reverb",
+        "enabled": false,
+        "params": {
+          "wet": 0
+        }
+      }
+    ],
+    "yAxisControls": {
+      "volume": {
+        "minOutput": 0.1,
+        "maxOutput": 1.0,
+        "yThreshold": 0.0,
+        "curveType": "linear",
+        "curveFactor": 1.0,
+        "outputType": "gain"
+      },
+      "effects": {
+        "minOutput": -45,
+        "maxOutput": -5,
+        "yThreshold": 0.1,
+        "curveType": "sCurve",
+        "curveFactor": 2.2,
+        "outputType": "db"
+      }
+    },
+    "macroDefaults": {
+      "Space": 0.1,
+      "Time": 0.2,
+      "Motion": 0.6,
+      "Tone": 0.6
+    },
+    "macroMappings": {
+      "Space": [
+        { "effect": "chorus", "param": "wet", "range": [0.0, 0.5] }
+      ],
+      "Time": [
+        { "effect": "chorus", "param": "frequency", "range": [0.2, 2.0] }
+      ],
+      "Motion": [
+        { "effect": "distortion", "param": "distortion", "range": [0.2, 0.9] }
+      ],
+      "Tone": [
+        { "effect": "filter", "param": "frequency", "range": [500, 5000] },
+        { "effect": "filter", "param": "gain", "range": [-6, 6] }
+      ]
+    }
+  }
+}

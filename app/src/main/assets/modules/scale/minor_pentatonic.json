@@ -1,0 +1,11 @@
+{
+  "id": "minor_pentatonic",
+  "type": "scale",
+  "name": "minor_pentatonic",
+  "version": "1.0.0",
+  "description": "Minor pentatonic scale.",
+  "active": true,
+  "data": {
+    "intervals": [0, 3, 5, 7, 10]
+  }
+}

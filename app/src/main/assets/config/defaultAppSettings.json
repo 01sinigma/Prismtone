@@ -1,0 +1,77 @@
+{
+  "theme": "day",
+  "language": "en",
+  "soundPreset": "default_piano",
+  "fxChain": null,
+  "visualizer": "waves",
+  "touchEffect": "glow",
+  "scale": "major",
+  "octaveOffset": 0,
+  "zoneCount": 12,
+  "showNoteNames": true,
+  "showLines": true,
+  "masterVolumeCeiling": 1.0,
+  "enablePolyphonyVolumeScaling": true,
+  "yAxisControls": {
+    "volume": {
+      "minOutput": 0.0,
+      "maxOutput": 1.0,
+      "yThreshold": 0.0,
+      "curveType": "linear",
+      "curveFactor": 1.0,
+      "outputType": "gain"
+    },
+    "effects": {
+      "minOutput": -60,
+      "maxOutput": 0,
+      "yThreshold": 0.1,
+      "curveType": "exponential",
+      "curveFactor": 2.0,
+      "outputType": "db"
+    }
+  },
+  "multiTouch": false,
+  "midiEnabled": false,
+  "midiChannel": 0,
+  "midiDevice": null,
+  "audioSettings": {
+    "sampleRate": 44100,
+    "bufferSize": 2048,
+    "latency": 0
+  },
+  "performance": {
+    "maxPolyphony": 32,
+    "voiceStealing": true,
+    "preloadBuffers": true
+  },
+  "uiSettings": {
+    "showFps": false,
+    "showDebugInfo": false,
+    "animationSpeed": 1.0,
+    "touchFeedback": true
+  },
+  "lastUsedPresets": {
+    "soundPresets": [],
+    "fxChains": []
+  },
+  "version": "1.0.0",
+  "rocketModeSettings": {
+    "intensity": 0.5,
+    "visualTheme": "Glow",
+    "autoPhases": true,
+    "phaseTransitionMode": "activity",
+    "phaseDurations": { "ignition": 30, "liftOff": 60, "burst": 90 },
+    "harmonicKey": "major",
+    "markerLogicMode": "tonalBinding",
+    "displayMarkers": { "active": true, "functional": true, "inKeyOnly": true },
+    "markerStyle": "GlowFromNote",
+    "markerColorScheme": "Classic",
+    "highlightActiveNotes": true,
+    "markersDisappearOnNewTouch": true,
+    "displayFunctionNames": "T",
+    "useFadeOutEffects": true,
+    "chordHistoryDepth": 2,
+    "rocketSubMode": "tonal",
+    "tonalTonic": "C"
+  }
+}

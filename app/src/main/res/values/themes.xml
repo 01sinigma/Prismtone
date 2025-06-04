@@ -1,0 +1,26 @@
+<!-- res/values/themes.xml -->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Базовая тема приложения (может наследоваться от DayNight для поддержки темной/светлой темы системы) -->
+    <style name="Theme.Prismtone" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Основные цвета бренда (можно настроить) -->
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryVariant">@color/purple_700</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <!-- Вторичные цвета бренда -->
+        <item name="colorSecondary">@color/teal_200</item>
+        <item name="colorSecondaryVariant">@color/teal_700</item>
+        <item name="colorOnSecondary">@color/black</item>
+        <!-- Цвет статус-бара (будет прозрачным в fullscreen) -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <!-- Цвет навигационной панели (будет прозрачным в fullscreen) -->
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- Дополнительно: убедимся, что окно может рисовать под системными панелями -->
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item> <!-- Настройте для темной/светлой темы -->
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item> <!-- Настройте для темной/светлой темы -->
+    </style>
+
+    <!-- Можно определить отдельную Fullscreen тему, если нужно больше настроек -->
+    <!-- <style name="Theme.Prismtone.Fullscreen" parent="Theme.Prismtone"> -->
+    <!-- Дополнительные атрибуты для fullscreen, если нужны -->
+    <!-- </style> -->
+</resources>

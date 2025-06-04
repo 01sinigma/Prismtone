@@ -1,0 +1,37 @@
+{
+  "id": "schoolOfFish",
+  "type": "visualizer",
+  "name": "School of Fish",
+  "version": "1.0.0",
+  "description": "Animated school of fish with realistic flocking and water effects",
+  "active": true,
+  "data": {
+    "rendererScript": "js/visualizers/schoolOfFishRenderer.js",
+    "settings": {
+      "count": 200,
+      "minRadius": 0.5,
+      "maxRadius": 1.5,
+      "baseSpeed": 1,
+      "particleColor": "primary",
+      "opacity": 0.6,
+      "glow": false,
+      "energyMultiplier": 5,
+      "speedMultiplier": 1,
+      "radiusMultiplier": 1,
+      "followTouches": true,
+      "followStrength": 0.05,
+      "disperseWhenIdle": true,
+      "disperseStrength": 0.02,
+      "connectionLines": false,
+      "connectionThreshold": 100,
+      "connectionColor": "border",
+      "connectionAlpha": 0.1,
+      "gravityStrength": 0.08,
+      "repulsionStrength": 15,
+      "gravityMinDistance": 15  ,
+      "touchGravityStrength": 50.0,
+      "centerGravityStrength": 0.01,
+      "particleColors": ["#fffbe6", "#ffe0b2", "#b3e5fc", "#ffd180", "#ff8a80", "#b388ff", "#69f0ae", "#ffd54f", "#ff5252", "#40c4ff"]
+    }
+  }
+}

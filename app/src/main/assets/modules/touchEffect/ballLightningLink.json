@@ -1,0 +1,62 @@
+{
+  "id": "ballLightningLink",
+  "type": "touchEffect",
+  "name": "Ball Lightning Link",
+  "version": "1.2.0",
+  "description": "Interactive ball lightning with linking arcs for multi-touch.",
+  "active": true,
+  "data": {
+    "rendererScript": "js/touchEffects/ballLightningLinkEffect.js",
+    "settings": {
+      "colorSourceAura": "note",
+      "coreBaseColor": "#FFFFFF",
+      "coreColorFromAura": true,
+      "coreMinRadius": 7,
+      "coreRadiusYMultiplier": 12,
+      "corePulseSpeed": 1.8,
+      "corePulseAmount": 0.2,
+      "auraRadiusFactor": 2.8,
+      "auraBaseOpacity": 0.25,
+
+      "sparkEmitInterval": 40,
+      "sparksPerEmitBase": 1,
+      "sparksPerEmitYMultiplier": 3,
+      "sparkMaxLifetime": 350,
+      "sparkBaseLength": 100,
+      "sparkLengthYMultiplier": 50,
+      "sparkSegments": 3,
+      "sparkJitter": 10,
+      "sparkSegmentAngleJitter": 0.6,
+      "sparkBranchChance": 0.08,
+      "sparkCoreColor": "#FEFEFE",
+      "sparkCoreColorFromAura": false,
+      "sparkGlowOpacity": 0.6,
+      "sparkGlowWidthFactor": 2.5,
+      "sparkCoreWidthFactor": 0.8,
+      "sparkRotationSpeed": 0.008,
+      "sparkBundleSpread": 1.8,
+      "sparkAngleFactor": 1,
+
+
+      "attractionRadiusPx": 300,
+      "linkCoreColorStart": "#FFFFFF",
+      "linkCoreColorEnd": "#F0F0FF",
+      "linkGlowOpacity": 0.75,
+      "linkBaseThickness": 3,
+      "linkThicknessYMultiplier": 2.5,
+      "linkSegments": 8,
+      "linkJitter": 18,
+      "linkGlowThicknessFactor": 2.0,
+      "linkBranchChance": 0.03,
+      "linkSecondarySparks": true,
+      "linkSecondarySparkInterval": 80,
+      "linkSecondarySparkCount": 1,
+
+      "fadeDurationCore": 280,
+      "fadeDurationSparks": 180,
+      "fadeDurationLink": 220,
+
+      "compositeOperation": "lighter"
+    }
+  }
+}

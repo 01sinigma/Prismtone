@@ -1,0 +1,32 @@
+{
+  "id": "hologram",
+  "type": "theme",
+  "name": "Hologram",
+  "version": "1.0.0",
+  "description": "A futuristic hologram theme with scanning effects",
+  "active": true,
+  "data": {
+    "colors": {
+      "background": "#000000",
+      "surface": "#001a1a",
+      "primary": "#00ffff",
+      "primaryLight": "#66ffff",
+      "primaryDark": "#00cccc",
+      "accent": "#ff00ff",
+      "textPrimary": "#00ffff",
+      "textSecondary": "#66ffff",
+      "border": "#003333"
+    },
+    "effects": {
+      "knobGlow": true,
+      "knobGlowIntensity": 1.8,
+      "touchGlow": true,
+      "touchGlowIntensity": 1.6,
+      "textGlow": true,
+      "textGlowIntensity": 1.4,
+      "hologramScan": true,
+      "scanSpeed": 4,
+      "scanPattern": "diagonal"
+    }
+  }
+} 

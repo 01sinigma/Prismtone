@@ -1,0 +1,58 @@
+{
+  "id": "resonant_high_drone_v2",
+  "type": "soundpreset",
+  "name": "Resonant Deep Drone",
+  "version": "1.0.0",
+  "description": "Evolving drone with pronounced filter resonance in lower-mid frequencies.",
+  "active": true,
+  "data": {
+    "oscillator": {
+      "params": {
+        "type": "fatsawtooth",
+        "count": 2,
+        "spread": 15
+      }
+    },
+    "amplitudeEnv": {
+      "params": {
+        "attack": 2.5,
+        "decay": 1.0,
+        "sustain": 1.0,
+        "release": 4.0
+      }
+    },
+    "filter": {
+      "enabled": true,
+      "params": {
+        "type": "lowpass",
+        "frequency": 400,
+        "Q": 12,
+        "rolloff": -24
+      }
+    },
+    "outputGain": { "params": { "gain": 0 } },
+    "pitchEnvelope": { "enabled": false },
+    "filterEnvelope": {
+      "enabled": true,
+      "params": {
+        "attack": 5.0,
+        "decay": 2.0,
+        "sustain": 0.7,
+        "release": 3.0,
+        "amount": 2000
+      }
+    },
+    "lfo1": {
+      "enabled": true,
+      "params": {
+        "type": "sine",
+        "rate": 0.1,
+        "depth": 0.6,
+        "target": "filter.Q",
+        "retrigger": false
+      }
+    },
+    "portamento": { "enabled": false },
+    "colors": { "primary": "#78909C", "text": "#ECEFF1" }
+  }
+}

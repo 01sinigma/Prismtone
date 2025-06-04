@@ -1,0 +1,37 @@
+{
+  "id": "fire",
+  "type": "theme",
+  "name": "Fire",
+  "version": "1.0.0",
+  "description": "A dynamic fire theme with realistic flame effects",
+  "active": true,
+  "data": {
+    "colors": {
+      "background": "#1a0000",
+      "surface": "#330000",
+      "primary": "#ff3300",
+      "primaryLight": "#ff6633",
+      "primaryDark": "#cc2900",
+      "accent": "#ffcc00",
+      "textPrimary": "#ff3300",
+      "textSecondary": "#ffcc00",
+      "border": "#4d0000"
+    },
+    "effects": {
+      "knobGlow": true,
+      "knobGlowIntensity": 1.8,
+      "touchGlow": true,
+      "touchGlowIntensity": 1.6,
+      "textGlow": true,
+      "textGlowIntensity": 1.4,
+      "fireFlicker": true,
+      "flickerSpeed": 2,
+      "flickerIntensity": 0.8,
+      "fireWave": true,
+      "waveSpeed": 4,
+      "waveIntensity": 1.1,
+      "flameLayers": true,
+      "layerCount": 3
+    }
+  }
+} 

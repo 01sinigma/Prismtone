@@ -1,0 +1,16 @@
+{
+  "id": "delay",
+  "type": "effect",
+  "name": "Delay",
+  "version": "1.0.0",
+  "description": "A feedback delay effect.",
+  "active": true,
+  "data": {
+    "parameters": [
+      { "name": "delayTime", "label": "Time", "min": 0.01, "max": 1.0, "default": 0.25, "step": 0.01 },
+      { "name": "feedback", "label": "Feedback", "min": 0, "max": 0.95, "default": 0.5, "step": 0.01 },
+      { "name": "wet", "label": "Mix", "min": 0, "max": 1, "default": 0.5, "step": 0.01 }
+
+    ]
+  }
+}

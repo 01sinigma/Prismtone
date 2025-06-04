@@ -1,0 +1,41 @@
+{
+  "id": "soft_sine_bells",
+  "type": "soundpreset",
+  "name": "Soft Sine Bells",
+  "version": "1.0.0",
+  "description": "Gentle, pure bell-like tones using sine waves.",
+  "active": true,
+  "data": {
+    "oscillator": {
+      "params": {
+        "type": "sine"
+      }
+    },
+    "amplitudeEnv": {
+      "params": {
+        "attack": 0.001,
+        "decay": 1.2,
+        "sustain": 0.0,
+        "release": 0.8
+      }
+    },
+    "filter": {
+      "enabled": false
+    },
+    "outputGain": { "params": { "gain": 0 } },
+    "pitchEnvelope": {
+      "enabled": true,
+      "params": {
+        "attack": 0.001,
+        "decay": 0.02,
+        "sustain": 0,
+        "release": 0.01,
+        "amount": 700
+      }
+    },
+    "filterEnvelope": { "enabled": false },
+    "lfo1": { "enabled": false },
+    "portamento": { "enabled": false },
+    "colors": { "primary": "#AED581", "text": "#33691E" }
+  }
+}

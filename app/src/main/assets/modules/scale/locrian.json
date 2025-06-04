@@ -1,0 +1,11 @@
+{
+  "id": "locrian",
+  "type": "scale",
+  "name": "locrian",
+  "version": "1.0.0",
+  "description": "Locrian mode, a diminished-type scale with a minor second and diminished fifth.",
+  "active": true,
+  "data": {
+    "intervals": [0, 1, 3, 5, 6, 8, 10]
+  }
+}

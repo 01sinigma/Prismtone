@@ -1,0 +1,22 @@
+{
+  "id": "waves",
+  "type": "visualizer",
+  "name": "Waves",
+  "version": "1.0.0",
+  "description": "Classic waveform visualizer",
+  "active": true,
+  "data": {
+    "rendererScript": "js/visualizers/wavesRenderer.js",
+    "settings": {
+      "lineWidth": 2,
+      "lineColor": "primary",
+      "opacity": 0.7,
+      "smoothing": 0.8,
+      "fill": false,
+      "fillColor": "primary",
+      "fillAlpha": 0.1,
+      "reactToTouches": true,
+      "touchColorSource": "note"
+    }
+  }
+}

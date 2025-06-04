@@ -1,0 +1,17 @@
+{
+  "id": "outputGain",
+  "type": "audioComponent",
+  "name": "Output Gain",
+  "version": "1.0.0",
+  "description": "Final gain stage for the voice",
+  "active": true,
+  "managerScript": "js/managers/outputGainManager.js",
+  "category": "core",
+  "isOptional": false,
+  "parameters": [
+    {"name": "gain", "label": "Gain", "min": 0, "max": 1, "default": 0, "step": 0.01}
+  ],
+  "defaultSettings": {
+    "gain": 0
+  }
+}

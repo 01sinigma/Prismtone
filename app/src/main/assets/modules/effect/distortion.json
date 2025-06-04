@@ -1,0 +1,15 @@
+{
+  "id": "distortion",
+  "type": "effect",
+  "name": "Distortion",
+  "version": "1.0.0",
+  "description": "A distortion effect.",
+  "active": true,
+  "data": {
+    "parameters": [
+      { "name": "distortion", "label": "Amount", "min": 0, "max": 1, "default": 0.4, "step": 0.01 },
+      { "name": "wet", "label": "Mix", "min": 0, "max": 1, "default": 1.0, "step": 0.01 },
+      { "name": "oversample", "label": "Oversample", "options": ["none", "2x", "4x"], "default": "none" }
+    ]
+  }
+}

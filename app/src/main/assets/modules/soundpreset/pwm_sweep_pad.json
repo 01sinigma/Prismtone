@@ -1,0 +1,48 @@
+{
+  "id": "pwm_sweep_pad",
+  "type": "soundpreset",
+  "name": "PWM Sweep Pad",
+  "version": "1.0.0",
+  "description": "A pad sound using Pulse Width Modulation with a slow sweep.",
+  "active": true,
+  "data": {
+    "oscillator": {
+      "params": {
+        "type": "pulse",
+        "width": 0.1
+      }
+    },
+    "amplitudeEnv": {
+      "params": {
+        "attack": 1.2,
+        "decay": 1.0,
+        "sustain": 0.85,
+        "release": 2.5
+      }
+    },
+    "filter": {
+      "enabled": true,
+      "params": {
+        "type": "lowpass",
+        "frequency": 2200,
+        "Q": 1.2,
+        "rolloff": -12
+      }
+    },
+    "outputGain": { "params": { "gain": 0 } },
+    "pitchEnvelope": { "enabled": false },
+    "filterEnvelope": { "enabled": false },
+    "lfo1": {
+      "enabled": true,
+      "params": {
+        "type": "sine",
+        "rate": 0.1,
+        "depth": 0.8,
+        "target": "oscillator.width",
+        "retrigger": false
+      }
+    },
+    "portamento": { "enabled": false },
+    "colors": { "primary": "#26A69A", "text": "#FFFFFF" }
+  }
+}

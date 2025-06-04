@@ -1,0 +1,31 @@
+{
+  "id": "lfo1",
+  "type": "audioComponent",
+  "name": "LFO 1",
+  "version": "1.0.0",
+  "description": "Low Frequency Oscillator for modulation",
+  "active": true,
+  "managerScript": "js/managers/lfoManager.js",
+  "category": "optionalModulator",
+  "isOptional": true,
+  "parameters": [
+    {"name": "type", "label": "Type", "options": ["sine", "square", "sawtooth", "triangle", "pulse"], "default": "sine"},
+    {"name": "rate", "label": "Rate (Hz)", "min": 0.01, "max": 50, "default": 5, "step": 0.01, "logScale": true},
+    {"name": "depth", "label": "Depth", "min": 0, "max": 1, "default": 0.5, "step": 0.01},
+    {"name": "phase", "label": "Phase", "min": 0, "max": 360, "default": 0, "step": 1},
+    {"name": "target", "label": "Target", "options": [
+      "oscillator.detune", "oscillator.frequency",
+      "filter.frequency", "filter.Q",
+      "amplitudeEnv.attack", "amplitudeEnv.release", "outputGain.gain"
+    ], "default": "filter.frequency", "type": "string"},
+    {"name": "retrigger", "label": "Retrigger", "type": "boolean", "default": false}
+  ],
+  "defaultSettings": {
+    "type": "sine",
+    "rate": 5,
+    "depth": 0,
+    "phase": 0,
+    "target": "filter.frequency",
+    "retrigger": false
+  }
+}

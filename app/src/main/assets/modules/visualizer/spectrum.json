@@ -1,0 +1,29 @@
+{
+  "id": "spectrum",
+  "type": "visualizer",
+  "name": "Spectrum",
+  "version": "1.0.0",
+  "description": "Frequency spectrum visualizer",
+  "active": true,
+  "data": {
+    "rendererScript": "js/visualizers/spectrumRenderer.js",
+    "settings": {
+      "barWidthMultiplier": 2.2,
+      "barSpacing": 1,
+      "maxHeightMultiplier": 0.9,
+      "colorMode": "neon",
+      "barGlow": true,
+      "barRadius": 10,
+      "capEnabled": true,
+      "capColor": "#fffbe6",
+      "capRadius": 7,
+      "backgroundGradient": ["#0a0a23", "#23234a"],
+      "hueRange": 240,
+      "opacity": 0.8,
+      "reactToTouches": false,
+      "touchHighlightColor": "accent",
+      "smoothingTimeConstant": 0.8,
+      "fftSize": 512
+    }
+  }
+}

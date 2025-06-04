@@ -1,0 +1,31 @@
+{
+  "id": "ocean",
+  "type": "theme",
+  "name": "Ocean",
+  "version": "1.0.0",
+  "description": "A deep ocean theme with blue tones and coral accents",
+  "active": true,
+  "data": {
+    "colors": {
+      "background": "#001f3f",
+      "surface": "#003366",
+      "primary": "#00bfff",
+      "primaryLight": "#66d9ff",
+      "primaryDark": "#0099cc",
+      "accent": "#ff6b6b",
+      "textPrimary": "#e0f7ff",
+      "textSecondary": "#a0d8ff",
+      "border": "#004080"
+    },
+    "effects": {
+      "knobGlow": true,
+      "knobGlowIntensity": 1.2,
+      "touchGlow": true,
+      "touchGlowIntensity": 1.0,
+      "textGlow": true,
+      "textGlowIntensity": 1.1,
+      "gradientBackground": true,
+      "gradientAngle": 180
+    }
+  }
+} 

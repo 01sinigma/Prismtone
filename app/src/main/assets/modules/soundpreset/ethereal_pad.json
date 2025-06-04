@@ -1,0 +1,58 @@
+{
+  "id": "ethereal_pad",
+  "type": "soundpreset",
+  "name": "Ethereal Pad",
+  "version": "1.0.0",
+  "description": "Slow evolving atmospheric pad.",
+  "active": true,
+  "data": {
+    "oscillator": {
+      "params": {
+        "type": "fatsine",
+        "count": 5,
+        "spread": 35
+      }
+    },
+    "amplitudeEnv": {
+      "params": {
+        "attack": 2.5,
+        "decay": 1.0,
+        "sustain": 0.9,
+        "release": 4.0
+      }
+    },
+    "filter": {
+      "enabled": true,
+      "params": {
+        "type": "lowpass",
+        "frequency": 1500,
+        "Q": 1.5,
+        "rolloff": -12
+      }
+    },
+    "outputGain": { "params": { "gain": 0 } },
+    "pitchEnvelope": { "enabled": false },
+    "filterEnvelope": {
+      "enabled": true,
+      "params": {
+        "attack": 3.0,
+        "decay": 2.0,
+        "sustain": 0.6,
+        "release": 3.5,
+        "amount": 2500
+      }
+    },
+    "lfo1": {
+      "enabled": true,
+      "params": {
+        "type": "sine",
+        "rate": 0.2,
+        "depth": 0.4,
+        "target": "filter.frequency",
+        "retrigger": false
+      }
+    },
+    "portamento": { "enabled": false },
+    "colors": { "primary": "#64B5F6", "text": "#0D47A1" }
+  }
+}

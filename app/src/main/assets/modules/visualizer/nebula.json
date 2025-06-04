@@ -1,0 +1,36 @@
+{
+  "id": "nebula",
+  "type": "visualizer",
+  "name": "Nebula",
+  "version": "1.0.0",
+  "description": "Cosmic nebula and stars visualizer",
+  "active": true,
+  "data": {
+    "rendererScript": "js/visualizers/nebulaRenderer.js",
+    "settings": {
+      "starCount": 30,
+      "starMinRadius": 2,
+      "starMaxRadius": 5,
+      "starBrightnessMultiplier": 0.5,
+      "starColor": null,
+      "cloudBaseSize": 0.4,
+      "cloudSizeReact": 0.4,
+      "primaryAlpha": 0.3,
+      "accentAlpha": 0.1,
+      "gradientMidpoint": 0.5,
+      "energyMultiplier": 3,
+      "opacity": 0.5,
+      "reactToTouches": true,
+      "touchGlowColor": "accent",
+      "touchGlowRadius": 50,
+      "touchGlowDuration": 300,
+      "gravityStrength": 0.08,
+      "touchGravityStrength": 8,
+      "collisionShrinkFactor": 0.7,
+      "starMinSpeed": 0.1,
+      "starMaxSpeed": 0.5,
+      "starTwinkleFactor": 0.2,
+      "starColors": ["#fffbe6", "#ffe0b2", "#b3e5fc", "#ffd180", "#ff8a80", "#b388ff"]
+    }
+  }
+}

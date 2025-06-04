@@ -1,0 +1,11 @@
+{
+  "id": "melodic_minor_ascending",
+  "type": "scale",
+  "name": "melodic_minor_ascending",
+  "version": "1.0.0",
+  "description": "Melodic minor scale (ascending form) with raised sixth and seventh degrees.",
+  "active": true,
+  "data": {
+    "intervals": [0, 2, 3, 5, 7, 9, 11]
+  }
+}

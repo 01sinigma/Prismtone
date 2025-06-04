@@ -1,0 +1,23 @@
+{
+  "id": "spark",
+  "type": "touchEffect",
+  "name": "Spark",
+  "version": "1.0.0",
+  "description": "Creates electric-like sparks from touch points",
+  "active": true,
+  "data": {
+    "rendererScript": "js/touchEffects/sparkEffect.js",
+    "settings": {
+      "colorSource": "note",
+      "baseOpacity": 1.0,
+      "sparkCount": 8,
+      "minLength": 10,
+      "maxLength": 50,
+      "reactToAudio": true,
+      "audioReactivity": {
+        "lengthMultiplier": 1.5,
+        "opacityMultiplier": 1.2
+      }
+    }
+  }
+} 

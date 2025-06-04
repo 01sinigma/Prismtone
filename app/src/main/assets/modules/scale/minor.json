@@ -1,0 +1,11 @@
+{
+  "id": "minor",
+  "type": "scale",
+  "name": "Minor",
+  "version": "1.0.0",
+  "description": "Natural minor scale (Aeolian mode)",
+  "active": true,
+  "data": {
+    "intervals": [0, 2, 3, 5, 7, 8, 10]
+  }
+}

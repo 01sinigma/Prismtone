@@ -1,0 +1,23 @@
+{
+    "id": "energy",
+    "type": "touchEffect",
+    "name": "Energy Burst",
+    "version": "1.1.0",
+    "description": "Creates dynamic energy bursts with rotating spikes that expand from touch points",
+    "data": {
+        "rendererScript": "js/touchEffects/energyEffect.js",
+        "settings": {
+            "colorSource": "note",
+            "baseOpacity": 1.0,
+            "energySpeed": 2,
+            "energyInterval": 200,
+            "maxRadius": 150,
+            "fadeDuration": 1000,
+            "spikes": 8,
+            "innerRadiusFactor": 0.5,
+            "spawnSpread": 5,
+            "strokeWidth": 0,
+            "compositeOperation": "lighter"
+        }
+    }
+} 
