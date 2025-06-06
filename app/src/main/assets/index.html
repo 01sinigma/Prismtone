@@ -145,6 +145,32 @@
         </div>
     </div>
 
+    <div id="chord-mode-panel" class="side-panel left-panel chord-panel">
+        <div class="panel-header">
+            <h2 data-i18n="chord_panel_title">Chords</h2>
+            <button class="close-button" data-panel-id="chord-mode-panel">×</button>
+        </div>
+        <div class="panel-content">
+            <div id="chord-list-container" class="chord-list">
+                <button class="button chord-button" data-chord-id="C">C Major</button>
+                <button class="button chord-button" data-chord-id="G">G Major</button>
+                <button class="button chord-button" data-chord-id="D">D Major</button>
+                <button class="button chord-button" data-chord-id="Em">E minor</button>
+                <!-- Сюда будут добавляться другие аккорды -->
+            </div>
+            <div id="suggested-chords-container" style="margin-top: 15px; padding-top: 10px; border-top: 1px solid var(--color-border-subtle);">
+                <h5 data-i18n="suggested_chords_title" style="margin-top: 0; margin-bottom: 8px; font-size: 0.9em; color: var(--color-on-surface-variant);">Suggestions:</h5>
+                <div id="suggested-chords-list" class="chord-list suggested-list">
+                    <!-- Сюда будут добавляться кнопки предложенных аккордов -->
+                </div>
+            </div>
+            <div class="panel-actions" style="margin-top: 15px;">
+                 <button id="add-chord-button" class="button" data-i18n="add_chord_button_label">Add Chord</button>
+                 <button id="save-progression-button" class="button" data-i18n="save_progression_button_label">Save Progression</button>
+            </div>
+        </div>
+    </div>
+
     <div id="tonality-panel" class="side-panel right-panel">
         <div class="panel-header"> <h2 data-i18n="tonality_title">Tonality</h2> <button class="close-button" data-panel-id="tonality-panel">×</button> </div>
         <div class="panel-content">
@@ -256,8 +282,11 @@
 <script src="js/MusicTheoryService.js"></script>
 <script src="js/PadModeManager.js"></script>
 <script src="js/harmonicMarkerEngine.js"></script>
-<script src="js/padModes/RocketModeStrategy.js"></script>
+<script src="js/padModes/zoneGenerators/classicZoneGenerator.js"></script>
+<script src="js/padModes/zoneGenerators/chordZoneGenerator.js"></script>
+<!-- <script src="js/padModes/RocketModeStrategy.js"></script> -->
 <script src="js/padModes/ClassicModeStrategy.js"></script>
+<script src="js/padModes/ChordModeStrategy.js"></script>
 <script src="js/bridge-fix.js"></script>
 <script src="js/config/audioConfig.js"></script>
 <script src="js/moduleManager.js"></script>
@@ -304,6 +333,32 @@
 <script src="js/loading/stars-animation.js"></script>
 <script src="js/loading/prism-effect.js"></script>
 <script src="js/app.js"></script>
+
+    <!-- Модальное окно для добавления аккорда -->
+    <div id="add-chord-modal" style="display: none;">
+        <div class="modal-header">
+            <h3 data-i18n="add_chord_modal_title">Add New Chord</h3>
+            <button id="close-add-chord-modal" class="close-button" title="Close">×</button>
+        </div>
+        <div class="modal-content">
+            <div class="setting-group">
+                <label for="chord-root-note-select" data-i18n="chord_root_note_label">Root Note</label>
+                <select id="chord-root-note-select" class="dropdown"></select>
+            </div>
+            <div class="setting-group">
+                <label for="chord-octave-select" data-i18n="chord_octave_label">Octave</label>
+                <select id="chord-octave-select" class="dropdown"></select>
+            </div>
+            <div class="setting-group">
+                <label for="chord-type-select" data-i18n="chord_type_label">Chord Type</label>
+                <select id="chord-type-select" class="dropdown"></select>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button id="confirm-add-chord-button" class="button primary-button" data-i18n="add_button_label">Add</button>
+            <button id="cancel-add-chord-button" class="button" data-i18n="cancel_button_label">Cancel</button>
+        </div>
+    </div>
 
 </body>
 </html>

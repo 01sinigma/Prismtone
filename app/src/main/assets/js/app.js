@@ -201,6 +201,11 @@ const app = {
             // Установка активного режима пэда (это вызовет app.updateZones() И sidePanel.displayModeSpecificControls())
             await this.setPadMode(this.state.padMode, true); // true для initialLoad
 
+            // После того как режим установлен и стратегия активна:
+            if (typeof sidePanel !== 'undefined' && sidePanel.displayModeSpecificControls) {
+                sidePanel.displayModeSpecificControls(this.state.padMode); // <--- ДОБАВЛЕН ВЫЗОВ
+            }
+
             // Synth
             if (typeof synth === 'undefined') throw new Error("synth.js is not loaded!");
             synth.init();
@@ -1261,28 +1266,39 @@ const app = {
     // ======================================
 
     async setPadMode(modeId, initialLoad = false) {
-        if (!modeId || (!initialLoad && this.state.padMode === modeId)) {
-            if (this.state.padMode === modeId && !initialLoad) {
-                 console.log(`[App.setPadMode] Mode ${modeId} already active. Forcing UI updates for specific controls.`);
-                 if (sidePanel?.populatePadModeSelectDisplay) sidePanel.populatePadModeSelectDisplay();
-                 if (sidePanel?.displayModeSpecificControls) sidePanel.displayModeSpecificControls(modeId);
+        if (!PadModeManager) {
+            console.error("[App.setPadMode] PadModeManager is not available.");
+            return;
+        }
+        const currentStrategy = PadModeManager.getCurrentStrategy();
+        if (currentStrategy && typeof currentStrategy.getName === 'function' && currentStrategy.getName() === modeId && !initialLoad) {
+            console.log(`[App.setPadMode] Mode ${modeId} is already active.`);
+            // Обновляем контролы даже если режим уже активен, на случай если их конфиг поменялся (редко, но возможно)
+            if (typeof sidePanel !== 'undefined' && sidePanel.displayModeSpecificControls) {
+                sidePanel.displayModeSpecificControls(modeId);
             }
             return;
         }
-        console.log(`[App.setPadMode] Setting pad mode to: ${modeId}`);
-        if (PadModeManager && await PadModeManager.setActiveMode(modeId)) {
+
+        const success = await PadModeManager.setActiveMode(modeId);
+        if (success) {
             this.state.padMode = modeId;
-            bridgeFix.callBridge('setSetting', 'padMode', modeId)
-                .catch(err => console.error("[App.setPadMode] Bridge setSetting padMode failed:", err));
-            if (sidePanel?.populatePadModeSelectDisplay) sidePanel.populatePadModeSelectDisplay();
-            if (sidePanel?.displayModeSpecificControls) sidePanel.displayModeSpecificControls(modeId);
-            await this.updateZoneLayout();
+            if (typeof bridgeFix !== 'undefined' && bridgeFix.callBridge) {
+                bridgeFix.callBridge('setSetting', 'padMode', modeId);
+            }
+            
+            if (typeof sidePanel !== 'undefined' && sidePanel.populatePadModeSelectDisplay) {
+                sidePanel.populatePadModeSelectDisplay(); 
+            }
+            // Обновляем специфичные для режима контролы
+            if (typeof sidePanel !== 'undefined' && sidePanel.displayModeSpecificControls) {
+                sidePanel.displayModeSpecificControls(modeId); // <--- ВАЖНЫЙ ВЫЗОВ
+            }
+
+            console.log(`[App.setPadMode] Pad mode set to ${modeId}. Initial load: ${initialLoad}`);
         } else {
-            console.error(`[App] Failed to set pad mode: ${modeId}. Strategy not found or error.`);
-            if (sidePanel?.populatePadModeSelectDisplay) sidePanel.populatePadModeSelectDisplay();
-            if (sidePanel?.displayModeSpecificControls) sidePanel.displayModeSpecificControls(this.state.padMode);
+            console.error(`[App.setPadMode] Failed to set pad mode to ${modeId}.`);
         }
-        this.updateRocketStatusPanel();
     },
     
     _updateSidePanelSettingsUI() {

@@ -55,123 +55,28 @@ const ClassicModeStrategy = {
      * @param {object} appState - Полное состояние app.state (для zoneCount)
      * @param {object} services - { musicTheoryService }
      * @returns {Promise<Array<ZoneData>>}
-     * ZoneData: { index, startX, endX, noteName, frequency, midiNote, isSharpFlat, type: 'note' }
+     * ZoneData: { index, startX, endX, noteName, frequency, midiNote, isSharpFlat, type: string, labelOverride?: string }
      */
     async generateZoneData(layoutContext, appState, services) {
-        console.log("[ClassicModeStrategy.generateZoneData] Context:", layoutContext, "AppState:", appState);
         if (!layoutContext || !appState || !services?.musicTheoryService) {
             console.error("[ClassicModeStrategy.generateZoneData] Invalid arguments.");
             return [];
         }
 
-        const { scaleId } = layoutContext; // Лад, выбранный пользователем
-        const userSelectedTonic = layoutContext.tonicNameWithOctave; // Тоника, выбранная пользователем
-        const zoneCount = appState.zoneCount;
+        // Формируем контекст для внешнего генератора зон
+        const zoneGenContext = {
+            modeId: this.getName(),
+            appState: appState,
+            services: services,
+            modeSpecificContext: layoutContext // layoutContext от getZoneLayoutOptions
+        };
 
-        // --- НАША ЦЕЛЕВАЯ ЦЕНТРАЛЬНАЯ НОТА ИЗМЕНЕНА НА F4 ---
-        const TARGET_CENTER_MIDI_NOTE = 65; // F4 (было 67 для G4)
-        // ---------------------------------------------------
-
-        if (!services.musicTheoryService.isTonalJsLoaded) {
-            console.error("[ClassicModeStrategy.generateZoneData] MusicTheoryService not available.");
+        if (typeof generateClassicZones === 'function') {
+            return await generateClassicZones(zoneGenContext);
+        } else {
+            console.error("[ClassicModeStrategy.generateZoneData] generateClassicZones function is not defined. Make sure classicZoneGenerator.js is loaded before this strategy.");
             return [];
         }
-
-        // 1. Получаем полный пул нот для ВЫБРАННОГО ЛАДА от ВЫБРАННОЙ ТОНИКИ
-        const octavesToScan = Math.ceil(zoneCount / 7) + 3;
-        const scaleNotesPool = await services.musicTheoryService.getNotesForScale(
-            userSelectedTonic,
-            scaleId,
-            octavesToScan,
-            octavesToScan
-        );
-
-        if (!scaleNotesPool || scaleNotesPool.length === 0) {
-            console.warn(`[ClassicModeStrategy.generateZoneData] No notes from MTS for ${userSelectedTonic} ${scaleId}.`);
-            return [];
-        }
-        const targetCenterNoteName = services.musicTheoryService.midiToNoteName(TARGET_CENTER_MIDI_NOTE);
-        console.log(`[ClassicModeStrategy.generateZoneData] Scale notes pool (length ${scaleNotesPool.length}) for ${userSelectedTonic} ${scaleId}. Target MIDI for center: ${TARGET_CENTER_MIDI_NOTE} (${targetCenterNoteName})`);
-
-        // 2. Находим в этом пуле ноту, которая наиболее близка к нашей TARGET_CENTER_MIDI_NOTE (F4)
-        let closestNoteToTargetCenter = null;
-        let minMidiDiffToTarget = Infinity;
-
-        for (const note of scaleNotesPool) {
-            const diff = Math.abs(note.midi - TARGET_CENTER_MIDI_NOTE);
-            if (diff < minMidiDiffToTarget) {
-                minMidiDiffToTarget = diff;
-                closestNoteToTargetCenter = note;
-            } else if (diff === minMidiDiffToTarget) {
-                if (closestNoteToTargetCenter && note.midi < closestNoteToTargetCenter.midi) {
-                     closestNoteToTargetCenter = note;
-                }
-            }
-        }
-
-        if (!closestNoteToTargetCenter) {
-            console.error(`[ClassicModeStrategy.generateZoneData] Could not find any note in the pool for ${userSelectedTonic} ${scaleId}.`);
-            return [];
-        }
-        console.log(`[ClassicModeStrategy.generateZoneData] Note closest to target F4 (MIDI ${TARGET_CENTER_MIDI_NOTE}) in current scale ${userSelectedTonic} ${scaleId} is: ${closestNoteToTargetCenter.name} (MIDI ${closestNoteToTargetCenter.midi})`);
-
-        // 3. Находим индекс этой "центральной" ноты в нашем отсортированном пуле scaleNotesPool
-        const centralNoteInPoolIndex = scaleNotesPool.findIndex(note => note.midi === closestNoteToTargetCenter.midi);
-
-        if (centralNoteInPoolIndex === -1) {
-            console.error("[ClassicModeStrategy.generateZoneData] CRITICAL: closestNoteToTargetCenter not found in scaleNotesPool by index.");
-            return [];
-        }
-
-        const zones = [];
-        const zoneWidth = 1.0 / zoneCount;
-        const halfZoneCount = Math.floor(zoneCount / 2);
-
-        // 4. Определяем начальный индекс в scaleNotesPool
-        let targetZoneIndexForCenterNote = Math.floor(zoneCount / 2);
-        if (zoneCount % 2 === 0) {
-            targetZoneIndexForCenterNote = (zoneCount / 2) - 1;
-        }
-        
-        let startIndexInPool = centralNoteInPoolIndex - targetZoneIndexForCenterNote;
-
-        console.log(`[ClassicModeStrategy.generateZoneData] Target Zone Index for Center Note (F4 or closest): ${targetZoneIndexForCenterNote}. Calculated startIndexInPool: ${startIndexInPool}`);
-
-        for (let i = 0; i < zoneCount; i++) {
-            const currentPoolIndex = startIndexInPool + i;
-            let noteDetailsToUse;
-
-            if (currentPoolIndex >= 0 && currentPoolIndex < scaleNotesPool.length) {
-                noteDetailsToUse = scaleNotesPool[currentPoolIndex];
-            } else {
-                console.warn(`[ClassicModeStrategy.generateZoneData] Index ${currentPoolIndex} out of bounds for scaleNotesPool (len ${scaleNotesPool.length}) for zone ${i}.`);
-                if (scaleNotesPool.length > 0) {
-                     const clampedIndex = Math.max(0, Math.min(scaleNotesPool.length - 1, currentPoolIndex));
-                     noteDetailsToUse = scaleNotesPool[clampedIndex];
-                     console.warn(`[ClassicModeStrategy.generateZoneData] Using fallback note ${noteDetailsToUse.name} for out-of-bounds zone ${i}`);
-                } else {
-                    continue; 
-                }
-            }
-            
-            if (noteDetailsToUse) {
-                zones.push({
-                    index: i,
-                    startX: i * zoneWidth,
-                    endX: (i + 1) * zoneWidth,
-                    noteName: noteDetailsToUse.name,
-                    frequency: noteDetailsToUse.freq,
-                    midiNote: noteDetailsToUse.midi,
-                    isSharpFlat: noteDetailsToUse.isSharpFlat,
-                    type: 'note'
-                });
-            }
-        }
-        console.log(`[ClassicModeStrategy.generateZoneData] Generated zones (length ${zones.length}). Centered around MIDI ${closestNoteToTargetCenter.midi}.`);
-        if (zones.length > targetZoneIndexForCenterNote && zones[targetZoneIndexForCenterNote]) {
-            console.log(`[ClassicModeStrategy.generateZoneData] Note at target center zone index ${targetZoneIndexForCenterNote} is: ${zones[targetZoneIndexForCenterNote].noteName} (MIDI ${zones[targetZoneIndexForCenterNote].midiNote})`);
-        }
-        return zones;
     },
 
     onPointerDown(pointerId, x, y, currentZones, padContext) {

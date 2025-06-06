@@ -82,7 +82,7 @@ const PadModeManager = {
         return { musicTheoryService: this.musicTheoryServiceRef };
     },
     _getUiModulesBundle() {
-        return { /* sidePanel: sidePanel ... */ };
+        return { sidePanel: typeof sidePanel !== 'undefined' ? sidePanel : null };
     },
     async onTonicChanged(newTonic) {
         console.log(`[PadModeManager] Notified of tonic change: ${newTonic}`);

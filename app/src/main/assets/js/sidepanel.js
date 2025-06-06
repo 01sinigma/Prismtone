@@ -43,7 +43,8 @@ const sidePanel = {
             tonality: document.getElementById('tonality-panel'),
             effects: document.getElementById('effects-panel'),
             soundLibrary: document.getElementById('sound-library-panel'),
-            padModes: document.getElementById('pad-modes-panel') // Новая панель
+            padModes: document.getElementById('pad-modes-panel'),
+            'chord-mode-panel': document.getElementById('chord-mode-panel') // Добавляем панель аккордов
         };
 
         let allPanelsFound = true;
@@ -483,203 +484,114 @@ const sidePanel = {
 
     displayModeSpecificControls(modeId) {
         if (!this.modeSpecificControlsContainer || typeof PadModeManager === 'undefined') {
-            this.modeSpecificControlsContainer.innerHTML = `<p class="no-controls-message">${i18n.translate('error_loading_mode_settings', 'Error loading mode settings.')}</p>`;
+            if (this.modeSpecificControlsContainer) {
+                this.modeSpecificControlsContainer.innerHTML = `<p class="no-controls-message">${i18n.translate('error_loading_mode_settings', 'Error loading mode settings.')}</p>`;
+            }
+            console.error("[SidePanel.displayModeSpecificControls] Container or PadModeManager not available.");
             return;
         }
-        this.modeSpecificControlsContainer.innerHTML = '';
+        this.modeSpecificControlsContainer.innerHTML = ''; // Очищаем предыдущие настройки
+
         const strategy = PadModeManager.strategies[modeId];
         if (!strategy || typeof strategy.getModeSpecificControlsConfig !== 'function') {
-            this.modeSpecificControlsContainer.innerHTML = `<p class="no-controls-message">${i18n.translate('error_loading_mode_settings', 'Error loading mode settings config.')}</p>`;
+            this.modeSpecificControlsContainer.innerHTML = `<p class="no-controls-message">${i18n.translate('error_mode_settings_config_unavailable', 'Settings config unavailable for this mode.')}</p>`;
             return;
         }
+
         const controlsConfig = strategy.getModeSpecificControlsConfig();
         if (!Array.isArray(controlsConfig) || controlsConfig.length === 0) {
             this.modeSpecificControlsContainer.innerHTML = `<p class="no-controls-message">${i18n.translate('no_specific_settings_' + modeId, 'No specific settings for this mode.')}</p>`;
             return;
         }
-        // Группировка по секциям
-        const controlSections = { general: [], phases: [], harmonicLogic: [], interactiveBehavior: [] };
-        controlsConfig.forEach(config => {
-            if (["intensity", "visualTheme"].includes(config.name)) controlSections.general.push(config);
-            else if (config.name.includes('Phase') || config.name.includes('Duration')) controlSections.phases.push(config);
-            else if (["harmonicKeyDisplay","markerLogicMode", "displayMarkers", "markerStyle", "markerColorScheme", "tonalTonic"].some(n => config.name.startsWith(n))) controlSections.harmonicLogic.push(config);
-            else controlSections.interactiveBehavior.push(config);
-        });
-        const createSection = (titleKey, titleDefault, configs) => {
-            if (configs.length === 0) return;
-            const sectionDiv = document.createElement('div');
-            sectionDiv.className = 'setting-group mode-section';
-            const titleH5 = document.createElement('h5');
-            titleH5.textContent = i18n.translate(titleKey, titleDefault);
-            sectionDiv.appendChild(titleH5);
-            configs.forEach(config => {
-                const controlDiv = document.createElement('div');
-                controlDiv.className = config.type === 'toggle' ? 'toggle-container' : 'setting-item mode-control-item';
-                let labelElement;
-                const controlId = `rocket-control-${config.name.replace('.', '-')}`;
-                if (config.type !== 'toggle') {
-                    labelElement = document.createElement('label');
-                    labelElement.htmlFor = controlId;
-                    labelElement.textContent = i18n.translate(config.labelKey, config.labelDefault || config.name);
-                    // Tooltip для label
-                    if (config.description) {
-                        labelElement.title = config.description;
-                        labelElement.classList.add('has-tooltip');
-                    }
-                    controlDiv.appendChild(labelElement);
-                }
-                let controlInputElement;
-                const currentValue = (app.state.rocketModeSettings && app.state.rocketModeSettings.hasOwnProperty(config.name))
-                    ? app.state.rocketModeSettings[config.name]
-                    : config.default;
-                let currentDisplayMarkerValue = null;
-                if (config.name.startsWith("displayMarkers.")) {
-                    const subKey = config.name.split('.')[1];
-                    if (app.state.rocketModeSettings && app.state.rocketModeSettings.displayMarkers) {
-                        currentDisplayMarkerValue = app.state.rocketModeSettings.displayMarkers[subKey] !== undefined
-                            ? app.state.rocketModeSettings.displayMarkers[subKey]
-                            : config.default;
-                    } else {
-                        currentDisplayMarkerValue = config.default;
-                    }
-                }
-                switch (config.type) {
-                    case 'toggle':
-                        const spanLabel = document.createElement('span');
-                        spanLabel.textContent = i18n.translate(config.labelKey, config.labelDefault || config.name);
-                        // Tooltip для toggle
-                        if (config.description) {
-                            spanLabel.title = config.description;
-                            spanLabel.classList.add('has-tooltip');
-                        }
-                        controlDiv.appendChild(spanLabel);
-                        const toggleLabel = document.createElement('label');
-                        toggleLabel.className = 'toggle';
-                        controlInputElement = document.createElement('input');
-                        controlInputElement.type = 'checkbox';
-                        controlInputElement.id = controlId;
-                        controlInputElement.checked = config.name.startsWith("displayMarkers.") ? currentDisplayMarkerValue : currentValue;
-                        const sliderSpan = document.createElement('span');
-                        sliderSpan.className = 'toggle-slider';
-                        toggleLabel.appendChild(controlInputElement);
-                        toggleLabel.appendChild(sliderSpan);
-                        controlDiv.appendChild(toggleLabel);
-                        break;
-                    case 'select':
-                        controlInputElement = document.createElement('div');
-                        controlInputElement.id = controlId;
-                        controlInputElement.className = 'dropdown-display';
-                        controlInputElement.tabIndex = 0;
-                        controlInputElement.setAttribute('role', 'combobox');
-                        const selectedOption = config.options.find(opt => opt.id === currentValue);
-                        controlInputElement.textContent = selectedOption
-                            ? (selectedOption.labelKey ? i18n.translate(selectedOption.labelKey, selectedOption.name) : selectedOption.name)
-                            : currentValue;
-                        controlDiv.appendChild(controlInputElement);
-                        break;
-                    case 'knob':
-                        const knobContainer = document.createElement('div');
-                        knobContainer.className = 'knob-container small-knob-container';
-                        controlInputElement = document.createElement('div');
-                        controlInputElement.className = 'knob small';
-                        controlInputElement.id = controlId;
-                        Object.assign(controlInputElement.dataset, {
-                            param: config.name, min: config.min, max: config.max, step: config.step, default: currentValue
-                        });
-                        if (config.logScale) controlInputElement.dataset.log = 'true';
-                        controlInputElement.innerHTML = `<div class="knob-dial"></div><span class="knob-value">${currentValue}</span>`;
-                        knobContainer.appendChild(controlInputElement);
-                        const knobLabel = document.createElement('label');
-                        knobLabel.className = 'knob-sub-label';
-                        knobLabel.textContent = i18n.translate(config.labelKey, config.labelDefault || config.name);
-                        knobContainer.appendChild(knobLabel);
-                        controlDiv.appendChild(knobContainer);
-                        this.initKnob(controlInputElement);
-                        break;
-                    case 'display':
-                        controlInputElement = document.createElement('span');
-                        controlInputElement.id = controlId;
-                        controlInputElement.className = 'display-value';
-                        if (typeof config.getValue === 'function') {
-                            controlInputElement.textContent = config.getValue();
-                        } else {
-                            controlInputElement.textContent = currentValue;
-                        }
-                        controlDiv.appendChild(controlInputElement);
-                        break;
-                }
-                if (controlInputElement) {
-                    const eventType = (config.type === 'toggle' || config.type === 'text') ? 'change' :
-                                      (config.type === 'knob') ? 'knob-change' : null;
-                    if (eventType) {
-                        controlInputElement.addEventListener(eventType, (e) => {
-                            const val = (config.type === 'toggle') ? e.target.checked :
-                                        (config.type === 'knob') ? e.detail.value : e.target.value;
-                            app.setModeSpecificSetting('rocket', config.name, val);
-                        });
-                    } else if (config.type === 'select') {
-                        controlInputElement.addEventListener('mousedown', (e) => {
-                            e.preventDefault();
-                            const currentValFromState = config.name.startsWith("displayMarkers.")
-                                ? app.state.rocketModeSettings.displayMarkers[config.name.split('.')[1]]
-                                : app.state.rocketModeSettings[config.name];
-                            showCustomSelectorPopover({
-                                type: `rocket_${config.name.replace('.', '_')}`,
-                                title: i18n.translate(config.labelKey, config.labelDefault || config.name),
-                                itemsArray: config.options.map(opt => ({
-                                    id: opt.id,
-                                    name: opt.labelKey ? i18n.translate(opt.labelKey, opt.name) : opt.name
-                                })),
-                                currentValue: currentValFromState,
-                                onSelect: (selectedValue) => {
-                                    app.setModeSpecificSetting('rocket', config.name, selectedValue);
-                                    const selOpt = config.options.find(o => o.id === selectedValue);
-                                    controlInputElement.textContent = selOpt
-                                        ? (selOpt.labelKey ? i18n.translate(selOpt.labelKey, selOpt.name) : selOpt.name)
-                                        : selectedValue;
-                                }
-                            });
-                        });
-                        controlInputElement.addEventListener('keydown', (e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                controlInputElement.dispatchEvent(new MouseEvent('mousedown'));
-                            }
-                        });
-                    }
-                }
-                sectionDiv.appendChild(controlDiv);
-            });
-            this.modeSpecificControlsContainer.appendChild(sectionDiv);
-        };
-        createSection('rocket_section_general', 'General', controlSections.general);
-        createSection('rocket_section_phases', 'Phases', controlSections.phases);
-        createSection('rocket_section_harmonic_logic', 'Harmonic Logic', controlSections.harmonicLogic);
-        createSection('rocket_section_interactive_behavior', 'Interactive Behavior', controlSections.interactiveBehavior);
 
-        if (modeId === 'rocket') {
-            // === Кнопки ручного перехода фаз ===
-            const appState = app.state;
-            const rocketSettings = appState.rocketModeSettings;
-            const manualAllowed = !rocketSettings.autoPhases || rocketSettings.phaseTransitionMode === 'manual';
-            const phases = [
-                { id: 'ignition', label: i18n.translate('rocket_phase_ignition', 'Ignition') },
-                { id: 'lift-off', label: i18n.translate('rocket_phase_lift_off', 'Lift-off') },
-                { id: 'burst', label: i18n.translate('rocket_phase_burst', 'Burst') }
-            ];
-            const btnGroup = document.createElement('div');
-            btnGroup.className = 'rocket-phase-buttons-group';
-            phases.forEach(phase => {
-                const btn = document.createElement('button');
-                btn.textContent = phase.label;
-                btn.className = 'action-button';
-                btn.disabled = !manualAllowed;
-                if (appState.rocketModePhase === phase.id) btn.classList.add('active');
-                btn.addEventListener('click', () => app.manualSetRocketPhase(phase.id));
-                btnGroup.appendChild(btn);
-            });
-            this.modeSpecificControlsContainer.appendChild(btnGroup);
-        }
+        controlsConfig.forEach(controlConf => {
+            const group = document.createElement('div');
+            group.className = 'setting-group mode-specific-setting';
+            
+            let controlElement;
+
+            const label = document.createElement('label');
+            label.textContent = controlConf.labelKey ? i18n.translate(controlConf.labelKey, controlConf.labelDefault || controlConf.name) : (controlConf.labelDefault || controlConf.name);
+            if (controlConf.type !== 'toggle') {
+                 group.appendChild(label);
+            }
+
+            switch (controlConf.type) {
+                case 'toggle':
+                    group.classList.add('toggle-container');
+                    const span = document.createElement('span');
+                    span.textContent = label.textContent; 
+                    group.appendChild(span);
+                    const toggleLabel = document.createElement('label');
+                    toggleLabel.className = 'toggle';
+                    controlElement = document.createElement('input');
+                    controlElement.type = 'checkbox';
+                    controlElement.checked = controlConf.initialValue === true;
+                    const sliderSpan = document.createElement('span');
+                    sliderSpan.className = 'toggle-slider';
+                    toggleLabel.appendChild(controlElement);
+                    toggleLabel.appendChild(sliderSpan);
+                    group.appendChild(toggleLabel);
+                    break;
+                case 'slider':
+                    const sliderContainer = document.createElement('div');
+                    sliderContainer.className = 'slider-container'; 
+                    controlElement = document.createElement('input');
+                    controlElement.type = 'range';
+                    controlElement.className = 'slider'; 
+                    controlElement.min = controlConf.min || 0;
+                    controlElement.max = controlConf.max || 100;
+                    controlElement.step = controlConf.step || 1;
+                    controlElement.value = controlConf.initialValue || controlConf.min || 0;
+                    const valueDisplay = document.createElement('span');
+                    valueDisplay.className = 'slider-value'; 
+                    valueDisplay.textContent = controlElement.value;
+                    controlElement.addEventListener('input', (e) => {
+                        valueDisplay.textContent = e.target.value;
+                        if (typeof app !== 'undefined' && app.setModeSpecificSetting) {
+                            app.setModeSpecificSetting(modeId, controlConf.name, parseFloat(e.target.value));
+                        } else if (typeof strategy.onSpecificControlChanged === 'function') {
+                            strategy.onSpecificControlChanged(controlConf.name, parseFloat(e.target.value));
+                        }
+                    });
+                    sliderContainer.appendChild(controlElement);
+                    sliderContainer.appendChild(valueDisplay);
+                    group.appendChild(sliderContainer);
+                    break;
+                case 'select':
+                    controlElement = document.createElement('select');
+                    controlElement.className = 'dropdown'; 
+                    if (controlConf.options && Array.isArray(controlConf.options)) {
+                        controlConf.options.forEach(opt => {
+                            const option = document.createElement('option');
+                            option.value = typeof opt === 'object' ? opt.value : opt;
+                            option.textContent = typeof opt === 'object' ? (opt.labelKey ? i18n.translate(opt.labelKey, opt.label) : opt.label) : opt;
+                            controlElement.appendChild(option);
+                        });
+                    }
+                    controlElement.value = controlConf.initialValue;
+                    group.appendChild(controlElement);
+                    break;
+                default:
+                    const p = document.createElement('p');
+                    p.textContent = `Unsupported control type: ${controlConf.type}`;
+                    group.appendChild(p);
+            }
+
+            if (controlElement && controlConf.type !== 'slider') { 
+                 controlElement.dataset.controlName = controlConf.name;
+                 controlElement.addEventListener('change', (e) => {
+                    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+                    console.log(`[SidePanel] Mode specific control '${controlConf.name}' for mode '${modeId}' changed to:`, value);
+                    if (typeof app !== 'undefined' && app.setModeSpecificSetting) {
+                        app.setModeSpecificSetting(modeId, controlConf.name, value);
+                    } else if (typeof strategy.onSpecificControlChanged === 'function') {
+                        strategy.onSpecificControlChanged(controlConf.name, value);
+                    }
+                 });
+            }
+            this.modeSpecificControlsContainer.appendChild(group);
+        });
     },
 
     updateSettingsControls(langId, themeId, vizId, touchEffectId, showNames, showGrid, enablePolyScaling, highlightSharps, currentPadMode) {

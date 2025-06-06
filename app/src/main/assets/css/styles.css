@@ -977,3 +977,207 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
   color: var(--color-accent, #ff4081);
 }
 
+/* CHORD Mode Panel Styles */
+.chord-panel {
+    /* Если нужны специфичные стили для панели, помимо .side-panel.left-panel */
+    /* Например, другой z-index, если она должна быть поверх других левых панелей */
+    /* display: none; /* По умолчанию скрыта, будет управляться JS */
+}
+
+.chord-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px; /* Расстояние между кнопками аккордов */
+    padding: 5px;
+    max-height: calc(100vh - 200px); /* Примерная высота, чтобы кнопки не вылезали за панель */
+    overflow-y: auto; /* Добавляем скролл, если аккордов много */
+}
+
+.chord-button {
+    width: 100%;
+    text-align: left; /* Выравнивание текста на кнопке */
+    padding: 12px 10px; /* Внутренние отступы */
+    font-size: 0.9rem;
+    background-color: var(--color-surface-container-high); /* Цвет фона кнопки */
+    color: var(--color-on-surface); /* Цвет текста */
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+    position: relative; /* Для позиционирования кнопки удаления */
+}
+
+.chord-button:hover {
+    background-color: var(--color-surface-container-higher);
+    border-color: var(--color-primary);
+}
+
+.chord-button.active { /* Стиль для выбранной кнопки аккорда */
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+    border-color: var(--color-primary);
+    font-weight: bold;
+}
+
+.chord-panel .panel-actions {
+    display: flex;
+    flex-direction: column; /* Располагаем кнопки друг под другом */
+    gap: 10px; /* Расстояние между кнопками действий */
+    padding-top: 10px;
+    margin-top: auto; /* Прижимает этот блок к низу панели, если контента мало */
+    border-top: 1px solid var(--color-border);
+}
+
+.chord-panel .panel-actions .button {
+    width: 100%; /* Кнопки на всю ширину */
+}
+
+/* Стили для модального окна добавления аккорда (понадобятся позже) */
+#add-chord-modal {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background-color: var(--color-surface);
+    padding: 20px;
+    border-radius: var(--border-radius-large);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    z-index: 1002; 
+    display: none; 
+    width: 320px; /* Немного шире */
+    border: 1px solid var(--color-border);
+}
+
+#add-chord-modal .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+#add-chord-modal .modal-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--color-on-surface);
+}
+
+#add-chord-modal .modal-content .setting-group {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column; /* Метки над селектами */
+}
+#add-chord-modal .modal-content .setting-group label {
+    margin-bottom: 5px;
+    font-size: 0.85rem;
+    color: var(--color-on-surface-variant);
+}
+
+#add-chord-modal .modal-content .dropdown {
+    width: 100%; /* Селекты на всю ширину */
+}
+
+#add-chord-modal .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+#add-chord-modal .modal-actions .button.primary-button {
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+}
+
+#add-chord-modal .modal-actions .button.primary-button:hover {
+    background-color: var(--color-primary-variant);
+}
+
+/* Оверлей для модальных окон (если еще не определен) */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5); /* Полупрозрачный черный */
+    z-index: 1001; /* Ниже модального окна, выше остального контента */
+    display: none; /* По умолчанию скрыт */
+}
+
+.chord-button .chord-name-display {
+    /* Это чтобы клик по тексту аккорда не перехватывался крестиком, если они близко */
+    /* Можно добавить padding-right, если крестик будет мешать тексту */
+    pointer-events: none; /* Чтобы клик проходил на саму кнопку, если не попали точно в крестик */
+}
+
+.chord-button .delete-chord-btn {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 22px; /* Немного увеличим */
+    height: 22px; /* Немного увеличим */
+    background-color: rgba(200, 0, 0, 0.6); /* Менее яркий красный */
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 16px; /* Размер крестика */
+    line-height: 22px; /* Центрирование крестика */
+    text-align: center;
+    cursor: pointer;
+    display: none; /* По умолчанию скрыта */
+    transition: background-color 0.2s, opacity 0.2s;
+    font-weight: bold;
+    opacity: 0.8;
+}
+
+.chord-button .delete-chord-btn:hover {
+    background-color: rgba(200, 0, 0, 0.9);
+    opacity: 1;
+}
+
+/* Когда на родительской кнопке есть класс confirm-delete, показываем крестик */
+.chord-button.confirm-delete .delete-chord-btn {
+    display: flex; 
+    align-items: center;
+    justify-content: center;
+}
+
+/* Можно добавить стиль для кнопки, когда на ней активно подтверждение удаления,
+   чтобы она сама немного меняла вид, например, рамку */
+.chord-button.confirm-delete {
+    border-color: rgba(200, 0, 0, 0.7) !important; /* Важно, чтобы перебить hover */
+}
+
+#suggested-chords-container h5 {
+    font-weight: 600; /* Сделаем заголовок чуть жирнее */
+    font-size: 0.85rem; /* Чуть меньше основного */
+    color: var(--color-on-surface-variant);
+    margin-top: 0;
+    margin-bottom: 8px;
+    padding-left: 5px; /* Небольшой отступ, как у .chord-list */
+}
+
+.suggested-list {
+    /* .chord-list уже имеет display:flex, flex-direction:column, gap, padding */
+    /* Можно добавить специфичные стили, если нужно */
+    max-height: 120px; /* Ограничим высоту блока предложений, чтобы не занимал много места */
+    overflow-y: auto;
+}
+
+.suggested-list .chord-button { /* Отличительный стиль для кнопок предложений */
+    padding: 8px 10px; 
+    font-size: 0.8rem; /* Еще чуть меньше */
+    background-color: var(--color-surface-container); 
+    border: 1px solid var(--color-border-subtle); /* Менее заметная граница */
+}
+
+.suggested-list .chord-button:hover {
+    background-color: var(--color-surface-container-high);
+    border-color: var(--color-secondary); /* Используем secondary для ховера предложений */
+}
+
+/* Если предложенный аккорд выбирается и становится активным в основном списке, 
+   он получит класс .active оттуда. Если нужно специфичное выделение для предложенного, 
+   пока он только предложен, это другая логика. 
+   Пока что при клике он станет обычным выбранным аккордом. */
+

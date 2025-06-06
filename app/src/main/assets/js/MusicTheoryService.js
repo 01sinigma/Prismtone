@@ -377,6 +377,101 @@ const MusicTheoryService = {
 
         console.log(`[MTS.getFunctionalHarmonySuggestions] For base MIDI ${baseNoteMidi} (${baseNoteName}) in ${tonicName} ${scaleId}, found:`, JSON.parse(JSON.stringify(suggestions)));
         return suggestions;
+    },
+
+    /**
+     * Получает детали нот для указанного аккорда.
+     * @param {string} chordSymbolWithOctave - Символ аккорда, включающий тонику с октавой и тип (например, "C4maj7", "G#3m", "Bb5aug").
+     * @returns {Promise<Array<object>|null>} Массив объектов NoteDetails или null.
+     * NoteDetails: { name, midi, freq, oct, step, alt, chr, pc, isSharpFlat }
+     */
+    async getChordNotes(chordSymbolWithOctave) {
+        if (!this.isTonalJsLoaded || !Tonal.Chord || !Tonal.Note || !Tonal.Interval || !this._TonalTransposeFn) {
+            console.error("[MusicTheoryService.getChordNotes] Tonal.js or its submodules (Chord, Note, Interval, transpose) are not available.");
+            return null;
+        }
+        if (!chordSymbolWithOctave || typeof chordSymbolWithOctave !== 'string') {
+            console.warn("[MusicTheoryService.getChordNotes] Invalid chordSymbolWithOctave provided:", chordSymbolWithOctave);
+            return null;
+        }
+
+        try {
+            let rootNoteNameWithOctave;
+            let chordTypeToken;
+
+            const tokens = Tonal.Chord.tokenize(chordSymbolWithOctave);
+            
+            if (tokens && tokens.length === 2 && tokens[0] !== "") {
+                const tonicCandidate = Tonal.Note.get(tokens[0]);
+                if (tonicCandidate && tonicCandidate.name) {
+                    rootNoteNameWithOctave = tonicCandidate.name; 
+                    chordTypeToken = tokens[1];
+                } else {
+                     console.warn(`[MTS.getChordNotes] Tokenize gave invalid tonic: ${tokens[0]} from ${chordSymbolWithOctave}`);
+                }
+            }
+            
+            if (!rootNoteNameWithOctave) {
+                const match = chordSymbolWithOctave.match(/([A-Ga-g#b]+[#b]?\d*)(.*)/);
+                if (match && match[1]) {
+                    const tonicCandidate = Tonal.Note.get(match[1]);
+                    if (tonicCandidate && tonicCandidate.name) {
+                        rootNoteNameWithOctave = tonicCandidate.name;
+                        chordTypeToken = match[2] || ""; 
+                    } else {
+                         console.warn(`[MTS.getChordNotes] Regex fallback failed to get valid tonic from: ${match[1]}`);
+                    }
+                }
+            }
+
+            if (!rootNoteNameWithOctave) {
+                 console.warn(`[MTS.getChordNotes] Could not determine root note with octave from: ${chordSymbolWithOctave}`);
+                 return null;
+            }
+
+            let queryChordType = chordTypeToken;
+            if (chordTypeToken === "" || chordTypeToken.toUpperCase() === "M") { 
+                queryChordType = rootNoteNameWithOctave.replace(/\d/g, ''); 
+            } else if (!Tonal.Chord.get(chordTypeToken).empty && Tonal.Chord.get(chordTypeToken).tonic === null) {
+                queryChordType = chordTypeToken;
+            } else {
+                 queryChordType = rootNoteNameWithOctave.replace(/\d/g, '') + chordTypeToken;
+                 if (Tonal.Chord.get(queryChordType).empty && !Tonal.Chord.get(chordTypeToken).empty) {
+                    queryChordType = chordTypeToken; 
+                 }
+            }
+             if(queryChordType === "") queryChordType = rootNoteNameWithOctave.replace(/\d/g, '');
+
+            const chordInfo = Tonal.Chord.get(queryChordType);
+
+            if (!chordInfo || chordInfo.empty || !chordInfo.intervals || chordInfo.intervals.length === 0) {
+                console.warn(`[MTS.getChordNotes] Could not get intervals for chord type: '${queryChordType}' (derived from '${chordSymbolWithOctave}')`);
+                return null;
+            }
+
+            const noteDetailsArray = [];
+            for (const interval of chordInfo.intervals) {
+                const absoluteNoteName = this._TonalTransposeFn(rootNoteNameWithOctave, interval);
+                const details = this.getNoteDetails(absoluteNoteName);
+                if (details) {
+                    noteDetailsArray.push(details);
+                } else {
+                    console.warn(`[MTS.getChordNotes] Could not get details for note: ${absoluteNoteName} (transposed from ${rootNoteNameWithOctave} with interval ${interval})`);
+                }
+            }
+            
+            if (noteDetailsArray.length === 0) {
+                 console.warn(`[MTS.getChordNotes] No valid note details generated for chord: ${chordSymbolWithOctave}`);
+                 return null;
+            }
+            
+            noteDetailsArray.sort((a, b) => a.midi - b.midi);
+            return noteDetailsArray;
+
+        } catch (error) {
+            console.error(`[MusicTheoryService.getChordNotes] Error processing chordSymbol "${chordSymbolWithOctave}":`, error, error.stack);
+            return null;
+        }
     }
 };
 
