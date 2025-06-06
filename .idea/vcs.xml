@@ -2,7 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/Prismtone" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ajv-dist" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/cursor-memory-bank" vcs="Git" />
   </component>
 </project>

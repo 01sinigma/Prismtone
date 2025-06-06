@@ -351,16 +351,23 @@ const pad = {
 
         if (noteAction) {
             if (noteAction.type === 'note_change') {
-                console.log(`[Pad.handlePointerMove] Note Change for pointerId ${pointerId}: Old ${noteAction.oldNote?.name}, New ${noteAction.newNote.name}`);
+                // console.log(`[Pad.handlePointerMove] Note Change for pointerId ${pointerId}: Old ${noteAction.oldNote?.name}, New ${noteAction.newNote.name}`);
                 if (synth.isReady) {
-                    if (internalTouchData.isChord) synth.triggerReleaseChord(pointerId);
-                    else synth.triggerRelease(pointerId); // Release старой ноты/аккорда
-                    
-                    const velocity = noteAction.newNote.velocityFactor !== undefined ? noteAction.newNote.velocityFactor : 0.7;
-                    synth.startNote(noteAction.newNote.frequency, velocity, touchInfo.y, pointerId); // Start новой ноты
+                    // Вместо triggerRelease/startNote, вызываем updateNote для возможности портаменто
+                    const velocity = noteAction.newNote.velocityFactor !== undefined ? noteAction.newNote.velocityFactor : 0.7; // velocity для updateNote может быть менее критична
+                    synth.updateNote(noteAction.newNote.frequency, velocity, touchInfo.y, pointerId); 
                 }
-                internalTouchData.baseFrequency = noteAction.newNote.frequency;
-                internalTouchData.isChord = false; delete internalTouchData.chordNotes;
+
+                // Обновляем internalTouchData
+                if (internalTouchData) { // internalTouchData должно быть здесь
+                    internalTouchData.baseFrequency = noteAction.newNote.frequency;
+                    internalTouchData.baseNoteMidi = noteAction.newNote.midiNote; // Если вы храните MIDI
+                    const zone = this._currentDisplayedZones.find(z => z.midiNote === noteAction.newNote.midiNote && z.frequency === noteAction.newNote.frequency);
+                    internalTouchData.currentZoneIndex = zone ? zone.index : -1;
+                    internalTouchData.isChord = false; // Предполагаем, что это одиночная нота
+                    delete internalTouchData.chordNotes;
+                }
+
                 // Обновляем visualizer
                  if (typeof visualizer !== 'undefined' && typeof visualizer.notifyTouchMove === 'function') {
                     visualizer.notifyTouchMove({
