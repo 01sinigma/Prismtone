@@ -148,7 +148,9 @@
     <div id="chord-mode-panel" class="side-panel left-panel chord-panel">
         <div class="panel-header">
             <h2 data-i18n="chord_panel_title">Chords</h2>
-            <button class="close-button" data-panel-id="chord-mode-panel">×</button>
+            <button id="chord-panel-collapse-btn" class="round-button" title="Collapse Panel">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
         </div>
         <div class="panel-content">
             <div id="chord-list-container" class="chord-list">
@@ -165,10 +167,18 @@
                 </div>
             </div>
             <div class="panel-actions" style="margin-top: 15px;">
-                 <button id="add-chord-button" class="button" data-i18n="add_chord_button_label">Add Chord</button>
-                 <button id="save-progression-button" class="button" data-i18n="save_progression_button_label">Save Progression</button>
+                <button id="add-chord-button" class="button" data-i18n="add_chord_button_label">Add Chord</button>
+                <button id="delete-chords-toggle-btn" class="button" data-i18n="delete_chords_button_label">Delete Chords</button>
+                <button id="save-progression-button" class="button" data-i18n="save_progression_button_label">Save Progression</button>
             </div>
         </div>
+        <div class="panel-resize-handle"></div>
+    </div>
+
+    <div id="pad-overlay-controls">
+        <button id="chord-panel-expand-btn" class="round-button" title="Expand Chord Panel">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
     </div>
 
     <div id="tonality-panel" class="side-panel right-panel">
@@ -334,7 +344,7 @@
 <script src="js/loading/prism-effect.js"></script>
 <script src="js/app.js"></script>
 
-    <!-- Модальное окно для добавления аккорда -->
+    <!-- Обновленное модальное окно добавления аккорда -->
     <div id="add-chord-modal" style="display: none;">
         <div class="modal-header">
             <h3 data-i18n="add_chord_modal_title">Add New Chord</h3>
@@ -342,21 +352,17 @@
         </div>
         <div class="modal-content">
             <div class="setting-group">
-                <label for="chord-root-note-select" data-i18n="chord_root_note_label">Root Note</label>
-                <select id="chord-root-note-select" class="dropdown"></select>
+                <label for="chord-root-note-display" data-i18n="chord_root_note_label">Root Note</label>
+                <div id="chord-root-note-display" class="dropdown-display" tabindex="0">C</div>
             </div>
             <div class="setting-group">
-                <label for="chord-octave-select" data-i18n="chord_octave_label">Octave</label>
-                <select id="chord-octave-select" class="dropdown"></select>
-            </div>
-            <div class="setting-group">
-                <label for="chord-type-select" data-i18n="chord_type_label">Chord Type</label>
-                <select id="chord-type-select" class="dropdown"></select>
+                <label for="chord-type-display" data-i18n="chord_type_label">Chord Type</label>
+                <div id="chord-type-display" class="dropdown-display" tabindex="0">Major</div>
             </div>
         </div>
         <div class="modal-actions">
-            <button id="confirm-add-chord-button" class="button primary-button" data-i18n="add_button_label">Add</button>
             <button id="cancel-add-chord-button" class="button" data-i18n="cancel_button_label">Cancel</button>
+            <button id="confirm-add-chord-button" class="button primary-button" data-i18n="add_button_label">Add</button>
         </div>
     </div>
 

@@ -63,10 +63,37 @@ const ChordModeStrategy = {
     _boundConfirmAddChord: null,
 
     // Новые свойства для логики удаления
-    _longPressTimer: null,
-    _longPressTargetId: null, 
-    _deleteConfirmTargetId: null, 
     _activeNoteInfo: new Map(), // Добавлено
+
+    // Добавляем новые свойства
+    _collapseBtn: null,
+    _expandBtn: null,
+    _resizeHandle: null,
+    _resizeData: null,
+    
+    // Добавляем привязанные обработчики
+    _boundCollapsePanel: null,
+    _boundExpandPanel: null,
+    _boundOnResizePointerDown: null,
+    _boundOnResizePointerMove: null,
+    _boundOnResizePointerUp: null,
+
+    // Добавляем новые свойства
+    _isDeleteModeActive: false,
+    _deleteModeToggleButton: null,
+
+    // Обновляем привязанные обработчики
+    _boundToggleDeleteMode: null,
+
+    // Добавляем новые свойства
+    _chordRootDisplay: null,
+    _chordTypeDisplay: null,
+    _modalSelectedRoot: 'C',   // Временное хранение выбора в модальном окне
+    _modalSelectedType: 'M',   // Временное хранение выбора в модальном окне
+    
+    // Обновляем привязанные обработчики
+    _boundShowRootNotePopover: null,
+    _boundShowChordTypePopover: null,
 
     init(appReference, musicTheoryServiceInstance, harmonicMarkerEngineInstance) {
         this.appRef = appReference;
@@ -81,6 +108,19 @@ const ChordModeStrategy = {
         this._boundHandlePointerDownOnChordList = this._handlePointerDownOnChordList.bind(this);
         this._boundHandlePointerUpOnChordList = this._handlePointerUpOnChordList.bind(this);
         this._boundHandleClickOnSuggestedChords = this._handleClickOnSuggestedChords.bind(this);
+        
+        // Привязываем новые обработчики
+        this._boundCollapsePanel = () => this.appRef.toggleChordPanel(true);
+        this._boundExpandPanel = () => this.appRef.toggleChordPanel(false);
+        this._boundOnResizePointerDown = this._onResizePointerDown.bind(this);
+        this._boundOnResizePointerMove = this._onResizePointerMove.bind(this);
+        this._boundOnResizePointerUp = this._onResizePointerUp.bind(this);
+        this._boundToggleDeleteMode = this._toggleDeleteMode.bind(this);
+        
+        // Привязываем новые обработчики
+        this._boundShowRootNotePopover = this._showRootNotePopover.bind(this);
+        this._boundShowChordTypePopover = this._showChordTypePopover.bind(this);
+        
         console.log(`[${this.getName()}Strategy] Initialized.`);
     },
 
@@ -303,6 +343,57 @@ const ChordModeStrategy = {
         if (this.appRef && typeof this.appRef.updateZoneLayout === 'function') {
             this.appRef.updateZoneLayout();
         }
+
+        // Получаем ссылки на новые элементы
+        this._collapseBtn = document.getElementById('chord-panel-collapse-btn');
+        this._expandBtn = document.getElementById('chord-panel-expand-btn');
+        this._resizeHandle = this._currentChordPanel?.querySelector('.panel-resize-handle');
+
+        // Управление панелью
+        if (this._currentChordPanel) {
+            // Устанавливаем начальную ширину и состояние
+            this._currentChordPanel.style.width = `${this.appRef.state.chordPanelWidth}px`;
+            this._currentChordPanel.classList.toggle('collapsed', this.appRef.state.isChordPanelCollapsed);
+            if (this._expandBtn) {
+                this._expandBtn.classList.toggle('visible', this.appRef.state.isChordPanelCollapsed);
+            }
+            
+            // Показываем панель, если она не должна быть свернута
+            if (!this.appRef.state.isChordPanelCollapsed) {
+                sidePanel.showPanel('chord-mode-panel');
+            } else {
+                // Если панель свернута, кнопка на пэде должна быть видимой
+                if (this._expandBtn) this._expandBtn.classList.add('visible');
+            }
+        }
+        
+        // Добавляем обработчики
+        this._collapseBtn?.removeEventListener('click', this._boundCollapsePanel);
+        this._collapseBtn?.addEventListener('click', this._boundCollapsePanel);
+        
+        this._expandBtn?.removeEventListener('click', this._boundExpandPanel);
+        this._expandBtn?.addEventListener('click', this._boundExpandPanel);
+        
+        this._resizeHandle?.removeEventListener('pointerdown', this._boundOnResizePointerDown);
+        this._resizeHandle?.addEventListener('pointerdown', this._boundOnResizePointerDown);
+
+        this._isDeleteModeActive = false;
+        this._deleteModeToggleButton = document.getElementById('delete-chords-toggle-btn');
+        
+        // Добавляем новый обработчик
+        this._deleteModeToggleButton?.removeEventListener('click', this._boundToggleDeleteMode);
+        this._deleteModeToggleButton?.addEventListener('click', this._boundToggleDeleteMode);
+
+        // Получаем ссылки на новые display div'ы вместо select'ов
+        this._chordRootDisplay = document.getElementById('chord-root-note-display');
+        this._chordTypeDisplay = document.getElementById('chord-type-display');
+        
+        // Добавляем обработчики для новых дисплеев
+        this._chordRootDisplay?.removeEventListener('mousedown', this._boundShowRootNotePopover);
+        this._chordRootDisplay?.addEventListener('mousedown', this._boundShowRootNotePopover);
+        
+        this._chordTypeDisplay?.removeEventListener('mousedown', this._boundShowChordTypePopover);
+        this._chordTypeDisplay?.addEventListener('mousedown', this._boundShowChordTypePopover);
     },
 
     onModeDeactivated(appState, services, uiModules) {
@@ -313,11 +404,11 @@ const ChordModeStrategy = {
         // Скрываем модальное окно, если оно было открыто
         this._hideAddChordModal(); 
 
-        if (this._longPressTimer) {
-            clearTimeout(this._longPressTimer);
-            this._longPressTimer = null;
+        if (this._deleteModeToggleButton) {
+            this._deleteModeToggleButton.removeEventListener('click', this._boundToggleDeleteMode);
+            this._deleteModeToggleButton.classList.remove('active');
+            this._chordListContainer?.classList.remove('delete-mode');
         }
-        this._hideDeleteConfirmation();
 
         if (uiModules && uiModules.sidePanel && typeof uiModules.sidePanel.hidePanel === 'function') {
             uiModules.sidePanel.hidePanel('chord-mode-panel');
@@ -325,6 +416,14 @@ const ChordModeStrategy = {
             if (this._currentChordPanel) this._currentChordPanel.classList.remove('show');
         }
         this._updateChordButtonSelection(null); 
+
+        // Удаляем все обработчики, связанные с этим режимом
+        this._collapseBtn?.removeEventListener('click', this._boundCollapsePanel);
+        this._expandBtn?.removeEventListener('click', this._boundExpandPanel);
+        this._resizeHandle?.removeEventListener('pointerdown', this._boundOnResizePointerDown);
+        
+        // Убираем видимость кнопки на XY-пэде
+        this._expandBtn?.classList.remove('visible');
     },
 
     _renderChordPanel() {
@@ -382,16 +481,23 @@ const ChordModeStrategy = {
     },
 
     _showAddChordModal() {
+        if (this._isDeleteModeActive) {
+            this._toggleDeleteMode();
+        }
+        
         if (!this._addChordModal) return;
         
-        this._populateSelect(this._chordRootSelect, this._rootNotes, 'C');
-        this._populateSelect(this._chordOctaveSelect, this._octaves, 4);
-        this._populateSelect(this._chordTypeSelect, this._chordTypes, 'M');
-
+        // Сбрасываем временные значения на дефолтные
+        this._modalSelectedRoot = 'C';
+        this._modalSelectedType = 'M';
+        
+        // Обновляем текст в div'ах
+        if (this._chordRootDisplay) this._chordRootDisplay.textContent = this._modalSelectedRoot;
+        if (this._chordTypeDisplay) this._chordTypeDisplay.textContent = this._chordTypes[this._modalSelectedType];
+        
         this._addChordModal.style.display = 'block';
         if (this._modalOverlay) this._modalOverlay.style.display = 'block';
-        // Фокус на первый элемент для доступности
-        if(this._chordRootSelect) this._chordRootSelect.focus();
+        if(this._chordRootDisplay) this._chordRootDisplay.focus();
     },
 
     _hideAddChordModal() {
@@ -403,21 +509,54 @@ const ChordModeStrategy = {
         }
     },
 
+    _showRootNotePopover() {
+        if (typeof showCustomSelectorPopover !== 'function') return;
+        
+        showCustomSelectorPopover({
+            type: 'chordRootNote',
+            title: i18n.translate('chord_root_note_label', 'Root Note'),
+            itemsArray: this._rootNotes.map(note => ({ id: note, name: note })),
+            currentValue: this._modalSelectedRoot,
+            onSelect: (selectedValue) => {
+                this._modalSelectedRoot = selectedValue;
+                if (this._chordRootDisplay) {
+                    this._chordRootDisplay.textContent = selectedValue;
+                }
+            }
+        });
+    },
+    
+    _showChordTypePopover() {
+        if (typeof showCustomSelectorPopover !== 'function') return;
+        
+        const chordTypeOptions = Object.entries(this._chordTypes).map(([key, displayName]) => ({
+            id: key,
+            name: displayName
+        }));
+        
+        showCustomSelectorPopover({
+            type: 'chordType',
+            title: i18n.translate('chord_type_label', 'Chord Type'),
+            itemsArray: chordTypeOptions,
+            currentValue: this._modalSelectedType,
+            onSelect: (selectedValue) => {
+                this._modalSelectedType = selectedValue;
+                if (this._chordTypeDisplay) {
+                    this._chordTypeDisplay.textContent = this._chordTypes[selectedValue];
+                }
+            }
+        });
+    },
+
     _confirmAddChord() {
-        if (!this._chordRootSelect || !this._chordOctaveSelect || !this._chordTypeSelect) {
-             console.error("Chord selection elements not found in modal.");
-             this._hideAddChordModal();
-             return;
-        }
-        const root = this._chordRootSelect.value;
-        const octave = this._chordOctaveSelect.value;
-        const typeKey = this._chordTypeSelect.value; 
-        const typeDisplayName = this._chordTypes[typeKey];
-
-        const newChordId = root + octave + typeKey; 
-        const nameForService = root + octave + typeKey; 
-        const displayName = root + octave + " " + typeDisplayName;
-
+        const root = this._modalSelectedRoot;
+        const typeKey = this._modalSelectedType;
+        const octave = 4; // Октава по умолчанию
+        
+        const displayName = root + octave + " " + this._chordTypes[typeKey];
+        const newChordId = root + octave + typeKey;
+        const nameForService = root + octave + typeKey;
+        
         if (this._availableChords.find(c => c.id === newChordId)) {
             console.warn(`[${this.getName()}Strategy] Chord ${newChordId} already exists.`);
             this._hideAddChordModal();
@@ -426,12 +565,12 @@ const ChordModeStrategy = {
         
         const newChordData = {
             id: newChordId,
-            nameForService: nameForService, 
+            nameForService: nameForService,
             displayName: displayName
         };
-
+        
         this._availableChords.push(newChordData);
-        this._renderChordPanel(); 
+        this._renderChordPanel();
         
         console.log(`[${this.getName()}Strategy] Added new chord:`, newChordData);
         this._hideAddChordModal();
@@ -539,35 +678,24 @@ const ChordModeStrategy = {
     },
     _handleClickOnChordList(event) {
         if (!this._isActive) return;
+
         const targetDeleteButton = event.target.closest('.delete-chord-btn');
         const targetChordButton = event.target.closest('.chord-button');
 
-        if (targetDeleteButton) {
-            event.stopPropagation(); 
-            const chordIdToDelete = targetDeleteButton.dataset.deleteChordId;
-            if (chordIdToDelete && chordIdToDelete === this._deleteConfirmTargetId) {
-                this._deleteChord(chordIdToDelete);
+        if (this._isDeleteModeActive) {
+            if (targetDeleteButton) {
+                event.stopPropagation();
+                const chordIdToDelete = targetDeleteButton.dataset.deleteChordId;
+                if (chordIdToDelete) {
+                    this._deleteChord(chordIdToDelete);
+                }
             }
-        } else if (targetChordButton) {
-            const chordId = targetChordButton.dataset.chordId;
-            if (this._deleteConfirmTargetId && this._deleteConfirmTargetId !== chordId) {
-                this._hideDeleteConfirmation();
-            }
-            else if (this._deleteConfirmTargetId && this._deleteConfirmTargetId === chordId) {
-                 this._hideDeleteConfirmation();
-            }
-            
-            if (this._longPressTargetId === chordId && this._longPressTimer) {
-                 clearTimeout(this._longPressTimer);
-                 this._longPressTimer = null;
-            }
-            this.selectChord(chordId);
         } else {
-            if (this._deleteConfirmTargetId) {
-                this._hideDeleteConfirmation();
+            if (targetChordButton) {
+                const chordId = targetChordButton.dataset.chordId;
+                this.selectChord(chordId);
             }
         }
-        this._longPressTargetId = null; 
     },
     _showDeleteConfirmation(chordId) {
         if (this._deleteConfirmTargetId && this._deleteConfirmTargetId !== chordId) {
@@ -680,7 +808,57 @@ const ChordModeStrategy = {
             }
             this.selectChord(chordId); 
         }
-    }
+    },
+
+    // Новые методы для изменения размера
+    _onResizePointerDown(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        this._resizeData = {
+            startX: event.clientX,
+            initialWidth: this._currentChordPanel.offsetWidth
+        };
+
+        document.addEventListener('pointermove', this._boundOnResizePointerMove);
+        document.addEventListener('pointerup', this._boundOnResizePointerUp, { once: true });
+        
+        document.body.style.cursor = 'ew-resize';
+        document.body.style.userSelect = 'none';
+    },
+
+    _onResizePointerMove(event) {
+        if (!this._resizeData) return;
+        
+        requestAnimationFrame(() => {
+            const deltaX = event.clientX - this._resizeData.startX;
+            const newWidth = this._resizeData.initialWidth + deltaX;
+            
+            this.appRef.setChordPanelWidth(newWidth);
+        });
+    },
+
+    _onResizePointerUp(event) {
+        document.removeEventListener('pointermove', this._boundOnResizePointerMove);
+        
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        
+        delete this._resizeData;
+    },
+
+    _toggleDeleteMode() {
+        this._isDeleteModeActive = !this._isDeleteModeActive;
+        console.log(`[${this.getName()}Strategy] Delete mode toggled to: ${this._isDeleteModeActive}`);
+        this._updateDeleteModeUI();
+    },
+
+    _updateDeleteModeUI() {
+        if (!this._chordListContainer || !this._deleteModeToggleButton) return;
+        
+        this._chordListContainer.classList.toggle('delete-mode', this._isDeleteModeActive);
+        this._deleteModeToggleButton.classList.toggle('active', this._isDeleteModeActive);
+    },
 };
 
 if (typeof PadModeManager !== 'undefined' && PadModeManager.registerStrategy) {

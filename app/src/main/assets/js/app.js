@@ -73,6 +73,8 @@ const app = {
         rocketModeEnergy: 0,
         // ==============================
         yAxisDefinedByPreset: false, // true, если yAxisControls были установлены из текущего звукового пресета
+        isChordPanelCollapsed: false,
+        chordPanelWidth: 320,
     },
     elements: {
         loadingOverlay: null,
@@ -584,6 +586,10 @@ const app = {
 
         console.log('[App.loadInitialSettings] Final initial state updated:', JSON.parse(JSON.stringify(this.state))); // Логируем всё состояние
         this.state.yAxisDefinedByPreset = false; // потому что мы еще не знаем, откуда пришли загруженные yAxisControls
+
+        // Загрузка состояния панели аккордов
+        this.state.isChordPanelCollapsed = localStorage.getItem('isChordPanelCollapsed') === 'true';
+        this.state.chordPanelWidth = parseInt(localStorage.getItem('chordPanelWidth'), 10) || 320;
     },
 
     resumeAudio() {
@@ -1689,6 +1695,49 @@ const app = {
             bridgeFix.callBridge('setYAxisControlGroup', 'effects', JSON.stringify(this.state.yAxisControls.effects))
                 .catch(err => console.error("[App] Bridge setYAxis (effects) failed:", err));
         }
+    },
+
+    /**
+     * Сворачивает или разворачивает панель аккордов.
+     * @param {boolean} shouldBeCollapsed - Новое состояние панели.
+     */
+    toggleChordPanel(shouldBeCollapsed) {
+        if (typeof shouldBeCollapsed !== 'boolean') {
+            shouldBeCollapsed = !this.state.isChordPanelCollapsed;
+        }
+        this.state.isChordPanelCollapsed = shouldBeCollapsed;
+        console.log(`[App] Chord panel collapsed state set to: ${shouldBeCollapsed}`);
+
+        const panel = document.getElementById('chord-mode-panel');
+        const expandBtn = document.getElementById('chord-panel-expand-btn');
+        if (!panel || !expandBtn) return;
+
+        panel.classList.toggle('collapsed', shouldBeCollapsed);
+        expandBtn.classList.toggle('visible', shouldBeCollapsed);
+
+        localStorage.setItem('isChordPanelCollapsed', shouldBeCollapsed);
+    },
+
+    /**
+     * Устанавливает и сохраняет новую ширину панели аккордов.
+     * @param {number} newWidth - Новая ширина в пикселях.
+     */
+    setChordPanelWidth(newWidth) {
+        const minWidth = 150;
+        const maxWidth = window.innerWidth * 0.7;
+        const clampedWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
+        
+        if (this.state.chordPanelWidth === clampedWidth) return;
+
+        this.state.chordPanelWidth = clampedWidth;
+        console.log(`[App] Chord panel width set to: ${clampedWidth}px`);
+
+        const panel = document.getElementById('chord-mode-panel');
+        if (panel) {
+            panel.style.width = `${clampedWidth}px`;
+        }
+
+        localStorage.setItem('chordPanelWidth', clampedWidth);
     },
 };
 
