@@ -351,6 +351,35 @@ public class PrismtoneBridge {
     }
 
     @JavascriptInterface
+    public String saveChordProgression(String progressionDataJson) {
+        Log.d(TAG, "saveChordProgression called");
+        if (context == null) { Log.e(TAG, "saveChordProgression: context is null"); return "Error: Context is null"; }
+        try {
+            JsonObject progression = gson.fromJson(progressionDataJson, JsonObject.class);
+            ChordProgressionRepository repo = ChordProgressionRepository.getInstance(context);
+            if (repo == null) { Log.e(TAG, "saveChordProgression: Repository instance is null"); return "Error: Repository failed"; }
+            return repo.saveProgression(progression);
+        } catch (JsonSyntaxException e) {
+            Log.e(TAG, "Error parsing progressionData JSON", e); return "Error: Invalid JSON format";
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving chord progression", e); return "Error: " + e.getMessage();
+        }
+    }
+
+    @JavascriptInterface
+    public boolean deleteChordProgression(String progressionId) {
+        Log.d(TAG, "deleteChordProgression for: " + progressionId);
+        if (context == null) { Log.e(TAG, "deleteChordProgression: context is null"); return false; }
+        try {
+            ChordProgressionRepository repo = ChordProgressionRepository.getInstance(context);
+            if (repo == null) { Log.e(TAG, "deleteChordProgression: Repository instance is null"); return false; }
+            return repo.deleteProgression(progressionId);
+        } catch (Exception e) {
+            Log.e(TAG, "Error deleting chord progression: " + progressionId, e); return false;
+        }
+    }
+
+    @JavascriptInterface
     public void logDebug(String message) {
         Log.d("JS_" + TAG, message);
     }

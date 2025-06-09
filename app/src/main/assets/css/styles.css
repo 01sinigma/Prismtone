@@ -991,6 +991,13 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
     padding: 5px;
     max-height: calc(100vh - 200px);
     overflow-y: auto;
+    direction: rtl; /* Заставляет скроллбар появиться слева */
+    text-align: left; /* Возвращаем выравнивание текста к норме */
+}
+
+/* Возвращаем направление для самих кнопок внутри списка */
+.chord-list .chord-button {
+    direction: ltr;
 }
 
 .chord-button {
@@ -1189,17 +1196,80 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
    пока он только предложен, это другая логика. 
    Пока что при клике он станет обычным выбранным аккордом. */
 
-/* Ручка для изменения размера панели */
+/* === Стилизация Скроллбара === */
+/* Для Webkit-браузеров (Chrome, Safari, Edge, WebView на Android) */
+
+/* Вся полоса прокрутки */
+.panel-content::-webkit-scrollbar,
+.chord-list::-webkit-scrollbar {
+    width: 8px; /* Ширина скроллбара */
+    background-color: transparent; /* Фон трека делаем прозрачным */
+}
+
+/* Трек (дорожка, по которой бегает ползунок) */
+.panel-content::-webkit-scrollbar-track,
+.chord-list::-webkit-scrollbar-track {
+    background-color: rgba(var(--color-border-rgb), 0.1); /* Слегка видимый фон трека */
+    border-radius: 4px;
+    margin: 4px 0; /* Отступы сверху и снизу */
+}
+
+/* Ползунок (бегунок) */
+.panel-content::-webkit-scrollbar-thumb,
+.chord-list::-webkit-scrollbar-thumb {
+    background-color: var(--color-text-secondary); /* Основной цвет ползунка */
+    border-radius: 4px;
+    border: 2px solid transparent; /* Создает эффект отступа от краев трека */
+    background-clip: content-box;
+    transition: background-color 0.2s;
+}
+
+/* Ползунок при наведении */
+.panel-content::-webkit-scrollbar-thumb:hover,
+.chord-list::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-primary); /* Цвет при наведении */
+}
+
+/* Для Firefox (более ограниченные возможности) */
+.panel-content, .chord-list {
+    scrollbar-width: thin; /* 'auto', 'thin', 'none' */
+    scrollbar-color: var(--color-text-secondary) transparent; /* thumb track */
+}
+
+/* === Стилизация Ручки Изменения Размера === */
+/*
 .panel-resize-handle {
     position: absolute;
     top: 0;
-    right: 0;
-    width: 8px;
+    right: -6px; 
+    width: 16px; 
     height: 100%;
     cursor: ew-resize;
     z-index: 201;
-    background-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
 }
+
+.panel-resize-handle::after {
+    content: '';
+    width: 4px; 
+    height: 50px;
+    background-color: var(--color-border);
+    border-radius: 2px;
+    transition: background-color 0.2s, height 0.2s;
+}
+
+.panel-resize-handle:hover::after {
+    background-color: var(--color-primary);
+    height: 100px;
+}
+
+.side-panel.left-panel .panel-content {
+    padding-right: 20px;
+}
+*/
 
 /* Контейнер для кнопок поверх XY-пэда */
 #pad-overlay-controls {
@@ -1244,8 +1314,7 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
 .side-panel.left-panel {
     left: 0;
     border-right: 1px solid var(--color-border);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                width 0.2s ease-out;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .side-panel.left-panel.collapsed {
@@ -1286,5 +1355,92 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
 
 #add-chord-modal .modal-actions .button {
     padding: 8px 24px;
+}
+
+/* --- Chord Progression Display Styles --- */
+#topbar-center-content {
+    flex-grow: 1;
+    justify-content: center;
+    overflow: hidden; /* Предотвращает выход текста за пределы */
+}
+
+#chord-progression-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    opacity: 1;
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+    width: 100%;
+}
+
+#chord-progression-display.hidden {
+    display: none;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.progression-arrow {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    font-size: 18px;
+    font-weight: bold;
+    flex-shrink: 0;
+    background-color: transparent;
+    border-color: transparent;
+}
+.progression-arrow:hover {
+     background-color: rgba(var(--color-primary-rgb), 0.1);
+}
+
+#progression-chords-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-width: 0; /* Для корректной работы flexbox и text-overflow */
+}
+
+.progression-chord {
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+    transition: color 0.2s, font-weight 0.2s;
+}
+
+.progression-chord.current {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--color-primary);
+    cursor: default;
+}
+
+.progression-chord.prev-next {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    opacity: 0.7;
+}
+.progression-chord.prev-next:hover {
+    color: var(--color-primary);
+    background-color: rgba(var(--color-border-rgb), 0.5);
+}
+
+/* === SortableJS Styles for Chord Panel === */
+.chord-button {
+    cursor: grab; /* Указываем, что элемент можно схватить */
+}
+.chord-button.sortable-dragging {
+    cursor: grabbing; /* Курсор во время перетаскивания */
+    opacity: 1 !important; /* Убедимся, что сам элемент не становится прозрачным */
+}
+.sortable-ghost {
+    opacity: 0.4;
+    background-color: var(--color-primary-light) !important; /* Стиль для "тени" на новом месте */
+    border-style: dashed;
 }
 

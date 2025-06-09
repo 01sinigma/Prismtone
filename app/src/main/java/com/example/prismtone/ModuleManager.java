@@ -32,7 +32,7 @@ public class ModuleManager {
         // Инициализация карты модулей для всех известных типов
         String[] knownModuleTypes = {
                 "soundpreset", "fxchain", "theme", "language", "visualizer",
-                "effect", "scale", "audioComponent", "touchEffect"
+                "effect", "scale", "audioComponent", "touchEffect", "chordProgression"
         };
         for (String type : knownModuleTypes) {
             modules.put(type, new ArrayList<>());

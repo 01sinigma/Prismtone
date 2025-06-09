@@ -6,7 +6,15 @@ const topbar = {
         tonality: null,
         effects: null,
         reloadApp: null,
-        padModes: null // НОВАЯ КНОПКА
+        padModes: null, // НОВАЯ КНОПКА
+        // Добавляем новые элементы для прогрессии аккордов
+        progressionDisplay: null,
+        prevChordBtn: null,
+        nextChordBtn: null,
+        prevChordText: null,
+        currentChordText: null,
+        nextChordText: null,
+        chord: null
     },
     isReloadingAppFlag: false, // Используем другое имя для флага, чтобы не конфликтовать с app
 
@@ -18,6 +26,24 @@ const topbar = {
         this.buttons.effects = document.getElementById('effects-button');
         this.buttons.reloadApp = document.getElementById('reload-app-button'); // ID из HTML
         this.buttons.padModes = document.getElementById('pad-modes-button'); // Инициализация новой кнопки
+
+        // Инициализация элементов прогрессии аккордов
+        this.buttons.progressionDisplay = document.getElementById('chord-progression-display');
+        this.buttons.prevChordBtn = document.getElementById('prev-chord-btn');
+        this.buttons.nextChordBtn = document.getElementById('next-chord-btn');
+        this.buttons.prevChordText = document.getElementById('prev-chord-text');
+        this.buttons.currentChordText = document.getElementById('current-chord-text');
+        this.buttons.nextChordText = document.getElementById('next-chord-text');
+
+        // Добавляем обработчики для кнопок аккордов
+        if (this.buttons.chord) {
+            this.buttons.chord.addEventListener('click', () => {
+                const strategy = PadModeManager.getCurrentStrategy();
+                if (strategy && strategy.getName() === 'Chord') {
+                    this.selectNextChord();
+                }
+            });
+        }
 
         if (!this.buttons.padModes) console.warn("[Topbar.init PadModes] Pad Modes button ('pad-modes-button') not found.");
         if (!this.buttons.reloadApp) console.warn("[Topbar.init ReloadLogic] Reload App button ('reload-app-button') not found.");
@@ -89,6 +115,13 @@ const topbar = {
                 }
             });
         }
+
+        // Добавляем обработчики для прогрессии аккордов
+        this.buttons.prevChordBtn?.addEventListener('click', () => app.selectPreviousChord());
+        this.buttons.nextChordBtn?.addEventListener('click', () => app.selectNextChord());
+        this.buttons.prevChordText?.addEventListener('click', () => app.selectPreviousChord());
+        this.buttons.nextChordText?.addEventListener('click', () => app.selectNextChord());
+
         console.log('[Topbar.addEventListeners PadModes] Listeners added.');
     },
 
@@ -148,5 +181,85 @@ const topbar = {
                  this.buttons[key].classList.remove('active');
              }
          }
-     }
+     },
+
+    // Добавляем новые функции для работы с прогрессией аккордов
+    updateProgressionDisplay(data) {
+        const t0 = performance.now();
+        if (!this.buttons.currentChordText) return;
+        
+        this.buttons.prevChordText.textContent = data.prev ? data.prev.name : '';
+        this.buttons.prevChordText.dataset.chordId = data.prev ? data.prev.id : '';
+        
+        this.buttons.currentChordText.textContent = data.current ? data.current.name : '...';
+        this.buttons.currentChordText.dataset.chordId = data.current ? data.current.id : '';
+        
+        this.buttons.nextChordText.textContent = data.next ? data.next.name : '';
+        this.buttons.nextChordText.dataset.chordId = data.next ? data.next.id : '';
+        const t1 = performance.now();
+        console.log(`[Topbar.updateProgressionDisplay] Duration: ${(t1 - t0).toFixed(2)}ms`);
+    },
+
+    showProgressionDisplay() {
+        const appTitle = document.getElementById('app-title');
+        if (appTitle) appTitle.classList.add('hidden');
+        if (this.buttons.progressionDisplay) this.buttons.progressionDisplay.classList.remove('hidden');
+    },
+
+    hideProgressionDisplay() {
+        const appTitle = document.getElementById('app-title');
+        if (this.buttons.progressionDisplay) this.buttons.progressionDisplay.classList.add('hidden');
+        if (appTitle) appTitle.classList.remove('hidden');
+    },
+
+    // Добавляем новые методы для работы с аккордами
+    selectNextChord() {
+        const strategy = PadModeManager.getCurrentStrategy();
+        if (strategy && strategy.getName() === 'Chord') {
+            const currentId = strategy.getSelectedChordId();
+            const chords = strategy.getAvailableChords();
+            const currentIndex = chords.findIndex(c => c.id === currentId);
+            const nextIndex = (currentIndex + 1) % chords.length;
+            strategy.selectChord(chords[nextIndex].id);
+        }
+    },
+
+    selectPreviousChord() {
+        const strategy = PadModeManager.getCurrentStrategy();
+        if (strategy && strategy.getName() === 'Chord') {
+            const currentId = strategy.getSelectedChordId();
+            const chords = strategy.getAvailableChords();
+            const currentIndex = chords.findIndex(c => c.id === currentId);
+            const prevIndex = (currentIndex - 1 + chords.length) % chords.length;
+            strategy.selectChord(chords[prevIndex].id);
+        }
+    },
+
+    updateChordButtonState() {
+        const strategy = PadModeManager.getCurrentStrategy();
+        if (strategy && strategy.getName() === 'Chord') {
+            const selectedChord = strategy.getSelectedChord();
+            if (selectedChord) {
+                this.buttons.chord.textContent = selectedChord.name;
+                this.buttons.chord.classList.add('active');
+            } else {
+                this.buttons.chord.textContent = this.getLocalizedText('chord_mode');
+                this.buttons.chord.classList.remove('active');
+            }
+        }
+    },
+
+    // Обновляем метод getLocalizedText для поддержки новых ключей
+    getLocalizedText(key) {
+        const translations = {
+            'chord_mode': 'Chord Mode',
+            'next_chord': 'Next Chord',
+            'prev_chord': 'Previous Chord',
+            'add_chord': 'Add Chord',
+            'delete_chord': 'Delete Chord',
+            'collapse_panel': 'Collapse Panel',
+            'expand_panel': 'Expand Panel'
+        };
+        return translations[key] || key;
+    }
 };

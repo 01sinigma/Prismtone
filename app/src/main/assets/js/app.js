@@ -97,6 +97,9 @@ const app = {
     isStartingApp: false,
     isRestartingAudio: false,
 
+    // Добавляем в начало файла, где определяются свойства
+    _chordPanelResizeTimeout: null,
+
     async init() {
         console.log('[App.init v2.5.1 PadModeManager] Starting application initialization...');
         this.elements.body = document.body;
@@ -397,6 +400,9 @@ const app = {
             currentTonic: localStorage.getItem('currentTonic') || "C4", // Загружаем или используем дефолт
             // === ЗАГРУЗКА highlightSharpsFlats ===
             highlightSharpsFlats: localStorage.getItem('highlightSharpsFlats') === 'true', // Загружаем или используем дефолт false
+            // === ЗАГРУЗКА СОСТОЯНИЙ ПАНЕЛИ АККОРДОВ ===
+            isChordPanelCollapsed: localStorage.getItem('isChordPanelCollapsed') === 'true',
+            chordPanelWidth: parseInt(localStorage.getItem('chordPanelWidth'), 10) || 320,
             // === ЗАГРУЗКА rocketModeSettings ===
             rocketModeSettings: {
                 highlightActiveNotes: localStorage.getItem('rocketModeSettings.highlightActiveNotes') === 'true',
@@ -1289,21 +1295,54 @@ const app = {
         const success = await PadModeManager.setActiveMode(modeId);
         if (success) {
             this.state.padMode = modeId;
-            if (typeof bridgeFix !== 'undefined' && bridgeFix.callBridge) {
-                bridgeFix.callBridge('setSetting', 'padMode', modeId);
-            }
+            bridgeFix.callBridge('setSetting', 'padMode', modeId);
             
-            if (typeof sidePanel !== 'undefined' && sidePanel.populatePadModeSelectDisplay) {
-                sidePanel.populatePadModeSelectDisplay(); 
-            }
-            // Обновляем специфичные для режима контролы
-            if (typeof sidePanel !== 'undefined' && sidePanel.displayModeSpecificControls) {
-                sidePanel.displayModeSpecificControls(modeId); // <--- ВАЖНЫЙ ВЫЗОВ
-            }
+            // --- НОВАЯ ЦЕНТРАЛИЗОВАННАЯ ЛОГИКА ---
+            if (modeId === 'chord') {
+                // 1. Сначала скрываем все остальные панели
+                sidePanel.hideAllPanels();
+                
+                // 2. Затем явно показываем и настраиваем панель аккордов
+                const chordPanel = document.getElementById('chord-mode-panel');
+                if (chordPanel) {
+                    chordPanel.style.width = `${this.state.chordPanelWidth}px`;
+                    chordPanel.classList.add('show'); // Делаем ее видимой в DOM
+                    this.toggleChordPanel(this.state.isChordPanelCollapsed); // Применяем состояние свернутости
+                }
+                
+                // 3. Выбираем первый аккорд, если ни один не выбран
+                const strategy = PadModeManager.getCurrentStrategy();
+                if (strategy && !strategy.getSelectedChordId() && strategy.getAvailableChords().length > 0) {
+                    await strategy.selectChord(strategy.getAvailableChords()[0].id);
+                } else {
+                    // Если аккорд уже выбран, просто уведомляем topbar
+                    this.notifyProgressionChanged();
+                }
 
-            console.log(`[App.setPadMode] Pad mode set to ${modeId}. Initial load: ${initialLoad}`);
+            } else {
+                // Если переключаемся с режима аккордов, прячем панель
+                const chordPanel = document.getElementById('chord-mode-panel');
+                if (chordPanel) {
+                    chordPanel.classList.remove('show');
+                    this.toggleChordPanel(true); // Сворачиваем и прячем кнопку ">"
+                }
+            }
+            // --- КОНЕЦ НОВОЙ ЛОГИКИ ---
+            
+            sidePanel.populatePadModeSelectDisplay(); 
+            sidePanel.displayModeSpecificControls(modeId);
         } else {
             console.error(`[App.setPadMode] Failed to set pad mode to ${modeId}.`);
+        }
+
+        if (typeof topbar !== 'undefined') {
+            if (modeId === 'chord') {
+                topbar.showProgressionDisplay();
+                // Немедленно обновить дисплей при переключении на режим
+                this.notifyProgressionChanged(); 
+            } else {
+                topbar.hideProgressionDisplay();
+            }
         }
     },
     
@@ -1738,6 +1777,67 @@ const app = {
         }
 
         localStorage.setItem('chordPanelWidth', clampedWidth);
+    },
+
+    // Добавляем новые функции для работы с прогрессией аккордов
+    selectNextChord() {
+        if (this.state.padMode !== 'chord') return;
+        const strategy = PadModeManager.getCurrentStrategy();
+        if (strategy && typeof strategy.getAvailableChords === 'function') {
+            const chords = strategy.getAvailableChords();
+            const currentId = strategy.getSelectedChordId();
+            if (!chords || chords.length === 0) return;
+            const currentIndex = chords.findIndex(c => c.id === currentId);
+            const nextIndex = (currentIndex + 1) % chords.length;
+            const nextChordId = chords[nextIndex].id;
+            strategy.selectChord(nextChordId); // Делегируем выбор стратегии
+        }
+    },
+
+    selectPreviousChord() {
+        if (this.state.padMode !== 'chord') return;
+        const strategy = PadModeManager.getCurrentStrategy();
+        if (strategy && typeof strategy.getAvailableChords === 'function') {
+            const chords = strategy.getAvailableChords();
+            const currentId = strategy.getSelectedChordId();
+            if (!chords || chords.length === 0) return;
+            const currentIndex = chords.findIndex(c => c.id === currentId);
+            const prevIndex = (currentIndex - 1 + chords.length) % chords.length;
+            const prevChordId = chords[prevIndex].id;
+            strategy.selectChord(prevChordId);
+        }
+    },
+
+    notifyProgressionChanged() {
+        const t0 = performance.now();
+        if (this.state.padMode !== 'chord') return;
+        const strategy = PadModeManager.getCurrentStrategy();
+        if (strategy && typeof strategy.getAvailableChords === 'function') {
+            const chords = strategy.getAvailableChords();
+            const currentId = strategy.getSelectedChordId();
+            if (!chords || chords.length === 0) {
+                topbar.updateProgressionDisplay({ prev: null, current: null, next: null });
+                return;
+            }
+
+            const currentIndex = Math.max(0, chords.findIndex(c => c.id === currentId));
+            
+            const prevChord = chords.length > 1 ? chords[(currentIndex - 1 + chords.length) % chords.length] : null;
+            const currentChord = chords[currentIndex];
+            const nextChord = chords.length > 1 ? chords[(currentIndex + 1) % chords.length] : null;
+
+            const displayData = {
+                prev: prevChord ? { id: prevChord.id, name: prevChord.displayName } : null,
+                current: currentChord ? { id: currentChord.id, name: currentChord.displayName } : null,
+                next: nextChord ? { id: nextChord.id, name: nextChord.displayName } : null
+            };
+
+            if (typeof topbar !== 'undefined' && typeof topbar.updateProgressionDisplay === 'function') {
+                topbar.updateProgressionDisplay(displayData);
+            }
+            const t1 = performance.now();
+            console.log(`[App.notifyProgressionChanged] Duration: ${(t1 - t0).toFixed(2)}ms`);
+        }
     },
 };
 

@@ -657,9 +657,22 @@ const sidePanel = {
     },
 
     showPanel(panelId) {
-        this.hideAllPanels(panelId);
+        // Если открываем панель, которая НЕ является панелью аккордов
+        if (panelId !== 'chord-mode-panel') {
+            // Прячем ВСЕ панели, кроме панели аккордов
+            this.hideAllPanels(); 
+            // И СВОРАЧИВАЕМ панель аккордов, если мы в режиме 'chord'
+            if (app.state.padMode === 'chord') {
+                app.toggleChordPanel(true);
+            }
+        }
+        
         const panel = this.panels[panelId];
         if (panel) {
+            // Если мы показываем панель аккордов, убедимся, что она развернута
+            if (panelId === 'chord-mode-panel') {
+                app.toggleChordPanel(false);
+            }
             panel.classList.add('show');
             if (topbar && typeof topbar.getButtonForPanel === 'function') {
                 const button = topbar.getButtonForPanel(panelId);
@@ -684,7 +697,8 @@ const sidePanel = {
             topbar.deactivateAllButtons();
         }
         for (const id in this.panels) {
-            if (id !== exceptId && this.panels[id]) {
+            // Панель аккордов управляется отдельно, здесь ее не трогаем
+            if (id !== exceptId && id !== 'chord-mode-panel' && this.panels[id]) {
                 this.hidePanel(id);
             }
         }
