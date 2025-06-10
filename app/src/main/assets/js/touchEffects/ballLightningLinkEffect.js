@@ -45,6 +45,11 @@ class BallLightningLinkEffect {
         this.ballLightnings.clear();
         this.activeLinks.clear();
         this.lastDrawTime = performance.now();
+        // Object pool для sparks
+        this.sparkPool = [];
+        for (let i = 0; i < (this.settings.maxSparksInPool || 200); i++) {
+            this.sparkPool.push({ isActive: false });
+        }
         console.log("[BallLightningLinkEffect v1.2-multi-final] Initialized with settings:", JSON.parse(JSON.stringify(this.settings)));
     }
 
@@ -199,7 +204,8 @@ class BallLightningLinkEffect {
                     const length = (this.settings.sparkBaseLength || 15) * 0.6 * (0.5 + Math.random() * 0.5);
                     const sparkColor = Math.random() < 0.5 ? link.color1 : link.color2;
 
-                    link.secondarySparks.push({
+                    const newSpark = this._getSparkFromPool();
+                    Object.assign(newSpark, {
                         startX: startX, startY: startY,
                         basePoints: this._generateSparkBasePoints(length, Math.max(1, Math.floor(this.settings.sparkSegments / 2)), this.settings.sparkJitter / 2, angle),
                         length: length,
@@ -207,13 +213,16 @@ class BallLightningLinkEffect {
                         startTime: now,
                         color: sparkColor
                     });
+                    link.secondarySparks.push(newSpark);
                 }
             }
         }
         if (link.secondarySparks) {
-            link.secondarySparks = link.secondarySparks.filter(spark =>
-                 this._drawSpark(spark, spark.color, spark.color, now)
-            );
+            link.secondarySparks = link.secondarySparks.filter(spark => {
+                const alive = this._drawSpark(spark, spark.color, spark.color, now);
+                if (!alive) spark.isActive = false;
+                return alive;
+            });
         }
 
         // Ответвления от основной дуги
@@ -228,7 +237,8 @@ class BallLightningLinkEffect {
              const length = (this.settings.sparkBaseLength || 15) * (0.7 + Math.random() * 0.6);
              const branchColor = Math.random() < 0.5 ? link.color1 : link.color2;
 
-             link.mainBranches.push({
+             const newBranch = this._getSparkFromPool();
+             Object.assign(newBranch, {
                 startX: startX, startY: startY,
                 basePoints: this._generateSparkBasePoints(length, this.settings.sparkSegments, this.settings.sparkJitter, angle),
                 length: length,
@@ -236,11 +246,14 @@ class BallLightningLinkEffect {
                 startTime: now,
                 color: branchColor
              });
+             link.mainBranches.push(newBranch);
         }
          if (link.mainBranches) {
-            link.mainBranches = link.mainBranches.filter(spark =>
-                 this._drawSpark(spark, spark.color, spark.color, now)
-            );
+            link.mainBranches = link.mainBranches.filter(spark => {
+                const alive = this._drawSpark(spark, spark.color, spark.color, now);
+                if (!alive) spark.isActive = false;
+                return alive;
+            });
         }
     }
 
@@ -531,13 +544,15 @@ class BallLightningLinkEffect {
                         const angle = bl.sparkBundleAngle + (Math.random() - 0.5) * (this.settings.sparkBundleSpread) + (i / numSparks) * (Math.PI * 2 / (this.settings.sparkAngleFactor));
                         const length = (this.settings.sparkBaseLength + bl.currentY * this.settings.sparkLengthYMultiplier) * (0.7 + Math.random() * 0.6);
 
-                        bl.sparks.push({
+                        const newSpark = this._getSparkFromPool();
+                        Object.assign(newSpark, {
                             startX: bl.x, startY: bl.y,
                             basePoints: this._generateSparkBasePoints(length, this.settings.sparkSegments, this.settings.sparkJitter, angle),
                             length: length,
                             lifetime: this.settings.sparkMaxLifetime * (0.8 + Math.random() * 0.4),
                             startTime: now,
                         });
+                        bl.sparks.push(newSpark);
                     }
                 }
             }
@@ -545,10 +560,11 @@ class BallLightningLinkEffect {
             const sparkCoreRenderColor = this.settings.sparkCoreColorFromAura ? bl.auraColor : this.settings.sparkCoreColor;
             bl.sparks = bl.sparks.filter(spark => {
                 let sparkIsAlive = this._drawSpark(spark, bl.auraColor, sparkCoreRenderColor, now);
-                if (!bl.isActive) { // Если шаровая молния затухает, ее искры тоже должны быстро исчезать
+                if (!bl.isActive) {
                     const fadeProgressCore = Math.min((now - bl.fadeStartTime) / this.settings.fadeDurationSparks, 1);
-                    if (fadeProgressCore > 0.3) sparkIsAlive = false; // Ускоренное исчезновение искр
+                    if (fadeProgressCore > 0.3) sparkIsAlive = false;
                 }
+                if (!sparkIsAlive) spark.isActive = false;
                 return sparkIsAlive;
             });
 
@@ -566,6 +582,19 @@ class BallLightningLinkEffect {
         this.ctx = null;
         this.canvas = null;
         console.log("[BallLightningLinkEffect v1.2-multi-final] Disposed.");
+    }
+
+    _getSparkFromPool() {
+        for (let i = 0; i < this.sparkPool.length; i++) {
+            if (!this.sparkPool[i].isActive) {
+                this.sparkPool[i].isActive = true;
+                return this.sparkPool[i];
+            }
+        }
+        // Если пул исчерпан, создаем новый
+        const newSpark = { isActive: true };
+        this.sparkPool.push(newSpark);
+        return newSpark;
     }
 }
 

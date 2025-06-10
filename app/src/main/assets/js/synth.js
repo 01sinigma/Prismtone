@@ -1,5 +1,6 @@
 // Файл: app/src/main/assets/js/synth.js
 // ВЕРСИЯ С Master Volume Control, Polyphony Scaling И ГИБКИМ Y-Axis (Часть 1 и 2)
+// + АСИНХРОННАЯ ОЧЕРЕДЬ ЗАДАЧ
 
 const synth = {
     voices: [],
@@ -16,6 +17,10 @@ const synth = {
     currentFxChainData: null, // Кэш для данных текущей FX-цепочки (для макросов)
     _activeVoiceCountChanged: false, // Новый флаг
     _previousActiveVoiceCount: 0,    // Для отслеживания изменений
+    
+    // Новые свойства для очереди
+    _updateQueue: new Map(), 
+    _isProcessingQueue: false,
 
     config: {
         polyphony: 4, // Было 10. Для теста ASR ошибки уменьшено до 4.
@@ -69,7 +74,7 @@ const synth = {
     },
 
     init() {
-        console.log('[Synth v7 - YAxisFlex] Initializing...');
+        console.log('[Synth v8 - AsyncQueue] Initializing...');
         try {
             this.masterVolume = new Tone.Volume(Tone.gainToDb(1.0)).toDestination();
             this.limiter = new Tone.Limiter(-1).connect(this.masterVolume);
@@ -152,6 +157,8 @@ const synth = {
             this.applyMasterVolumeSettings(); // Применяем начальные настройки мастер-громкости
             this.startSilentNotesCheck();
             this._previousActiveVoiceCount = 0;
+            this._updateQueue.clear(); // Очистим очередь при инициализации
+            this._isProcessingQueue = false;
 
         } catch (error) {
             console.error('[Synth v7 init] Initialization failed:', error, error.stack);
@@ -231,10 +238,10 @@ const synth = {
     applyPreset(presetData, forceRecreation = false) {
         const t0 = performance.now();
         if (!this.isReady || !presetData) {
-            console.warn('[Synth v7] Cannot apply preset. Synth not ready or presetData is null.');
+            console.warn('[Synth v8 - AsyncQueue] Cannot apply preset. Synth not ready or presetData is null.');
             return;
         }
-        if (this.config.debug) console.log('[Synth v7] Applying preset to all voices:', presetData);
+        if (this.config.debug) console.log('[Synth v8 - AsyncQueue] Applying preset to all voices:', presetData);
 
         const safePresetData = {};
         const defaultPresetCopy = JSON.parse(JSON.stringify(this.config.defaultPreset));
@@ -373,369 +380,173 @@ const synth = {
         }
     },
 
+    // ====================================================================
+    // === НОВЫЕ ПУБЛИЧНЫЕ МЕТОДЫ: Только добавляют задачи в очередь ===
+    // ====================================================================
+
     startNote(frequency, velocity, yPosition, touchId) {
-        const t0 = performance.now();
-        if (!this.isReady) { console.warn("[Synth v7] startNote called but synth not ready."); return; }
-        if (frequency <= 0) { console.warn(`[Synth v7] Invalid frequency ${frequency} passed to startNote.`); return; }
-        let t1 = performance.now();
-        const voiceIndex = this.getFreeVoiceIndex(touchId);
-        let t2 = performance.now();
-        if (voiceIndex === -1) { console.warn(`[Synth v7] No free voice found for touchId ${touchId}.`); return; }
-        const voiceData = this.voices[voiceIndex];
-        if (!voiceData || !voiceData.components || voiceData.errorState?.critical || voiceData.errorState?.oscillator || voiceData.errorState?.amplitudeEnv || voiceData.errorState?.outputGain) {
-            console.error(`[Synth v7] Voice slot ${voiceIndex} invalid or critical component error. Errors:`, voiceData?.errorState);
-            this.releaseVoice(voiceIndex);
-            return;
-        }
-        let t3 = performance.now();
-        const components = voiceData.components; const errorState = voiceData.errorState; const noteId = `${frequency.toFixed(1)}_${touchId}_${Date.now()}`;
-        const yAxisVolConfig = app.state.yAxisControls.volume;
-        const yAxisFxConfig = app.state.yAxisControls.effects;
-        const calculatedVolume = this.calculateGenericYParameter(yPosition, yAxisVolConfig);
-        const calculatedSendLevel = this.calculateGenericYParameter(yPosition, yAxisFxConfig);
-        if (this.config.debug) console.log(`>>> [Synth.startNote v7] Freq=${frequency?.toFixed(1)}, Y=${yPosition?.toFixed(2)}, TouchID=${touchId}, Voice=${voiceIndex}, Vol=${calculatedVolume.toFixed(2)}, Send=${calculatedSendLevel.toFixed(1)}dB`);
-        let t4 = performance.now();
-        try {
-            const oscManager = audioConfig.getManager('oscillator');
-            const ampEnvManager = audioConfig.getManager('amplitudeEnv');
-            const outputGainManager = audioConfig.getManager('outputGain');
-            const pitchEnvManager = audioConfig.getManager('pitchEnvelope');
-            const filterEnvManager = audioConfig.getManager('filterEnvelope');
-            const lfo1Manager = audioConfig.getManager('lfo1');
-            // Обновляем осциллятор и выходной гейн
-            if (oscManager && components.oscillator && !errorState.oscillator) {
-                let oscUpdateParams = { frequency: frequency };
-                if (!oscManager.update(components.oscillator.nodes, oscUpdateParams)) errorState.oscillator = "Update failed";
-            }
-            let t5 = performance.now();
-            if (outputGainManager && components.outputGain && !errorState.outputGain) {
-                if (!outputGainManager.update(components.outputGain.nodes, { gain: calculatedVolume })) errorState.outputGain = "Update failed";
-            }
-            let t6 = performance.now();
-            if (voiceData.fxSend) voiceData.fxSend.volume.value = calculatedSendLevel;
-            let t7 = performance.now();
-            // Триггерим огибающие
-            if (ampEnvManager && components.amplitudeEnv && !errorState.amplitudeEnv) {
-                ampEnvManager.triggerAttack(components.amplitudeEnv.nodes, Tone.now(), velocity);
-            } else { throw new Error("Amplitude Envelope invalid or has error."); }
-            let t8 = performance.now();
-            if (pitchEnvManager && components.pitchEnvelope && !errorState.pitchEnvelope && voiceData.currentPresetData?.pitchEnvelope?.enabled) {
-                if (!pitchEnvManager.triggerAttack(components.pitchEnvelope.nodes, Tone.now())) errorState.pitchEnvelope = "TriggerAttack failed";
-            }
-            let t9 = performance.now();
-            if (filterEnvManager && components.filterEnvelope && !errorState.filterEnvelope && voiceData.currentPresetData?.filterEnvelope?.enabled) {
-                if (!filterEnvManager.triggerAttack(components.filterEnvelope.nodes, Tone.now())) errorState.filterEnvelope = "TriggerAttack failed";
-            }
-            let t10 = performance.now();
-            // Запускаем/перезапускаем LFO, если нужно
-            if (lfo1Manager && components.lfo1 && !errorState.lfo1 && voiceData.currentPresetData?.lfo1?.enabled) {
-                if (!lfo1Manager.enable(components.lfo1.nodes, true, { retrigger: voiceData.currentPresetData.lfo1.params?.retrigger ?? false })) {
-                    errorState.lfo1 = "Enable/Retrigger failed";
-                }
-            }
-            let t11 = performance.now();
-            this.voiceState[voiceIndex].isBusy = true;
-            this.voiceState[voiceIndex].touchId = touchId;
-            this.voiceState[voiceIndex].noteId = noteId;
-            this.voiceState[voiceIndex].startTime = Tone.now();
-            this.activeVoices.set(touchId, { frequency: frequency, noteId: noteId, voiceIndex: voiceIndex, lastY: yPosition });
-            if (this.activeVoices.size !== this._previousActiveVoiceCount) {
-                this.applyMasterVolumeSettings();
-                this._previousActiveVoiceCount = this.activeVoices.size;
-            }
-            let t12 = performance.now();
-            if (this.config.debug) {
-                console.log(`[Synth.startNote] Timings: getFreeVoiceIndex=${(t2-t1).toFixed(2)}ms, voiceCheck=${(t3-t2).toFixed(2)}ms, paramCalc=${(t4-t3).toFixed(2)}ms, oscUpdate=${(t5-t4).toFixed(2)}ms, gainUpdate=${(t6-t5).toFixed(2)}ms, fxSend=${(t7-t6).toFixed(2)}ms, ampEnv=${(t8-t7).toFixed(2)}ms, pitchEnv=${(t9-t8).toFixed(2)}ms, filterEnv=${(t10-t9).toFixed(2)}ms, lfo=${(t11-t10).toFixed(2)}ms, bookkeeping+vol=${(t12-t11).toFixed(2)}ms, total=${(t12-t0).toFixed(2)}ms`);
-            }
-        } catch (error) {
-            console.error(`[Synth v7] Error triggering attack for voice ${voiceIndex}:`, error, error.stack);
-            this.releaseVoice(voiceIndex);
-        }
+        this._updateQueue.set(touchId, { 
+            action: 'start', 
+            frequency, 
+            velocity, 
+            yPosition, 
+            noteId: `${touchId}-${performance.now()}` // Уникальный ID для ноты
+        });
+        this._processUpdateQueue();
     },
 
     updateNote(frequency, velocity, yPosition, touchId) {
-        const t0 = performance.now();
-        if (!this.isReady) return;
-        const voiceIndex = this.findVoiceIndex(touchId);
-        if (voiceIndex === -1) return;
-        let t1 = performance.now();
-        const voiceData = this.voices[voiceIndex];
-        if (!voiceData || !voiceData.components || voiceData.errorState?.critical) return;
-        const components = voiceData.components;
-        const errorState = voiceData.errorState;
-        const activeVoice = this.activeVoices.get(touchId);
-        let t2 = performance.now();
-        let needUpdateY = true;
-        if (activeVoice) {
-            if (activeVoice.lastY === yPosition) {
-                needUpdateY = false;
-            }
+        const task = this._updateQueue.get(touchId) || { action: 'update', noteId: this.activeVoices.get(touchId)?.noteId };
+        if (task.action === 'release') {
+            if (this.config.debug) console.warn(`[Synth] Ignoring update for touchId ${touchId} because a release is already queued.`);
+            return; 
         }
-        let calculatedVolume, calculatedSendLevel;
-        let t3 = performance.now();
-        if (needUpdateY) {
-            const yAxisVolConfig = app.state.yAxisControls.volume;
-            const yAxisFxConfig = app.state.yAxisControls.effects;
-            calculatedVolume = this.calculateGenericYParameter(yPosition, yAxisVolConfig);
-            calculatedSendLevel = this.calculateGenericYParameter(yPosition, yAxisFxConfig);
-            if (activeVoice) activeVoice.lastY = yPosition;
-        } else {
-            // Если Y не изменился, не пересчитываем значения и не обновляем параметры
-            if (this.config.debug) {
-                const t4 = performance.now();
-                console.log(`[Synth.updateNote] Skipped update for unchanged Y. Timings: findVoiceIndex=${(t1-t0).toFixed(2)}ms, getVoice=${(t2-t1).toFixed(2)}ms, checkY=${(t3-t2).toFixed(2)}ms, total=${(t4-t0).toFixed(2)}ms`);
-            }
-            return;
-        }
-        let t4 = performance.now();
-        try {
-            const oscManager = audioConfig.getManager('oscillator');
-            const outputGainManager = audioConfig.getManager('outputGain');
-            if (activeVoice && activeVoice.frequency !== frequency && oscManager && components.oscillator && !errorState.oscillator) {
-                if (!oscManager.update(components.oscillator.nodes, { frequency: frequency })) {
-                    errorState.oscillator = "Update failed";
-                } else {
-                    activeVoice.frequency = frequency;
-                }
-            }
-            let t5 = performance.now();
-            if (outputGainManager && components.outputGain && !errorState.outputGain) {
-                if (!outputGainManager.update(components.outputGain.nodes, { gain: calculatedVolume })) {
-                     errorState.outputGain = "Update failed";
-                }
-            }
-            let t6 = performance.now();
-            if (voiceData.fxSend) {
-                voiceData.fxSend.volume.rampTo(calculatedSendLevel, 0.02);
-            }
-            let t7 = performance.now();
-            if (this.config.debug) {
-                console.log(`[Synth.updateNote] Timings: findVoiceIndex=${(t1-t0).toFixed(2)}ms, getVoice=${(t2-t1).toFixed(2)}ms, checkY=${(t3-t2).toFixed(2)}ms, paramCalc=${(t4-t3).toFixed(2)}ms, oscUpdate=${(t5-t4).toFixed(2)}ms, gainUpdate=${(t6-t5).toFixed(2)}ms, fxSend=${(t7-t6).toFixed(2)}ms, total=${(t7-t0).toFixed(2)}ms`);
-            }
-        } catch(e) {
-            console.error(`[Synth v7] Error ramping parameters for voice ${voiceIndex}:`, e);
-        }
-    },
-
-    updateAllActiveVoiceMainLevels() {
-        if (!this.isReady || !app || !app.state) return;
-        const yAxisVolConfig = app.state.yAxisControls.volume;
-        this.activeVoices.forEach((voiceInfo) => {
-            const voiceIndex = voiceInfo.voiceIndex;
-            const voiceData = this.voices[voiceIndex];
-            if (voiceData && voiceData.components?.outputGain && !voiceData.errorState?.outputGain) {
-                const yPosition = voiceInfo.lastY ?? 0.5; // Используем последнее известное Y
-                const calculatedVolume = this.calculateGenericYParameter(yPosition, yAxisVolConfig);
-                const outputGainManager = audioConfig.getManager('outputGain');
-                if (outputGainManager && typeof outputGainManager.update === 'function') { // Проверка на существование update
-                    outputGainManager.update(voiceData.components.outputGain.nodes, { gain: calculatedVolume });
-                }
-            }
-        });
+        task.frequency = frequency;
+        task.velocity = velocity;
+        task.yPosition = yPosition;
+        this._updateQueue.set(touchId, task);
+        this._processUpdateQueue();
     },
 
     triggerRelease(touchId) {
-        const t0 = performance.now();
+        const activeNoteId = this.activeVoices.get(touchId)?.noteId;
+        this._updateQueue.set(touchId, { action: 'release', noteId: activeNoteId });
+        this._processUpdateQueue();
+    },
+
+    // ====================================================================
+    // === НОВЫЕ ПРИВАТНЫЕ МЕТОДЫ: Обработчик очереди и исполнители ===
+    // ====================================================================
+
+    _processUpdateQueue() {
+        if (this._isProcessingQueue || this._updateQueue.size === 0) {
+            return;
+        }
+        this._isProcessingQueue = true;
+
+        requestAnimationFrame(() => {
+            const tasksToProcess = this._updateQueue;
+            this._updateQueue = new Map();
+
+            if (this.config.debug && tasksToProcess.size > 0) {
+                console.log(`[Synth Queue] Processing ${tasksToProcess.size} tasks.`);
+            }
+
+            tasksToProcess.forEach((task, touchId) => {
+                try {
+                    switch (task.action) {
+                        case 'start':
+                            this._executeStartNote(task.frequency, task.velocity, task.yPosition, touchId, task.noteId);
+                            break;
+                        case 'update':
+                            this._executeUpdateNote(task.frequency, task.velocity, task.yPosition, touchId);
+                            break;
+                        case 'release':
+                            this._executeTriggerRelease(touchId);
+                            break;
+                    }
+                } catch (e) {
+                    console.error(`[Synth Queue] Error processing task for touchId ${touchId}:`, task, e);
+                }
+            });
+
+            if (this._activeVoiceCountChanged) {
+                this.applyMasterVolumeSettings();
+                this._activeVoiceCountChanged = false;
+            }
+            
+            this._isProcessingQueue = false;
+
+            if (this._updateQueue.size > 0) {
+                this._processUpdateQueue();
+            }
+        });
+    },
+
+    _executeStartNote(frequency, velocity, yPosition, touchId, noteId) {
         if (!this.isReady) return;
-        const voiceIndex = this.findVoiceIndex(touchId);
+        const voiceIndex = this.getFreeVoiceIndex(touchId);
         if (voiceIndex === -1) return;
-        let t1 = performance.now();
         const voiceData = this.voices[voiceIndex];
-        if (!voiceData || !voiceData.components?.amplitudeEnv || voiceData.errorState?.amplitudeEnv) {
-           console.warn(`[Synth v7 triggerRelease] Voice slot ${voiceIndex} invalid AmpEnv or error state. Forcing release.`);
+        if (!voiceData || !voiceData.components || voiceData.errorState?.critical) {
            this.releaseVoice(voiceIndex);
-           this.activeVoices.delete(touchId);
-           if (this.activeVoices.size !== this._previousActiveVoiceCount) {
-               this.applyMasterVolumeSettings();
-               this._previousActiveVoiceCount = this.activeVoices.size;
-           }
-           let t2 = performance.now();
-           let t3 = performance.now();
-           if (this.config.debug) {
-               console.log(`[Synth.triggerRelease] Timings: findVoiceIndex=${(t1-t0).toFixed(2)}ms, releaseVoice=${(t2-t1).toFixed(2)}ms, deleteActiveVoice=${(t3-t2).toFixed(2)}ms, masterVol=${(t3-t0).toFixed(2)}ms`);
-           }
            return;
         }
         const components = voiceData.components;
-        const errorState = voiceData.errorState;
-        let t2 = performance.now();
-        try {
-            const ampEnvManager = audioConfig.getManager('amplitudeEnv');
-            const pitchEnvManager = audioConfig.getManager('pitchEnvelope');
-            const filterEnvManager = audioConfig.getManager('filterEnvelope');
-            let t3 = performance.now();
-            if (ampEnvManager) {
-                ampEnvManager.triggerRelease(components.amplitudeEnv.nodes, Tone.now());
-            } else { throw new Error("AmpEnv manager not found."); }
-            let t4 = performance.now();
-            if (pitchEnvManager && components.pitchEnvelope && !errorState.pitchEnvelope && voiceData.currentPresetData?.pitchEnvelope?.enabled) {
-                if (!pitchEnvManager.triggerRelease(components.pitchEnvelope.nodes, Tone.now())) {
-                    errorState.pitchEnvelope = "TriggerRelease failed";
-                }
-            }
-            let t5 = performance.now();
-            if (filterEnvManager && components.filterEnvelope && !errorState.filterEnvelope && voiceData.currentPresetData?.filterEnvelope?.enabled) {
-                if (!filterEnvManager.triggerRelease(components.filterEnvelope.nodes, Tone.now())) {
-                    errorState.filterEnvelope = "TriggerRelease failed";
-                }
-            }
-            let t6 = performance.now();
-            this.releaseVoice(voiceIndex);
-            let t7 = performance.now();
-            this.activeVoices.delete(touchId);
-            let t8 = performance.now();
+        const calculatedVolume = this.calculateGenericYParameter(yPosition, app.state.yAxisControls.volume);
+        const calculatedSendLevel = this.calculateGenericYParameter(yPosition, app.state.yAxisControls.effects);
+        if (this.config.debug) {
+            console.log(`>>> EXECUTE START: Freq=${frequency.toFixed(1)}, Touch=${touchId}, Voice=${voiceIndex}, Vol=${calculatedVolume.toFixed(2)}, Send=${calculatedSendLevel.toFixed(1)}dB`);
+        }
+        audioConfig.getManager('oscillator')?.update(components.oscillator.nodes, { frequency });
+        audioConfig.getManager('outputGain')?.update(components.outputGain.nodes, { gain: calculatedVolume });
+        if (voiceData.fxSend) voiceData.fxSend.volume.value = calculatedSendLevel;
+        audioConfig.getManager('amplitudeEnv')?.triggerAttack(components.amplitudeEnv.nodes, Tone.now(), velocity);
+        if (voiceData.currentPresetData?.pitchEnvelope?.enabled) {
+            audioConfig.getManager('pitchEnvelope')?.triggerAttack(components.pitchEnvelope.nodes, Tone.now());
+        }
+        if (voiceData.currentPresetData?.filterEnvelope?.enabled) {
+            audioConfig.getManager('filterEnvelope')?.triggerAttack(components.filterEnvelope.nodes, Tone.now());
+        }
+        if (voiceData.currentPresetData?.lfo1?.enabled) {
+            audioConfig.getManager('lfo1')?.enable(components.lfo1.nodes, true, { retrigger: voiceData.currentPresetData.lfo1.params?.retrigger ?? false });
+        }
+        this.voiceState[voiceIndex] = { isBusy: true, touchId: touchId, noteId: noteId, startTime: Tone.now() };
+        this.activeVoices.set(touchId, { frequency, noteId, voiceIndex, lastY: yPosition });
             if (this.activeVoices.size !== this._previousActiveVoiceCount) {
-                this.applyMasterVolumeSettings();
+            this._activeVoiceCountChanged = true;
                 this._previousActiveVoiceCount = this.activeVoices.size;
-            }
-            let t9 = performance.now();
-            if (this.config.debug) {
-                console.log(`[Synth.triggerRelease] Timings: findVoiceIndex=${(t1-t0).toFixed(2)}ms, mgrs=${(t3-t2).toFixed(2)}ms, ampEnv=${(t4-t3).toFixed(2)}ms, pitchEnv=${(t5-t4).toFixed(2)}ms, filterEnv=${(t6-t5).toFixed(2)}ms, releaseVoice=${(t7-t6).toFixed(2)}ms, deleteActiveVoice=${(t8-t7).toFixed(2)}ms, masterVol=${(t9-t8).toFixed(2)}ms, total=${(t9-t0).toFixed(2)}ms`);
-            }
-        } catch (error) {
-            console.error(`[Synth v7] Error triggering release for voice ${voiceIndex}:`, error, error.stack);
-            this.releaseVoice(voiceIndex);
-            let t7 = performance.now();
-            this.activeVoices.delete(touchId);
-            let t8 = performance.now();
-            if (this.activeVoices.size !== this._previousActiveVoiceCount) {
-                this.applyMasterVolumeSettings();
-                this._previousActiveVoiceCount = this.activeVoices.size;
-            }
-            let t9 = performance.now();
-            if (this.config.debug) {
-                console.log(`[Synth.triggerRelease] Timings (error): findVoiceIndex=${(t1-t0).toFixed(2)}ms, releaseVoice=${(t7-t2).toFixed(2)}ms, deleteActiveVoice=${(t8-t7).toFixed(2)}ms, masterVol=${(t9-t8).toFixed(2)}ms, total=${(t9-t0).toFixed(2)}ms`);
-            }
         }
     },
 
-    updateActiveVoicesParameter(paramPath, value) {
+    _executeUpdateNote(frequency, velocity, yPosition, touchId) {
         if (!this.isReady) return;
-        const pathParts = paramPath.split('.');
-        if (pathParts.length < 2) {
-            console.warn(`[Synth v7] Invalid paramPath for updateActiveVoicesParameter: ${paramPath}`);
+        const voiceIndex = this.findVoiceIndex(touchId);
+        if (voiceIndex === -1) return;
+        const voiceData = this.voices[voiceIndex];
+        if (!voiceData || !voiceData.components) return;
+        const activeVoice = this.activeVoices.get(touchId);
+        if (activeVoice && activeVoice.lastY === yPosition && activeVoice.frequency === frequency) {
             return;
         }
-        const componentId = pathParts[0];
-        const manager = audioConfig.getManager(componentId);
-        if (!manager || typeof manager.update !== 'function') {
-            console.warn(`[Synth v7] No valid manager or update function for componentId: ${componentId}`);
-            return;
+        if (activeVoice) activeVoice.lastY = yPosition;
+        const calculatedVolume = this.calculateGenericYParameter(yPosition, app.state.yAxisControls.volume);
+        const calculatedSendLevel = this.calculateGenericYParameter(yPosition, app.state.yAxisControls.effects);
+        if (activeVoice && activeVoice.frequency !== frequency) {
+            audioConfig.getManager('oscillator')?.update(voiceData.components.oscillator.nodes, { frequency });
+            activeVoice.frequency = frequency;
         }
-
-        const settingsUpdate = {};
-        let currentLevel = settingsUpdate;
-        for(let i = 1; i < pathParts.length - 1; i++) {
-            const part = pathParts[i];
-            if (!currentLevel[part]) currentLevel[part] = {};
-            currentLevel = currentLevel[part];
+        audioConfig.getManager('outputGain')?.update(voiceData.components.outputGain.nodes, { gain: calculatedVolume });
+        if (voiceData.fxSend) {
+            voiceData.fxSend.volume.value = calculatedSendLevel;
         }
-        currentLevel[pathParts[pathParts.length - 1]] = value;
-
-        this.activeVoices.forEach(voiceInfo => {
-            const voiceIndex = voiceInfo.voiceIndex;
-            const voiceData = this.voices[voiceIndex];
-            if (voiceData && voiceData.components && voiceData.components[componentId] && !(voiceData.errorState && voiceData.errorState[componentId])) {
-                try {
-                    if (!manager.update(voiceData.components[componentId].nodes, settingsUpdate)) {
-                        if (voiceData.errorState) voiceData.errorState[componentId] = "Update failed during active voice update";
-                    }
-                } catch (e) {
-                    if (voiceData.errorState) voiceData.errorState[componentId] = `Update error during active voice update: ${e.message}`;
-                    console.error(`[Synth v7] Error updating param ${paramPath} for active voice ${voiceIndex}:`, e);
-                }
-            }
-        });
-
-        // Обновляем кэш пресета для всех голосов, чтобы при следующей смене пресета не было сюрпризов
-        this.voices.forEach((voiceData) => {
-            if (voiceData && voiceData.currentPresetData) {
-                try {
-                    let current = voiceData.currentPresetData;
-                    if (!current[componentId]) current[componentId] = { params: {} };
-                    if (!current[componentId].params) current[componentId].params = {};
-
-                    let targetParams = current[componentId].params;
-                    let currentLevelParams = targetParams;
-                    for(let i = 1; i < pathParts.length - 1; i++) {
-                        const part = pathParts[i];
-                        if (!currentLevelParams[part]) currentLevelParams[part] = {};
-                        currentLevelParams = currentLevelParams[part];
-                    }
-                    currentLevelParams[pathParts[pathParts.length - 1]] = value;
-
-                    // Синхронизация Q и resonance, если это фильтр
-                    if (componentId === 'filter' && targetParams) {
-                        if (paramPath === 'filter.Q') targetParams.resonance = value;
-                        if (paramPath === 'filter.resonance') targetParams.Q = value;
-                    }
-                } catch (e) {
-                    console.error("[Synth v7] Error updating voice presetData cache during active voice update:", e);
-                }
-            }
-        });
     },
 
-    stopAllNotes() {
+    _executeTriggerRelease(touchId) {
         if (!this.isReady) return;
-        const activeTouchIds = [...this.activeVoices.keys()];
-        activeTouchIds.forEach(touchId => {
-            this.triggerRelease(touchId); // triggerRelease уже вызывает applyMasterVolumeSettings
-        });
-        // Убедимся, что все голоса действительно освобождены
-        this.voiceState.forEach((state, index) => {
-            if (state?.isBusy) {
-                this.releaseVoice(index);
-            }
-        });
-        this.activeVoices.clear();
-        this.applyMasterVolumeSettings(); // Финальный вызов на случай, если activeVoices уже был пуст
-    },
-
-    forceStopAllNotes() {
-        console.warn('[Synth v7] Force releasing ALL notes (soft attempt first)...');
-        this.activeVoices.forEach((voiceInfo, touchId) => {
             const voiceIndex = this.findVoiceIndex(touchId);
-            if (voiceIndex !== -1) {
-                console.log(`[Synth ForceStop] Soft releasing voice ${voiceIndex} for touch ${touchId}`);
+        if (voiceIndex === -1) return;
                 const voiceData = this.voices[voiceIndex];
                 if (voiceData && voiceData.components) {
-                    const ampEnvManager = audioConfig.getManager('amplitudeEnv');
-                    if (ampEnvManager && voiceData.components.amplitudeEnv) {
-                        ampEnvManager.triggerRelease(voiceData.components.amplitudeEnv.nodes, Tone.now());
-                    }
-                    const pitchEnvManager = audioConfig.getManager('pitchEnvelope');
-                    if (pitchEnvManager && voiceData.components.pitchEnvelope && voiceData.currentPresetData?.pitchEnvelope?.enabled) {
-                        pitchEnvManager.triggerRelease(voiceData.components.pitchEnvelope.nodes, Tone.now());
-                    }
-                    const filterEnvManager = audioConfig.getManager('filterEnvelope');
-                    if (filterEnvManager && voiceData.components.filterEnvelope && voiceData.currentPresetData?.filterEnvelope?.enabled) {
-                        filterEnvManager.triggerRelease(voiceData.components.filterEnvelope.nodes, Tone.now());
+            audioConfig.getManager('amplitudeEnv')?.triggerRelease(voiceData.components.amplitudeEnv.nodes, Tone.now());
+            if (voiceData.currentPresetData?.pitchEnvelope?.enabled) {
+                audioConfig.getManager('pitchEnvelope')?.triggerRelease(voiceData.components.pitchEnvelope.nodes, Tone.now());
+            }
+            if (voiceData.currentPresetData?.filterEnvelope?.enabled) {
+                audioConfig.getManager('filterEnvelope')?.triggerRelease(voiceData.components.filterEnvelope.nodes, Tone.now());
                     }
                 }
                 this.releaseVoice(voiceIndex);
-            }
-        });
-        this.activeVoices.clear();
-        this.applyMasterVolumeSettings();
-        console.log('[Synth v7] All notes soft-released.');
-        setTimeout(() => {
-            let stillBusy = false;
-            this.voiceState.forEach((state, index) => {
-                if (state.isBusy) {
-                    console.error(`[Synth ForceStop] Voice ${index} STILL BUSY after soft release! Disposing components.`);
-                    if (this.voices[index] && this.voices[index].components) {
-                        voiceBuilder.disposeComponents(this.voices[index].components);
-                        this.voices[index].components = null;
-                        this.voices[index].errorState = { critical: "Hard force stopped" };
-                    }
-                    this.releaseVoice(index);
-                    stillBusy = true;
-                }
-            });
-            if (stillBusy) this.applyMasterVolumeSettings();
-        }, 1000);
+        this.activeVoices.delete(touchId);
+        if (this.activeVoices.size !== this._previousActiveVoiceCount) {
+            this._activeVoiceCountChanged = true;
+            this._previousActiveVoiceCount = this.activeVoices.size;
+        }
     },
+
+    // ====================================================================
+    // === ВСЕ ОСТАЛЬНЫЕ МЕТОДЫ ОСТАЮТСЯ НИЖЕ (applyPreset, getAnalyser, и т.д.) ===
+    // ====================================================================
 
     applyFxChain(fullFxChainData) {
         this.currentFxChainData = fullFxChainData ? JSON.parse(JSON.stringify(fullFxChainData)) : null;
@@ -845,41 +656,6 @@ const synth = {
         }
     },
 
-    async setMacro(macroName, value) {
-        if (this.config.debug) console.log(`[Synth FX Macro] setMacro called with Name: '${macroName}', Value: ${value.toFixed(3)}. CurrentChainID: ${this.currentChainId}`);
-        if (!this.currentFxChainData || !this.currentFxChainData.macroMappings) {
-            if (this.config.debug && this.currentChainId) console.warn(`[Synth FX Macro] No macroMappings in currentFxChainData ('${this.currentChainId}') or data is null.`);
-            return;
-        }
-        const mappings = this.currentFxChainData.macroMappings[macroName];
-        if (!mappings || !Array.isArray(mappings)) {
-            if(this.config.debug) console.warn(`[Synth FX Macro] No valid mapping array found for macro: '${macroName}' in chain '${this.currentChainId}'. Mappings object:`, this.currentFxChainData.macroMappings);
-            return;
-        }
-        // ... остальная логика применения маппингов ...
-    },
-
-    updateAllActiveVoiceSendLevels() {
-        if (!this.isReady || !app || !app.state) return;
-        const yAxisFxConfig = app.state.yAxisControls.effects;
-        const lastY = (typeof pad !== 'undefined' && typeof pad.getLastYPosition === 'function') ? pad.getLastYPosition() : 0.5; // Дефолтное значение, если pad не доступен
-
-        // Рассчитываем уровень посыла для текущей Y позиции
-        const calculatedSendLevel = this.calculateGenericYParameter(lastY, yAxisFxConfig);
-
-        this.activeVoices.forEach((voiceInfo) => {
-            const voiceIndex = voiceInfo.voiceIndex;
-            const voiceData = this.voices[voiceIndex];
-            if (voiceData && voiceData.components?.outputGain && !voiceData.errorState?.outputGain) {
-                const yPosForVoice = voiceInfo.lastY ?? lastY; // Используем Y голоса, если есть, иначе общий
-                const individualSendLevel = this.calculateGenericYParameter(yPosForVoice, yAxisFxConfig);
-
-                if (this.voices[voiceIndex]?.fxSend?.volume) {
-                    this.voices[voiceIndex].fxSend.volume.rampTo(individualSendLevel, 0.05);
-                }
-            }
-        });
-    },
     getAnalyser() { return this.analyser; },
     getCurrentFxSettings() {
         const settings = [];
@@ -920,75 +696,27 @@ const synth = {
         return settings;
     },
     getFreeVoiceIndex(touchId) {
-        // Сначала ищем полностью свободный голос
+        if (!this.isReady) return -1;
+        let freeVoiceIndex = -1;
+        let oldestVoiceIndex = -1;
+        let oldestTime = Infinity;
         for (let i = 0; i < this.config.polyphony; i++) {
             if (!this.voiceState[i]?.isBusy && this.voices[i]?.components && !this.voices[i]?.errorState?.critical) {
-                return i;
-            }
-        }
-        // Если свободных нет, ищем самый старый голос (voice stealing)
-        let oldestVoiceIndex = -1;
-        let oldestStartTime = Infinity;
-        for (let i = 0; i < this.config.polyphony; i++) {
-            if (this.voiceState[i]?.isBusy && this.voiceState[i].touchId !== touchId && this.voices[i]?.components && !this.voices[i]?.errorState?.critical) {
-                if (this.voiceState[i].startTime < oldestStartTime) {
-                    oldestStartTime = this.voiceState[i].startTime;
+                if (this.voiceState[i].startTime < oldestTime) {
+                    oldestTime = this.voiceState[i].startTime;
                     oldestVoiceIndex = i;
                 }
             }
         }
         if (oldestVoiceIndex !== -1) {
-            const oldTouchId = this.voiceState[oldestVoiceIndex].touchId;
-            if (this.config.debug) console.warn(`[Synth v7] Stealing voice ${oldestVoiceIndex} from touch ${oldTouchId}`);
-            // --- МЯГКАЯ КРАЖА ---
-            const voiceToSteal = this.voices[oldestVoiceIndex];
-            if (voiceToSteal && voiceToSteal.components) {
-                const outputGainManager = audioConfig.getManager('outputGain');
-                if (outputGainManager && voiceToSteal.components.outputGain?.nodes) {
-                    outputGainManager.update(voiceToSteal.components.outputGain.nodes, { gain: 0 });
-                }
-                if (voiceToSteal.fxSend?.volume) {
-                    voiceToSteal.fxSend.volume.value = -Infinity;
-                }
-                const lfoManager = audioConfig.getManager('lfo1');
-                if (lfoManager && voiceToSteal.components.lfo1?.nodes && voiceToSteal.currentPresetData?.lfo1?.enabled) {
-                    lfoManager.enable(voiceToSteal.components.lfo1.nodes, false);
-                }
-                // Можно добавить отключение других LFO, если есть
-            }
-            // Помечаем для отложенного полного релиза
-            this.voiceState[oldestVoiceIndex]._stolenForFullRelease = oldTouchId;
-            this.releaseVoice(oldestVoiceIndex); // Быстро освобождает слот
-            this.activeVoices.delete(oldTouchId);
-            setTimeout(() => {
-                if (this.voiceState[oldestVoiceIndex] && this.voiceState[oldestVoiceIndex]._stolenForFullRelease === oldTouchId) {
-                    const stolenVoiceData = this.voices[oldestVoiceIndex];
-                    if (stolenVoiceData && stolenVoiceData.components) {
-                        console.log(`[Synth] Performing full deferred release for stolen voice ${oldestVoiceIndex}`);
-                        const ampEnvManager = audioConfig.getManager('amplitudeEnv');
-                        if (ampEnvManager && stolenVoiceData.components.amplitudeEnv) {
-                            ampEnvManager.triggerRelease(stolenVoiceData.components.amplitudeEnv.nodes, Tone.now());
-                        }
-                        const pitchEnvManager = audioConfig.getManager('pitchEnvelope');
-                        if (pitchEnvManager && stolenVoiceData.components.pitchEnvelope && stolenVoiceData.currentPresetData?.pitchEnvelope?.enabled) {
-                            pitchEnvManager.triggerRelease(stolenVoiceData.components.pitchEnvelope.nodes, Tone.now());
-                        }
-                        const filterEnvManager = audioConfig.getManager('filterEnvelope');
-                        if (filterEnvManager && stolenVoiceData.components.filterEnvelope && stolenVoiceData.currentPresetData?.filterEnvelope?.enabled) {
-                            filterEnvManager.triggerRelease(stolenVoiceData.components.filterEnvelope.nodes, Tone.now());
-                        }
-                    }
-                    delete this.voiceState[oldestVoiceIndex]._stolenForFullRelease;
-                }
-            }, 50);
-            return oldestVoiceIndex;
+            freeVoiceIndex = oldestVoiceIndex;
         }
-        console.error("[Synth v7] Could not find any voice to assign/steal!");
-        return -1;
+        return freeVoiceIndex;
     },
     findVoiceIndex(touchId) {
+        if (!this.isReady) return -1;
         for (let i = 0; i < this.config.polyphony; i++) {
-            if (this.voiceState[i]?.isBusy && this.voiceState[i].touchId === touchId) {
+            if (this.voiceState[i].isBusy && this.voiceState[i].touchId === touchId) {
                 return i;
             }
         }
@@ -1003,41 +731,226 @@ const synth = {
 
             const voiceData = this.voices[voiceIndex];
             try {
-                // Устанавливаем гейн в 0 и посыл на FX в -Infinity
-                const outputGainManager = audioConfig.getManager('outputGain');
-                if (outputGainManager && voiceData?.components?.outputGain && !voiceData.errorState?.outputGain) {
-                    if (voiceData.components.outputGain.nodes?.gainNode) {
-                        outputGainManager.update(voiceData.components.outputGain.nodes, { gain: 0 });
-                    }
+                // Плавное затухание outputGain через rampTo
+                if (voiceData?.components?.outputGain?.nodes?.gainNode) {
+                    voiceData.components.outputGain.nodes.gainNode.gain.cancelScheduledValues(Tone.now());
+                    voiceData.components.outputGain.nodes.gainNode.gain.rampTo(0, 0.05);
                 }
-                if (voiceData?.fxSend?.volume) { // fxSend может быть null, если голос не создался
-                    voiceData.fxSend.volume.value = -Infinity;
+                // Плавное затухание fxSend
+                if (voiceData?.fxSend?.volume) {
+                    voiceData.fxSend.volume.cancelScheduledValues(Tone.now());
+                    voiceData.fxSend.volume.rampTo(-Infinity, 0.05);
                 }
-
-                // Останавливаем LFO, если он был активен для этого голоса
-                const lfoManager = audioConfig.getManager('lfo1'); // Пример для lfo1
+                // Останавливаем LFO, если был активен
+                const lfoManager = audioConfig.getManager('lfo1');
                 if (lfoManager && voiceData?.components?.lfo1 && !voiceData.errorState?.lfo1) {
                     lfoManager.enable(voiceData.components.lfo1.nodes, false);
                 }
-                // Добавить аналогично для других LFO, если они есть
             } catch(e) {
-                console.error(`[Synth v7] Error resetting gain/send/lfo for voice ${voiceIndex}:`, e);
+                console.error(`[Synth v7] Error ramping gain/send/lfo for voice ${voiceIndex}:`, e);
             }
         }
     },
     startSilentNotesCheck() {
-         if (this.silentTimeout) { clearInterval(this.silentTimeout); }
-         this.silentTimeout = setInterval(() => {
-             let busyVoiceCount = this.voiceState.filter(vs => vs?.isBusy).length;
-             // Используем activeTouchesInternal из pad.js, если доступно
-             const activePadTouches = (typeof pad !== 'undefined' && pad.activeTouchesInternal) ? pad.activeTouchesInternal.size : this.activeVoices.size;
-
-             if (busyVoiceCount > 0 && activePadTouches === 0 && pad && !pad.hasRecentActivity()) {
-                 if (this.config.debug) {
-                     console.warn(`[Synth v7 Watchdog] Detected ${busyVoiceCount} potential stuck notes (Pad touches: ${activePadTouches}). Forcing release.`);
-                 }
-                 this.forceStopAllNotes();
-             }
+        if (this.silentTimeout) clearTimeout(this.silentTimeout);
+        this.silentTimeout = setTimeout(() => {
+            if (!this.isReady) return;
+            const now = Tone.now();
+            let releasedCount = 0;
+            this.activeVoices.forEach((voiceInfo, touchId) => {
+                const voiceState = this.voiceState[voiceInfo.voiceIndex];
+                if (voiceState && voiceState.isBusy) {
+                    const components = this.voices[voiceInfo.voiceIndex]?.components;
+                    if (components?.amplitudeEnv?.node) {
+                        // Проверяем, действительно ли огибающая достигла 0 или очень близкого значения
+                        const currentEnvValue = components.amplitudeEnv.node.value; 
+                        if (currentEnvValue < 0.001) { // Пороговое значение для "тишины"
+                             console.warn(`[Synth SilentCheck] Voice ${voiceInfo.voiceIndex} (touch ${touchId}, note ${voiceInfo.noteId}) detected as silent by envelope. Forcing release.`);
+                             this.triggerRelease(touchId); // Используем новую triggerRelease, которая поставит в очередь
+                             releasedCount++;
+                        }
+                    }
+                }
+            });
+            if (releasedCount > 0 && this.config.debug) {
+                console.log(`[Synth SilentCheck] Released ${releasedCount} stuck/silent notes.`);
+            }
+            this.startSilentNotesCheck(); // Перезапускаем таймер
          }, this.silentCheckInterval);
-    }
+    },
+    updateAllActiveVoiceMainLevels() {
+        if (!this.isReady || !app || !app.state) return;
+        const yAxisVolConfig = app.state.yAxisControls.volume;
+        this.activeVoices.forEach((voiceInfo) => {
+            const voiceIndex = voiceInfo.voiceIndex;
+            const voiceData = this.voices[voiceIndex];
+            if (voiceData && voiceData.components?.outputGain && !voiceData.errorState?.outputGain) {
+                const yPosition = voiceInfo.lastY ?? 0.5; // Используем последнее известное Y
+                const calculatedVolume = this.calculateGenericYParameter(yPosition, yAxisVolConfig);
+                const outputGainManager = audioConfig.getManager('outputGain');
+                if (outputGainManager && typeof outputGainManager.update === 'function') { // Проверка на существование update
+                    outputGainManager.update(voiceData.components.outputGain.nodes, { gain: calculatedVolume });
+                }
+            }
+        });
+    },
+    updateActiveVoicesParameter(paramPath, value) {
+        if (!this.isReady) return;
+        const pathParts = paramPath.split('.');
+        if (pathParts.length < 2) {
+            console.warn(`[Synth v7] Invalid paramPath for updateActiveVoicesParameter: ${paramPath}`);
+            return;
+        }
+        const componentId = pathParts[0];
+        const manager = audioConfig.getManager(componentId);
+        if (!manager || typeof manager.update !== 'function') {
+            console.warn(`[Synth v7] No valid manager or update function for componentId: ${componentId}`);
+            return;
+        }
+
+        const settingsUpdate = {};
+        let currentLevel = settingsUpdate;
+        for(let i = 1; i < pathParts.length - 1; i++) {
+            const part = pathParts[i];
+            if (!currentLevel[part]) currentLevel[part] = {};
+            currentLevel = currentLevel[part];
+        }
+        currentLevel[pathParts[pathParts.length - 1]] = value;
+
+        this.activeVoices.forEach(voiceInfo => {
+            const voiceIndex = voiceInfo.voiceIndex;
+            const voiceData = this.voices[voiceIndex];
+            if (voiceData && voiceData.components && voiceData.components[componentId] && !(voiceData.errorState && voiceData.errorState[componentId])) {
+                try {
+                    if (!manager.update(voiceData.components[componentId].nodes, settingsUpdate)) {
+                        if (voiceData.errorState) voiceData.errorState[componentId] = "Update failed during active voice update";
+                    }
+                } catch (e) {
+                    if (voiceData.errorState) voiceData.errorState[componentId] = `Update error during active voice update: ${e.message}`;
+                    console.error(`[Synth v7] Error updating param ${paramPath} for active voice ${voiceIndex}:`, e);
+                }
+            }
+        });
+
+        // Обновляем кэш пресета для всех голосов, чтобы при следующей смене пресета не было сюрпризов
+        this.voices.forEach((voiceData) => {
+            if (voiceData && voiceData.currentPresetData) {
+                try {
+                    let current = voiceData.currentPresetData;
+                    if (!current[componentId]) current[componentId] = { params: {} };
+                    if (!current[componentId].params) current[componentId].params = {};
+
+                    let targetParams = current[componentId].params;
+                    let currentLevelParams = targetParams;
+                    for(let i = 1; i < pathParts.length - 1; i++) {
+                        const part = pathParts[i];
+                        if (!currentLevelParams[part]) currentLevelParams[part] = {};
+                        currentLevelParams = currentLevelParams[part];
+                    }
+                    currentLevelParams[pathParts[pathParts.length - 1]] = value;
+
+                    // Синхронизация Q и resonance, если это фильтр
+                    if (componentId === 'filter' && targetParams) {
+                        if (paramPath === 'filter.Q') targetParams.resonance = value;
+                        if (paramPath === 'filter.resonance') targetParams.Q = value;
+                    }
+                } catch (e) {
+                    console.error("[Synth v7] Error updating voice presetData cache during active voice update:", e);
+                }
+            }
+        });
+    },
+    stopAllNotes() {
+        if (!this.isReady) return;
+        const activeTouchIds = [...this.activeVoices.keys()];
+        activeTouchIds.forEach(touchId => {
+            this.triggerRelease(touchId); // triggerRelease уже вызывает applyMasterVolumeSettings
+        });
+        // Убедимся, что все голоса действительно освобождены
+        this.voiceState.forEach((state, index) => {
+            if (state?.isBusy) {
+                this.releaseVoice(index);
+            }
+        });
+        this.activeVoices.clear();
+        this.applyMasterVolumeSettings(); // Финальный вызов на случай, если activeVoices уже был пуст
+    },
+    forceStopAllNotes() {
+        console.warn('[Synth v7] Force releasing ALL notes (soft attempt first)...');
+        this.activeVoices.forEach((voiceInfo, touchId) => {
+            const voiceIndex = this.findVoiceIndex(touchId);
+            if (voiceIndex !== -1) {
+                console.log(`[Synth ForceStop] Soft releasing voice ${voiceIndex} for touch ${touchId}`);
+                const voiceData = this.voices[voiceIndex];
+                if (voiceData && voiceData.components) {
+                    const ampEnvManager = audioConfig.getManager('amplitudeEnv');
+                    if (ampEnvManager && voiceData.components.amplitudeEnv) {
+                        ampEnvManager.triggerRelease(voiceData.components.amplitudeEnv.nodes, Tone.now());
+                    }
+                    const pitchEnvManager = audioConfig.getManager('pitchEnvelope');
+                    if (pitchEnvManager && voiceData.components.pitchEnvelope && voiceData.currentPresetData?.pitchEnvelope?.enabled) {
+                        pitchEnvManager.triggerRelease(voiceData.components.pitchEnvelope.nodes, Tone.now());
+                    }
+                    const filterEnvManager = audioConfig.getManager('filterEnvelope');
+                    if (filterEnvManager && voiceData.components.filterEnvelope && voiceData.currentPresetData?.filterEnvelope?.enabled) {
+                        filterEnvManager.triggerRelease(voiceData.components.filterEnvelope.nodes, Tone.now());
+                    }
+                }
+                this.releaseVoice(voiceIndex);
+            }
+        });
+        this.activeVoices.clear();
+        this.applyMasterVolumeSettings();
+        console.log('[Synth v7] All notes soft-released.');
+        setTimeout(() => {
+            let stillBusy = false;
+            this.voiceState.forEach((state, index) => {
+                if (state.isBusy) {
+                    console.error(`[Synth ForceStop] Voice ${index} STILL BUSY after soft release! Disposing components.`);
+                    if (this.voices[index] && this.voices[index].components) {
+                        voiceBuilder.disposeComponents(this.voices[index].components);
+                        this.voices[index].components = null;
+                        this.voices[index].errorState = { critical: "Hard force stopped" };
+                    }
+                    this.releaseVoice(index);
+                    stillBusy = true;
+                }
+            });
+            if (stillBusy) this.applyMasterVolumeSettings();
+        }, 1000);
+    },
+    updateAllActiveVoiceSendLevels() {
+        if (!this.isReady || !app || !app.state) return;
+        const yAxisFxConfig = app.state.yAxisControls.effects;
+        const lastY = (typeof pad !== 'undefined' && typeof pad.getLastYPosition === 'function') ? pad.getLastYPosition() : 0.5; // Дефолтное значение, если pad не доступен
+
+        // Рассчитываем уровень посыла для текущей Y позиции
+        const calculatedSendLevel = this.calculateGenericYParameter(lastY, yAxisFxConfig);
+
+        this.activeVoices.forEach((voiceInfo) => {
+            const voiceIndex = voiceInfo.voiceIndex;
+            const voiceData = this.voices[voiceIndex];
+            if (voiceData && voiceData.components?.outputGain && !voiceData.errorState?.outputGain) {
+                const yPosForVoice = voiceInfo.lastY ?? lastY; // Используем Y голоса, если есть, иначе общий
+                const individualSendLevel = this.calculateGenericYParameter(yPosForVoice, yAxisFxConfig);
+
+                if (this.voices[voiceIndex]?.fxSend?.volume) {
+                    this.voices[voiceIndex].fxSend.volume.rampTo(individualSendLevel, 0.05);
+                }
+            }
+        });
+    },
+    async setMacro(macroName, value) {
+        if (this.config.debug) console.log(`[Synth FX Macro] setMacro called with Name: '${macroName}', Value: ${value.toFixed(3)}. CurrentChainID: ${this.currentChainId}`);
+        if (!this.currentFxChainData || !this.currentFxChainData.macroMappings) {
+            if (this.config.debug && this.currentChainId) console.warn(`[Synth FX Macro] No macroMappings in currentFxChainData ('${this.currentChainId}') or data is null.`);
+            return;
+        }
+        const mappings = this.currentFxChainData.macroMappings[macroName];
+        if (!mappings || !Array.isArray(mappings)) {
+            if(this.config.debug) console.warn(`[Synth FX Macro] No valid mapping array found for macro: '${macroName}' in chain '${this.currentChainId}'. Mappings object:`, this.currentFxChainData.macroMappings);
+            return;
+        }
+        // ... остальная логика применения маппингов ...
+    },
 };

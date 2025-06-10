@@ -1,5 +1,5 @@
 // Файл: app/src/main/assets/js/MusicTheoryService.js
-// ВЕРСИЯ 2.5: Адаптация к Tonal.js без Tonal.Distance
+// ВЕРСИЯ 2.7: Фикс ошибки Tonal.Note.pc и улучшенные проверки
 
 console.log('[Pre-MTS v2.5] typeof Tonal:', typeof Tonal);
 if (typeof Tonal !== 'undefined') {
@@ -21,51 +21,35 @@ const MusicTheoryService = {
 
     _TonalNote: null,
     _TonalScale: null,
+    _TonalChord: null,
     _TonalInterval: null,
-    _TonalTransposeFn: null, // <--- НОВОЕ: для функции транспонирования
+    _TonalTransposeFn: null,
 
     async init(moduleManagerInstance) {
         this.moduleManagerRef = moduleManagerInstance;
         if (!this.moduleManagerRef) {
-            console.error("[MusicTheoryService.init] moduleManager instance not provided!");
-            this.isTonalJsLoaded = false; return;
+            console.error("[MTS.init] moduleManager instance not provided!");
+            return;
         }
 
         if (typeof Tonal === 'object' && Tonal !== null) {
             this._TonalNote = Tonal.Note;
             this._TonalScale = Tonal.Scale;
+            this._TonalChord = Tonal.Chord;
             this._TonalInterval = Tonal.Interval;
 
-            // Ищем функцию транспонирования
-            if (typeof Tonal.transpose === 'function') {
-                this._TonalTransposeFn = Tonal.transpose;
-                console.log("[MTS.init] Using Tonal.transpose");
-            } else if (this._TonalNote && typeof this._TonalNote.transpose === 'function') {
-                this._TonalTransposeFn = this._TonalNote.transpose;
-                console.log("[MTS.init] Using Tonal.Note.transpose");
-            } else if (Tonal.Distance && typeof Tonal.Distance.transpose === 'function') { // Оставим на всякий случай
-                this._TonalTransposeFn = Tonal.Distance.transpose;
-                console.log("[MTS.init] Using Tonal.Distance.transpose");
-            }
-
-            this.isTonalJsLoaded =
-                typeof this._TonalNote === 'object' && this._TonalNote !== null && typeof this._TonalNote.get === 'function' &&
-                typeof this._TonalScale === 'object' && this._TonalScale !== null && typeof this._TonalScale.get === 'function' &&
-                typeof this._TonalInterval === 'object' && this._TonalInterval !== null && typeof this._TonalInterval.semitones === 'function' &&
-                typeof this._TonalTransposeFn === 'function'; // <--- ИЗМЕНЕНО: Проверяем _TonalTransposeFn
-
-        } else {
-            this.isTonalJsLoaded = false;
+            if (typeof Tonal.transpose === 'function') this._TonalTransposeFn = Tonal.transpose;
+            else if (this._TonalNote?.transpose) this._TonalTransposeFn = this._TonalNote.transpose;
+            
+            this.isTonalJsLoaded = !!(this._TonalNote && this._TonalScale && this._TonalChord && this._TonalInterval && this._TonalTransposeFn);
         }
 
-        if (!this.isTonalJsLoaded) {
-            console.error("[MusicTheoryService.init v2.5] Tonal.js or its required sub-modules/transpose function are NOT correctly loaded/structured!");
-            console.error(`[MTS Debug] Tonal: ${typeof Tonal}, Note: ${typeof Tonal?.Note}, Scale: ${typeof Tonal?.Scale}, Interval: ${typeof Tonal?.Interval}, TransposeFn: ${typeof this._TonalTransposeFn}`);
+        if (this.isTonalJsLoaded) {
+            console.log(`[MusicTheoryService v2.7] Initialized. Tonal.js version: ${Tonal.VERSION || 'unknown'}.`);
+            await this.loadScaleDefinitions();
         } else {
-            const tonalVersion = Tonal.VERSION || "unknown (VERSION prop missing)";
-            console.log(`[MusicTheoryService v2.5] Initialized. Tonal.js version: ${tonalVersion}. isTonalJsLoaded: ${this.isTonalJsLoaded}`);
+            console.error("[MTS.init] Tonal.js or its required sub-modules are NOT correctly loaded!");
         }
-        await this.loadScaleDefinitions();
     },
 
     async loadScaleDefinitions() {
@@ -472,7 +456,54 @@ const MusicTheoryService = {
             console.error(`[MusicTheoryService.getChordNotes] Error processing chordSymbol "${chordSymbolWithOctave}":`, error, error.stack);
             return null;
         }
-    }
+    },
+
+    /**
+     * Генерирует массив диатонических (принадлежащих ладу) аккордов для заданной тональности.
+     * @param {object} options - Опции.
+     * @param {string} [options.tonic='C'] - Основной тон тональности (например, "C", "F#").
+     * @param {string} [options.scaleName='major'] - Название лада (например, "major", "minor").
+     * @returns {Array<{id: string, nameForService: string, displayName: string}>} Массив объектов аккордов.
+     */
+    getDiatonicChordSuggestions({ tonic = 'C4', scaleName = 'major' }) {
+        if (!this.isTonalJsLoaded) {
+            console.error("[MTS] getDiatonicChordSuggestions: Tonal.js not loaded.");
+            return [];
+        }
+    
+        try {
+            // ИСПРАВЛЕНИЕ: Используем Tonal.Note.pitchClass() - это правильный метод
+            const tonicPc = this._TonalNote.pitchClass(tonic);
+            const fullScaleName = `${tonicPc} ${scaleName}`;
+    
+            // Tonal.Scale.chords() вернет, например: ["CM", "Dm", "Em", "FM", "GM", "Am", "Bdim"]
+            const scaleChordSymbols = this._TonalScale.chords(scaleName);
+    
+            if (!scaleChordSymbols || scaleChordSymbols.length === 0) {
+                console.warn(`[MTS] Tonal.js could not find diatonic chords for scale: "${scaleName}".`);
+                return [];
+            }
+    
+            const octave = this._TonalNote.get(tonic).oct || 4;
+    
+            return scaleChordSymbols.map(chordSymbol => {
+                // Транспонируем базовый аккорд (например, "Dm") в нужную тональность (например, "F#m")
+                const chordInKey = this._TonalChord.transpose(chordSymbol, tonicPc);
+                const chordInfo = this._TonalChord.get(chordInKey);
+                
+                if (chordInfo.empty) return null;
+    
+                const id = `${chordInfo.tonic}${octave}${chordInfo.type}`;
+                const displayName = `${chordInfo.tonic} ${chordInfo.aliases[0] || chordInfo.type}`;
+    
+                return { id, nameForService: id, displayName };
+            }).filter(Boolean); // Удаляем null, если аккорд не распознался
+    
+        } catch (e) {
+            console.error(`[MTS] Error in getDiatonicChordSuggestions for tonic "${tonic}" and scale "${scaleName}":`, e);
+            return [];
+        }
+    },
 };
 
 // === Заглушки для Rocket Mode: стандартные аккорды и тоники ===

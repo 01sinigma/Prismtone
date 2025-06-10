@@ -43,33 +43,46 @@ const PadModeManager = {
             console.error(`[PadModeManager] Strategy for mode ID "${modeId}" not found.`);
             return false;
         }
+
         const newStrategy = this.strategies[modeId];
-        // Инициализируем стратегию, если она еще не была инициализирована
+        const oldStrategy = this.currentStrategy;
+
+        // 1. Ленивая инициализация: если стратегия используется впервые, инициализируем ее.
         if (!this._initializedStrategies.has(modeId)) {
             if (typeof newStrategy.init === 'function') {
-                console.log(`[PadModeManager.setActiveMode] Lazily initializing strategy '${modeId}' with appRef:`, this.appRef);
+                console.log(`[PadModeManager] Lazily initializing strategy '${modeId}'...`);
+                // Передаем все необходимые зависимости
                 newStrategy.init(this.appRef, this.musicTheoryServiceRef, this.harmonicMarkerEngineRef);
                 this._initializedStrategies.add(modeId);
-            } else {
-                console.warn(`[PadModeManager.setActiveMode] Strategy '${modeId}' has no init method.`);
             }
         }
-        // Если мы меняем стратегию, деактивируем старую
-        if (this.currentStrategy && this.currentStrategy !== newStrategy && typeof this.currentStrategy.onModeDeactivated === 'function') {
-            console.log(`[PadModeManager.setActiveMode] Deactivating old strategy: ${this.currentModeId}`);
-            await this.currentStrategy.onModeDeactivated(this.appRef.state, this._getServicesBundle(), this._getUiModulesBundle());
-            if (this.currentStrategy) this.currentStrategy._isActive = false;
+
+        // 2. ДОЖИДАЕМСЯ деактивации СТАРОЙ стратегии, если она была.
+        // Это важно, чтобы она успела очистить свои таймеры, слушатели или состояние.
+        if (oldStrategy && oldStrategy !== newStrategy && typeof oldStrategy.onModeDeactivated === 'function') {
+            console.log(`[PadModeManager] Deactivating old strategy: ${this.currentModeId}`);
+            await oldStrategy.onModeDeactivated();
+            oldStrategy._isActive = false;
         }
+
+        // 3. Устанавливаем новую стратегию как текущую
         this.currentModeId = modeId;
         this.currentStrategy = newStrategy;
         console.log(`[PadModeManager] Active mode set to: ${modeId}`);
+
+        // 4. ДОЖИДАЕМСЯ активации НОВОЙ стратегии.
+        // Она может асинхронно загружать данные или настраивать свое состояние.
         if (typeof this.currentStrategy.onModeActivated === 'function') {
-            await this.currentStrategy.onModeActivated(this.appRef.state, this._getServicesBundle(), this._getUiModulesBundle());
-            if (this.currentStrategy) this.currentStrategy._isActive = true;
+            await this.currentStrategy.onModeActivated();
+            this.currentStrategy._isActive = true;
         }
+        
+        // 5. И ТОЛЬКО ПОСЛЕ ПОЛНОЙ активации новой стратегии, мы просим app перерисовать зоны.
         if (this.appRef && typeof this.appRef.updateZoneLayout === 'function') {
+            console.log("[PadModeManager] Requesting zone layout update from app...");
             await this.appRef.updateZoneLayout();
         }
+        
         return true;
     },
     getCurrentStrategy() {

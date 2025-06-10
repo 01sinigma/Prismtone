@@ -53,7 +53,7 @@ const outputGainManager = {
         const gainNode = nodes.gainNode;
         try {
             if (newSettings.gain !== undefined && gainNode.gain instanceof Tone.Param) {
-                gainNode.gain.rampTo(newSettings.gain, 0.02);
+                gainNode.gain.value = newSettings.gain;
             } else if (newSettings.gain !== undefined) {
                 gainNode.gain = newSettings.gain;
                 console.warn("[OutputGainManager] Updated gain directly (not ramped).");

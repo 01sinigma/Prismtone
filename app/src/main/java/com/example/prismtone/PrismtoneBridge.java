@@ -216,6 +216,18 @@ public class PrismtoneBridge {
     }
 
     @JavascriptInterface
+    public void setTouchEffect(String effectId) {
+        Log.d(TAG, "setTouchEffect: " + effectId);
+        mainHandler.post(() -> {
+            if (viewModel != null) {
+                viewModel.setTouchEffect(effectId);
+            } else {
+                Log.e(TAG, "setTouchEffect: viewModel is null");
+            }
+        });
+    }
+
+    @JavascriptInterface
     public void setSetting(String key, String value) {
         Log.d(TAG, "setSetting called for key: " + key + ", string value: " + value);
         mainHandler.post(() -> {

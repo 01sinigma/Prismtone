@@ -1534,88 +1534,86 @@ const ChordModeStrategy = {
     
     async selectChord(chordId) {
         if (this._selectedChordId === chordId && chordId !== null) {
-            console.log(`[ChordStrategy] Chord ${chordId} is already selected. No action taken.`);
+            // Если аккорд уже выбран, и это не сброс (null), ничего не делаем.
+            // Можно добавить console.log, если нужно отслеживать такие случаи.
             return;
         }
-        console.log(`[ChordStrategy] Selecting new chord: ${chordId}`);
+        console.log(`[ChordStrategy] Selecting new chord: ${chordId}. Current: ${this._selectedChordId}`);
+        const previousChordIdForRollback = this._selectedChordId; // Для отката UI
 
-        // ИЗМЕНЕНИЕ: Получаем активные голоса напрямую из synth.js - это наш новый источник правды.
-        const activeSynthVoices = synth.activeVoices;
-        const hasActiveTouches = activeSynthVoices.size > 0;
+        try {
+            const chordData = chordId ? this._availableChords.find(c => c.id === chordId) : null;
 
-        // Стандартная логика поиска данных нового аккорда.
-        const chordData = this._availableChords.find(c => c.id === chordId);
-
-        if (!chordData) {
-            console.warn(`[ChordStrategy] Chord with id "${chordId}" not found in available chords.`);
-            this._selectedChordId = null;
-            this._selectedChordDisplayName = null;
-            this._selectedChordNotes = [];
-        } else {
-            // Обновляем внутреннее состояние стратегии на новый аккорд.
-            this._selectedChordId = chordData.id;
-            this._selectedChordDisplayName = chordData.displayName;
-            this._selectedChordNotes = await this.musicTheoryServiceRef.getChordNotes(chordData.nameForService);
-        }
-
-        // --- УЛУЧШЕННАЯ ЛОГИКА: Мгновенное обновление звучания ---
-        if (hasActiveTouches) {
-            console.log(`[ChordStrategy] Live-updating ${activeSynthVoices.size} active touch(es) from synth.activeVoices.`);
-
-            // 1. Генерируем раскладку зон для НОВОГО аккорда, чтобы знать, какие ноты должны зазвучать.
-            const layoutContext = await this.getZoneLayoutOptions(this.appRef.state);
-            const services = { musicTheoryService: this.musicTheoryServiceRef };
-            const newZones = await this.generateZoneData(layoutContext, this.appRef.state, services);
-
-            if (newZones && newZones.length > 0) {
-                // 2. Итерируем по каждому АКТИВНОМУ ГОЛОСУ из synth.js
-                for (const [touchId, voiceInfo] of activeSynthVoices.entries()) {
-
-                    // 3. Получаем КООРДИНАТЫ этого касания из pad.js
-                    const touchData = pad.activeTouchesInternal.get(touchId);
-
-                    if (!touchData) {
-                        console.warn(`[ChordStrategy] No coordinate data in pad.js for active voice with touchId ${touchId}. Releasing note.`);
-                        synth.triggerRelease(touchId);
-                        continue; // Пропускаем это касание, если для него нет данных в pad
-                    }
-
-                    // 4. Находим, в какую зону нового аккорда попадает текущее касание
-                    const newZoneForTouch = newZones.find(z => touchData.x >= z.startX && touchData.x < z.endX);
-
-                    // 5. Плавно останавливаем старую ноту.
-                    synth.triggerRelease(touchId);
-
-                    // 6. Если для этой координаты найдена нота в новом аккорде...
-                    if (newZoneForTouch) {
-                        // ...немедленно запускаем новую ноту.
-                        console.log(`  > Retargeting touch ${touchId} to new note: ${newZoneForTouch.noteName}`);
-                        const velocity = 0.7; // Стандартная громкость для переключения
-                        // Используем сохраненные координаты `y` из `touchData`
-                        synth.startNote(newZoneForTouch.frequency, velocity, touchData.y, touchId);
-                    } else {
-                        console.log(`  > Touch ${touchId} has no corresponding zone in the new chord layout. Releasing only.`);
-                    }
+            if (!chordData && chordId !== null) { // Если chordId есть, но данных нет - это ошибка
+                console.error(`[ChordStrategy] Chord data not found for ID: ${chordId}. Clearing selection.`);
+                this._selectedChordId = null;
+                this._selectedChordDisplayName = null;
+                this._selectedChordNotes = [];
+                // Возможно, стоит уведомить пользователя или вызвать appRef.updateZoneLayout для очистки пэда
+            } else if (!chordData && chordId === null) { // Явный сброс аккорда
+                 this._selectedChordId = null;
+                 this._selectedChordDisplayName = null;
+                 this._selectedChordNotes = [];
+                 console.log("[ChordStrategy] Chord selection cleared.");
+            } else if (chordData) { // Аккорд найден
+                this._selectedChordId = chordData.id;
+                this._selectedChordDisplayName = chordData.displayName;
+                
+                if (!this.musicTheoryServiceRef || typeof this.musicTheoryServiceRef.getChordNotes !== 'function') {
+                    console.error("[ChordStrategy] MusicTheoryService or getChordNotes is not available!");
+                    this._selectedChordNotes = []; // Безопасное значение по умолчанию
+                    // Можно выбросить ошибку, чтобы прервать выполнение и попасть в catch
+                    throw new Error("MusicTheoryService.getChordNotes is not available");
+                }
+                // ЖДЕМ получения нот нового аккорда
+                this._selectedChordNotes = await this.musicTheoryServiceRef.getChordNotes(chordData.nameForService);
+                if (!this._selectedChordNotes || this._selectedChordNotes.length === 0) {
+                     console.warn(`[ChordStrategy] No notes returned for chord ${chordData.nameForService}. Display will be empty.`);
+                     this._selectedChordNotes = []; // Убедимся, что это массив
+                }
+            }
+            
+            // Обновляем подсветку кнопки в списке (даже если аккорд сброшен)
+            this._updateChordButtonSelection(this._selectedChordId);
+            
+            // Вызываем логику "живого" переключения нот для уже зажатых пальцев
+            // Эта логика должна быть тщательно проверена на предмет асинхронности и корректности
+            const activeSynthVoices = synth.activeVoices; 
+            if (activeSynthVoices && activeSynthVoices.size > 0) {
+                 console.log(`[ChordStrategy.selectChord] Active touches detected (${activeSynthVoices.size}). Applying live update.`);
+                 await this._liveUpdateActiveTouches(Array.from(activeSynthVoices.values()), this._selectedChordNotes);
+            }
+            
+            if (this.appRef && typeof this.appRef.updateZoneLayout === 'function') {
+                // ЖДЕМ, пока пэд полностью перерисуется под новый аккорд (или сброшенное состояние)
+                await this.appRef.updateZoneLayout(); 
+                
+                // ТОЛЬКО ПОТОМ обновляем зависимые UI элементы
+                if (typeof this.appRef.notifyProgressionChanged === 'function') {
+                    this.appRef.notifyProgressionChanged();
                 }
             } else {
-                // Если для нового аккорда не удалось сгенерировать зоны, просто останавливаем все звучащие ноты.
-                console.warn(`[ChordStrategy] Could not generate new zones for chord ${chordId}. Releasing all active notes.`);
-                activeSynthVoices.forEach((_, touchId) => synth.triggerRelease(touchId));
+                console.error("[ChordStrategy] appRef or appRef.updateZoneLayout is not available!");
+                // Это критическая ошибка, возможно, стоит ее обработать более серьезно
+            }
+
+            // Обновляем список предложений на основе нового аккорда (или null, если аккорд сброшен)
+            this._updateSuggestedChordsDisplay(chordData); // chordData может быть null
+
+        } catch (error) {
+            console.error(`[ChordStrategy] Error during selectChord(${chordId}):`, error, error.stack);
+            // Попытка отката UI, если возможно
+            this._selectedChordId = previousChordIdForRollback;
+            this._updateChordButtonSelection(previousChordIdForRollback);
+            // Возможно, нужно также откатить _selectedChordDisplayName и _selectedChordNotes
+            // и уведомить appRef, чтобы он перерисовал layout под previousChordIdForRollback
+            if (this.appRef && typeof this.appRef.updateZoneLayout === 'function') {
+                 console.warn(`[ChordStrategy] Attempting to rollback UI to previous chord: ${previousChordIdForRollback}`);
+                 // Сначала нужно восстановить _selectedChordNotes для previousChordIdForRollback, если это возможно
+                 // Затем вызвать updateZoneLayout
+                 // this.appRef.updateZoneLayout(); // Это может потребовать доп. логики
             }
         }
-        // --- КОНЕЦ УЛУЧШЕННОЙ ЛОГИКИ ---
-
-        // Обновляем UI, как и раньше.
-        this._updateChordButtonSelection(this._selectedChordId);
-
-        if (this.appRef) {
-            // `updateZoneLayout` теперь отрисует визуальное представление нового аккорда.
-            await this.appRef.updateZoneLayout();
-            // `notifyProgressionChanged` обновит дисплей в topbar.
-            this.appRef.notifyProgressionChanged();
-        }
-
-        this._updateSuggestedChordsDisplay(chordData);
     },
 
     // === КОНЕЦ ВОССТАНОВЛЕННЫХ МЕТОДОВ ===

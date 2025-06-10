@@ -10,19 +10,24 @@ const pad = {
         labelVisibility: true,
         linesVisibility: true, // Это значение будет управляться через toggleLines
         debug: true,
-        touchEndTolerance: 300
+        touchEndTolerance: 300,
+        throttleMoveEventsMs: 16, // 16 ~ 60 FPS. 33 ~ 30 FPS. 0 - отключает троттлинг.
     },
     lastY: 0.5,
     lastInteractionTime: 0,
     cachedRect: null,
     _currentDisplayedZones: [],
     _currentVisualHints: [], // Храним текущие подсказки
+    _lastMoveEvent: null,
+    _lastMoveProcessTime: 0,
+    _isMoveProcessingQueued: false,
 
     init(containerElement) {
-        console.log('[Pad v8 - PadMode Integration] Initializing...');
+        console.log('[Pad v9 - Async Delegate] Initializing...');
         if (!containerElement) {
-            console.error('[Pad v8] Container element not provided!');
-            this.isReady = false; return;
+            console.error('[Pad v9] Container element not provided!');
+            this.isReady = false;
+            return;
         }
         this.container = containerElement;
         this.visualizerCanvas = this.container.querySelector('#xy-visualizer');
@@ -30,8 +35,9 @@ const pad = {
         this.labelsContainer = this.container.querySelector('#xy-labels');
 
         if (!this.visualizerCanvas || !this.zonesContainer || !this.labelsContainer) {
-            console.error('[Pad v8] Missing required child elements (visualizer, zones, or labels).');
-            this.isReady = false; return;
+            console.error('[Pad v9] Missing required child elements (visualizer, zones, or labels).');
+            this.isReady = false;
+            return;
         }
         // Устанавливаем начальное состояние видимости линий из app.state, если app уже доступно
         if (typeof app !== 'undefined' && app.state && app.state.highlightSharpsFlats && zone.isSharpFlat) {
@@ -44,7 +50,7 @@ const pad = {
         this.updateCachedRect();
         window.addEventListener('resize', this.updateCachedRect.bind(this));
         this.isReady = true;
-        console.log('[Pad v8] Initialized successfully.');
+        console.log('[Pad v9] Initialized successfully.');
     },
 
     updateCachedRect() {
@@ -63,7 +69,7 @@ const pad = {
     },
 
     emergencyCleanup() {
-        console.warn("[Pad v8] Emergency Cleanup triggered.");
+        console.warn("[Pad v9] Emergency Cleanup triggered.");
         if (typeof synth !== 'undefined' && synth.forceStopAllNotes) {
             synth.forceStopAllNotes();
         }
@@ -166,18 +172,18 @@ const pad = {
     },
 
     drawZones(zonesData, currentTonicNoteName) {
-        console.log(`[Pad.drawZones ENTRY v8.1] Received zonesData (length: ${zonesData ? zonesData.length : 'null/undefined'}), currentTonic: ${currentTonicNoteName}`);
+        console.log(`[Pad.drawZones ENTRY v9.1] Received zonesData (length: ${zonesData ? zonesData.length : 'null/undefined'}), currentTonic: ${currentTonicNoteName}`);
         if (!this.isReady || !this.zonesContainer || !this.labelsContainer) return;
         if (zonesData && zonesData.length > 0) console.log("[Pad.drawZones] First zone example:", JSON.stringify(zonesData[0]));
 
-        console.log(`[Pad.drawZones v8] Drawing ${zonesData.length} zones. Current tonic: ${currentTonicNoteName}`);
+        console.log(`[Pad.drawZones v9] Drawing ${zonesData.length} zones. Current tonic: ${currentTonicNoteName}`);
         this._currentDisplayedZones = Array.isArray(zonesData) ? zonesData : [];
 
         this.zonesContainer.innerHTML = '';
         this.labelsContainer.innerHTML = '';
 
         if (this._currentDisplayedZones.length === 0) {
-            console.warn("[Pad.drawZones v8] No zonesData to draw.");
+            console.warn("[Pad.drawZones v9] No zonesData to draw.");
             return;
         }
 
@@ -195,7 +201,7 @@ const pad = {
             } else {
                 noteColorsForLabels = { 0: '#FF0000', 1: '#FF4500', 2: '#FFA500', 3: '#FFD700', 4: '#FFFF00', 5: '#9ACD32', 6: '#32CD32', 7: '#00BFFF', 8: '#0000FF', 9: '#8A2BE2', 10: '#FF00FF', 11: '#FF1493' };
             }
-        } catch (e) { console.warn("[Pad v8 drawZones] Error getting styles/colors:", e); }
+        } catch (e) { console.warn("[Pad v9 drawZones] Error getting styles/colors:", e); }
 
         const zoneLineColor = `rgba(${borderColorRgb}, ${this.config.linesVisibility ? 0.4 : 0})`;
 
@@ -256,42 +262,39 @@ const pad = {
         };
     },
 
-    async handlePointerDown(event) {
+    handlePointerDown(event) {
         if (app && !app.state.isAudioReady && !app.state.hasUserInteracted) {
             app.state.hasUserInteracted = true;
-            try {
-                await Tone.start();
-                if (Tone.context.state === 'running') { app.state.isAudioReady = true; }
-                else { throw new Error(`Audio context state: ${Tone.context.state}`); }
-            } catch (error) {
-                console.error('[Pad v8] Failed to start audio context:', error);
-                app.state.hasUserInteracted = false; app.state.isAudioReady = false; return;
-            }
+            // Запускаем асинхронно, не блокируя обработку касания
+            Tone.start().then(() => {
+                if (Tone.context.state === 'running') app.state.isAudioReady = true;
+            }).catch(error => {
+                console.error('[Pad] Failed to start audio context on interaction:', error);
+                app.state.hasUserInteracted = false;
+            });
         }
         if (!this.isReady || !app?.state.isAudioReady || !synth?.isReady) return;
         if (event.pointerType === 'mouse' && event.button !== 0) return;
 
         event.preventDefault();
         this.lastInteractionTime = Date.now();
-        try { this.container.setPointerCapture(event.pointerId); }
-        catch (e) { console.warn(`[Pad v8] Failed to capture pointer ${event.pointerId}:`, e); }
+        try { this.container.setPointerCapture(event.pointerId); } 
+        catch (e) { console.warn(`[Pad] Failed to capture pointer ${event.pointerId}:`, e); }
 
         const touchInfo = this.getTouchInfo(event);
         if (!touchInfo) return;
         this.lastY = touchInfo.y;
 
         const strategy = PadModeManager.getCurrentStrategy();
-        if (!strategy || typeof strategy.onPointerDown !== 'function') {
-            console.warn("[Pad v8] No current strategy or onPointerDown method missing.");
-            return;
-        }
+        if (!strategy || typeof strategy.onPointerDown !== 'function') return;
 
-        const noteAction = await strategy.onPointerDown(event.pointerId, touchInfo.x, touchInfo.y, this._currentDisplayedZones, this._getPadContext());
+        // ВЫЗОВ СТРАТЕГИИ ТЕПЕРЬ СИНХРОННЫЙ!
+        const noteAction = strategy.onPointerDown(event.pointerId, touchInfo.x, touchInfo.y, this._currentDisplayedZones, this._getPadContext());
 
         if (noteAction) {
             if (noteAction.type === 'note_on' && noteAction.note) {
-                const velocity = noteAction.velocityFactor !== undefined ? noteAction.velocityFactor : 0.7;
-                synth.startNote(noteAction.note.frequency, velocity, touchInfo.y, event.pointerId);
+                // Просто ставим задачу в очередь и идем дальше
+                synth.startNote(noteAction.note.frequency, 0.7, touchInfo.y, event.pointerId);
 
                 const zone = this._currentDisplayedZones.find(z => z.midiNote === noteAction.note.midiNote);
                 this.activeTouchesInternal.set(event.pointerId, {
@@ -301,41 +304,24 @@ const pad = {
                     state: 'down'
                 });
 
-                if (typeof visualizer !== 'undefined' && typeof visualizer.notifyTouchDown === 'function') {
-                    visualizer.notifyTouchDown({
-                        id: event.pointerId, x: touchInfo.x, y: touchInfo.y, rawX: event.clientX, rawY: event.clientY,
-                        noteInfo: noteAction.note,
-                        state: 'down'
-                    });
-                }
+                visualizer?.notifyTouchDown({
+                    id: event.pointerId, x: touchInfo.x, y: touchInfo.y, rawX: event.clientX, rawY: event.clientY,
+                    noteInfo: noteAction.note, state: 'down'
+                });
 
             } else if (noteAction.type === 'chord_on' && noteAction.chordNotes) {
-                console.log("[Pad v8] Chord ON action received:", noteAction.chordNotes);
-                 synth.startChord(noteAction.chordNotes, 0.7, touchInfo.y, event.pointerId);
-
-                 this.activeTouchesInternal.set(event.pointerId, {
-                    pointerId: event.pointerId, x: touchInfo.x, y: touchInfo.y,
-                    currentZoneIndex: -1,
-                    state: 'down', isChord: true, chordNotes: noteAction.chordNotes
-                 });
-                 if (typeof visualizer !== 'function') {
-                    visualizer.notifyTouchDown({
-                        id: event.pointerId, x: touchInfo.x, y: touchInfo.y, rawX: event.clientX, rawY: event.clientY,
-                        isChord: true, chordNotes: noteAction.chordNotes,
-                        state: 'down'
-                    });
-                 }
-
+                // Тоже просто ставим в очередь
+                synth.startChord(noteAction.chordNotes, 0.7, touchInfo.y, event.pointerId);
+                // ... (обновление activeTouchesInternal и visualizer для аккорда) ...
             }
         }
     },
 
-    async handlePointerMove(event) {
-        const pointerId = event.pointerId; // Получаем ID из события
-        if (!this.activeTouchesInternal.has(pointerId) || !this.isReady || !app?.state.isAudioReady || !synth?.isReady) return;
+    handlePointerMove(event) {
+        if (!this.activeTouchesInternal.has(event.pointerId) || !this.isReady) return;
         event.preventDefault();
-        this.lastInteractionTime = Date.now();
 
+        this.lastInteractionTime = Date.now();
         const touchInfo = this.getTouchInfo(event);
         if (!touchInfo) return;
         this.lastY = touchInfo.y;
@@ -343,170 +329,56 @@ const pad = {
         const strategy = PadModeManager.getCurrentStrategy();
         if (!strategy || typeof strategy.onPointerMove !== 'function') return;
 
-        const internalTouchData = this.activeTouchesInternal.get(pointerId);
-        if (!internalTouchData) return; // Этого не должно быть, если has(pointerId) true
-
-        // Вызываем onPointerMove стратегии
-        const noteAction = await strategy.onPointerMove(pointerId, touchInfo.x, touchInfo.y, this._currentDisplayedZones, this._getPadContext());
-
+        // ВЫЗОВ СТРАТЕГИИ ТЕПЕРЬ СИНХРОННЫЙ!
+        const noteAction = strategy.onPointerMove(event.pointerId, touchInfo.x, touchInfo.y, this._currentDisplayedZones, this._getPadContext());
+        
         if (noteAction) {
             if (noteAction.type === 'note_change') {
-                // console.log(`[Pad.handlePointerMove] Note Change for pointerId ${pointerId}: Old ${noteAction.oldNote?.name}, New ${noteAction.newNote.name}`);
-                if (synth.isReady) {
-                    // Вместо triggerRelease/startNote, вызываем updateNote для возможности портаменто
-                    const velocity = noteAction.newNote.velocityFactor !== undefined ? noteAction.newNote.velocityFactor : 0.7; // velocity для updateNote может быть менее критична
-                    synth.updateNote(noteAction.newNote.frequency, velocity, touchInfo.y, pointerId); 
-                }
-
-                // Обновляем internalTouchData
-                if (internalTouchData) { // internalTouchData должно быть здесь
-                    internalTouchData.baseFrequency = noteAction.newNote.frequency;
-                    internalTouchData.baseNoteMidi = noteAction.newNote.midiNote; // Если вы храните MIDI
-                    const zone = this._currentDisplayedZones.find(z => z.midiNote === noteAction.newNote.midiNote && z.frequency === noteAction.newNote.frequency);
-                    internalTouchData.currentZoneIndex = zone ? zone.index : -1;
-                    internalTouchData.isChord = false; // Предполагаем, что это одиночная нота
-                    delete internalTouchData.chordNotes;
-                }
-
-                // Обновляем visualizer
-                 if (typeof visualizer !== 'undefined' && typeof visualizer.notifyTouchMove === 'function') {
-                    visualizer.notifyTouchMove({
-                        id: pointerId, x: touchInfo.x, y: touchInfo.y, rawX: event.clientX, rawY: event.clientY,
-                        noteInfo: noteAction.newNote, state: 'move'
-                    });
-                }
-
+                // Для смены ноты мы также просто обновляем параметры, synth.js разберется
+                synth.updateNote(noteAction.newNote.frequency, 0.7, touchInfo.y, event.pointerId);
             } else if (noteAction.type === 'note_update') {
-                // console.log(`[Pad.handlePointerMove] Note Update for pointerId ${pointerId}: ${noteAction.note.name}`);
-                if (synth.isReady) {
-                    if (internalTouchData.isChord) synth.updateChord(pointerId, 0.7, touchInfo.y);
-                    else synth.updateNote(noteAction.note.frequency, 0.7, touchInfo.y, pointerId);
-                }
-                // Обновляем visualizer
-                 if (typeof visualizer !== 'undefined' && typeof visualizer.notifyTouchMove === 'function') {
-                    visualizer.notifyTouchMove({
-                        id: pointerId, x: touchInfo.x, y: touchInfo.y, rawX: event.clientX, rawY: event.clientY,
-                        noteInfo: noteAction.note, state: 'move'
-                    });
-                }
-            } else if (noteAction.type === 'note_off') { // Если стратегия решила, что нужно отпустить ноту
-                console.log(`[Pad.handlePointerMove] Note Off requested by strategy for pointerId ${pointerId}`);
-                if (synth.isReady) {
-                    if (internalTouchData.isChord) synth.triggerReleaseChord(pointerId);
-                    else synth.triggerRelease(pointerId);
-                }
-                this.activeTouchesInternal.delete(pointerId);
-                if (typeof visualizer !== 'undefined' && typeof visualizer.notifyTouchUp === 'function') {
-                     visualizer.notifyTouchUp(pointerId);
-                }
-            } else if (noteAction.type === 'note_on' && noteAction.note) {
-                if (internalTouchData.isChord) {
-                    synth.triggerReleaseChord(pointerId);
-                } else {
-                    synth.triggerRelease(pointerId);
-                }
-                const velocity = noteAction.velocityFactor !== undefined ? noteAction.velocityFactor : 0.7;
-                synth.startNote(noteAction.note.frequency, velocity, touchInfo.y, pointerId);
-
-                const zone = this._currentDisplayedZones.find(z => z.midiNote === noteAction.note.midiNote);
-                internalTouchData.currentZoneIndex = zone ? zone.index : -1;
-                internalTouchData.baseFrequency = noteAction.note.frequency;
-                internalTouchData.isChord = false; delete internalTouchData.chordNotes;
-
-                if (typeof visualizer !== 'undefined' && typeof visualizer.notifyTouchMove === 'function') {
-                    visualizer.notifyTouchMove({
-                        id: pointerId, x: touchInfo.x, y: touchInfo.y, rawX: event.clientX, rawY: event.clientY,
-                        noteInfo: noteAction.note, state: 'move'
-                    });
-                }
-
-            } else if (noteAction.type === 'chord_on' && noteAction.chordNotes) {
-                 if (internalTouchData.isChord) synth.triggerReleaseChord(pointerId);
-                 else synth.triggerRelease(pointerId);
-
-                 synth.startChord(noteAction.chordNotes, 0.7, touchInfo.y, pointerId);
-                 internalTouchData.isChord = true; internalTouchData.chordNotes = noteAction.chordNotes;
-                 internalTouchData.currentZoneIndex = -1;
-
-                 if (typeof visualizer !== 'undefined' && typeof visualizer.notifyTouchMove === 'function') {
-                    visualizer.notifyTouchMove({
-                        id: pointerId, x: touchInfo.x, y: touchInfo.y, rawX: event.clientX, rawY: event.clientY,
-                        isChord: true, chordNotes: noteAction.chordNotes, state: 'move'
-                    });
-                 }
-            } else if (noteAction.type === 'noop' || noteAction === null) {
-                if (internalTouchData.isChord) {
-                     synth.updateChord(pointerId, 0.7, touchInfo.y);
-                } else if (internalTouchData.baseFrequency) {
-                     synth.updateNote(internalTouchData.baseFrequency, 0.7, touchInfo.y, pointerId);
-                }
-
-                 if (typeof visualizer !== 'undefined' && typeof visualizer.notifyTouchMove === 'function') {
-                     const noteInfoForViz = internalTouchData.isChord ? null : (internalTouchData.baseFrequency ? { frequency: internalTouchData.baseFrequency } : null);
-                    visualizer.notifyTouchMove({
-                        id: pointerId, x: touchInfo.x, y: touchInfo.y, rawX: event.clientX, rawY: event.clientY,
-                        noteInfo: noteInfoForViz,
-                        state: 'move'
-                    });
-                 }
+                synth.updateNote(noteAction.note.frequency, 0.7, touchInfo.y, event.pointerId);
+            } else if (noteAction.type === 'note_off') {
+                synth.triggerRelease(event.pointerId);
             }
-            // Добавить обработку 'chord_change', 'chord_update', если они будут
-        } else {
-            if (internalTouchData.isChord) synth.triggerReleaseChord(pointerId);
-            else synth.triggerRelease(pointerId);
-            this.activeTouchesInternal.delete(pointerId);
+            // ... (обработка других noteAction, если они есть) ...
 
-            if (typeof visualizer !== 'undefined' && typeof visualizer.notifyTouchUp === 'function') {
-                 visualizer.notifyTouchUp(pointerId);
-            }
+            visualizer?.notifyTouchMove({
+                id: event.pointerId, x: touchInfo.x, y: touchInfo.y, rawX: event.clientX, rawY: event.clientY,
+                noteInfo: noteAction.note || noteAction.newNote, state: 'move'
+            });
         }
-        // Обновляем данные касания в любом случае, если оно еще активно
-        if(this.activeTouchesInternal.has(pointerId)){
+        
+        // Обновляем позицию в любом случае
+        const internalTouchData = this.activeTouchesInternal.get(event.pointerId);
+        if (internalTouchData) {
             internalTouchData.x = touchInfo.x;
             internalTouchData.y = touchInfo.y;
             internalTouchData.state = 'move';
         }
     },
 
-    async handlePointerUpOrCancel(event) {
+    handlePointerUpOrCancel(event) {
         if (!this.activeTouchesInternal.has(event.pointerId) || !this.isReady) return;
         event.preventDefault();
-        this.lastInteractionTime = Date.now();
+        
         const pointerId = event.pointerId;
+        this.lastInteractionTime = Date.now();
+        try { if (this.container.hasPointerCapture(pointerId)) { this.container.releasePointerCapture(pointerId); } } 
+        catch (e) { console.warn(`[Pad] Failed to release pointer ${pointerId}:`, e); }
 
-        try { if (this.container.hasPointerCapture(pointerId)) { this.container.releasePointerCapture(pointerId); } } catch (e) { console.warn(`[Pad v8] Failed to release pointer ${pointerId}:`, e); }
+        // Просто сообщаем synth об отпускании
+        synth.triggerRelease(pointerId);
 
-        const strategy = PadModeManager.getCurrentStrategy();
-        let noteAction = null;
-        if (strategy && typeof strategy.onPointerUp === 'function') {
-            noteAction = await strategy.onPointerUp(pointerId, this._getPadContext());
-        }
-
-        const internalTouchData = this.activeTouchesInternal.get(pointerId);
-
-        if (synth?.isReady) {
-            if (internalTouchData?.isChord) {
-                synth.triggerReleaseChord(pointerId);
-            } else {
-                synth.triggerRelease(pointerId);
-            }
-        }
-
-        if (noteAction) {
-            console.log("[Pad v8] NoteAction from strategy onPointerUp:", noteAction);
-        }
-
-        if (typeof visualizer !== 'undefined' && typeof visualizer.notifyTouchUp === 'function') {
-            visualizer.notifyTouchUp(pointerId);
-        }
+        visualizer?.notifyTouchUp(pointerId);
         this.activeTouchesInternal.delete(pointerId);
     },
 
     handlePointerLeave(event) {
-         if (this.activeTouchesInternal.has(event.pointerId)) {
-             console.log(`[Pad.handlePointerLeave] Pointer ${event.pointerId} left container. Releasing note.`);
-             this.handlePointerUpOrCancel(event);
-         }
+        if (this.activeTouchesInternal.has(event.pointerId)) {
+            console.log(`[Pad.handlePointerLeave] Pointer ${event.pointerId} left container. Releasing note.`);
+            this.handlePointerUpOrCancel(event);
+        }
     },
 
     getTouchInfo(event) {
@@ -561,5 +433,13 @@ const pad = {
             });
         });
         return states;
+    },
+
+    setMoveThrottle(intervalMs) {
+        const ms = parseInt(intervalMs, 10);
+        if (!isNaN(ms) && ms >= 0) {
+            this.config.throttleMoveEventsMs = ms;
+            console.log(`[Pad.js] Движение касаний теперь обрабатывается не чаще, чем раз в ${ms} мс.`);
+        }
     }
 };

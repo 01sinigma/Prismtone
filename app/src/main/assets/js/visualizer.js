@@ -26,6 +26,7 @@ const visualizer = {
     _prevPadHintsToDraw: null,
     _fadingPadHints: [],
      debugMode: false,
+    fpsManager: null,
 
     async init(canvasElement, analyserInstance = null) {
         console.log('[Visualizer v4.1 Modular with PadHints] Initializing...');
@@ -78,6 +79,11 @@ const visualizer = {
         } else {
              console.error('[Visualizer v4.1] Failed to initialize fully due to missing analyser (isReady=false).');
         }
+
+        // FPS Manager
+        this.fpsManager = Object.create(fpsManager);
+        this.fpsManager.init(this.draw.bind(this));
+        this.fpsManager.setTargetFps(60);
     },
 
     registerRenderer(name, rendererClass) {
@@ -369,31 +375,29 @@ const visualizer = {
     },
 
     start() {
-        if (!this.isReady || this.animationFrameId) return;
+        if (!this.isReady || (this.fpsManager && this.fpsManager._isActive)) return;
         if (!this.activeRenderer && !this.activeTouchEffectRenderer) {
             console.log('[Visualizer v4.0] No active renderers to start animation loop.');
             return;
         }
-        console.log('[Visualizer v4.0] Starting animation loop.');
-        this.animationFrameId = requestAnimationFrame(this.draw.bind(this));
+        if (this.fpsManager) {
+            this.fpsManager.start();
+        }
     },
 
     stop() {
-        if (this.animationFrameId) {
-            cancelAnimationFrame(this.animationFrameId);
-            this.animationFrameId = null;
-            console.log('[Visualizer v4.0] Animation loop stopped.');
+        if (this.fpsManager && this.fpsManager._isActive) {
+            this.fpsManager.stop();
         }
     },
 
     draw() {
-        if (this.debugMode && this._padHintsToDraw.length > 0) { // Показываем, только если есть подсказки И включен debugMode
+        if (this.debugMode && this._padHintsToDraw.length > 0) {
             console.log(`[Visualizer.draw DBG] _padHintsToDraw (${this._padHintsToDraw.length}) items:`);
             this._padHintsToDraw.forEach((h, i) => {
                 console.log(`  [Visualizer DBG] Hint ${i}: zoneIndex=${h.zoneIndex}, type='${h.type}', style='${h.style}', color='${h.color}', note='${h.noteName || (h.notes ? h.notes.join(',') : 'N/A')}'`);
             });
         }
-        this.animationFrameId = requestAnimationFrame(this.draw.bind(this));
         if (!this.isReady || !this.ctx || !this.canvas || this.canvas.width === 0 || this.canvas.height === 0) return;
 
         const audioData = (this.analyser && (this.activeRenderer || this.analyser.type === 'fft')) ? this.analyser.getValue() : null;
