@@ -93,7 +93,7 @@ const moduleManager = {
         }
 
         console.log(`[ModuleManager.getModule] Module ${moduleId} not in cache, searching lists...`);
-        const knownTypes = ['soundpreset', 'fxchain', 'theme', 'language', 'visualizer', 'effect', 'scale', 'touchEffect'];
+        const knownTypes = ['soundpreset', 'fxchain', 'theme', 'language', 'visualizer', 'effect', 'scale', 'touchEffect', 'chordProgression'];
 
         for (const type of knownTypes) {
              // Ensure list for this type is fetched if not already cached

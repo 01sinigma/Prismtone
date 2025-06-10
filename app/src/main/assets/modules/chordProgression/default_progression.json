@@ -1,0 +1,11 @@
+{
+  "id": "default_progression",
+  "type": "chordProgression",
+  "name": "Default I-V-vi-IV",
+  "version": "1.0.0",
+  "description": "A classic pop/rock progression in C.",
+  "active": true,
+  "data": {
+    "chordIds": ["C4M", "G4M", "A4m", "F4M"]
+  }
+} 

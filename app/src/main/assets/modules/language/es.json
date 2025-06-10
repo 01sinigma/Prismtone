@@ -364,7 +364,31 @@
       "no_scale_found": "No se encontraron escalas",
       "no_fxChain_found": "No se encontraron cadenas de FX",
       "error_audio_fatal_restart": "Error crítico de audio. Por favor, reinicie la aplicación.",
-      "presets_panel_title": "Presets"
+      "chord_panel_title": "Acordes",
+      "suggested_chords_title": "Sugerencias:",
+      "progression_preset_label": "Progresión",
+      "save_progression_tooltip": "Guardar Progresión Como...",
+      "add_chord_button_label": "Añadir Acorde",
+      "delete_chords_button_label": "Eliminar Acordes",
+      "add_chord_modal_title": "Añadir Nuevo Acorde",
+      "chord_root_note_label": "Nota Fundamental",
+      "chord_type_label": "Tipo de Acorde",
+      "add": "Añadir",
+      "my_progression_default_name": "Mi Progresión",
+      "progression_name_required": "El nombre de la progresión no puede estar vacío.",
+      "progression_saved_success": "¡Progresión '${name}' guardada!",
+      "error_saving_progression_details": "Error: ${error}",
+      "error_saving_progression_unknown": "Error desconocido al guardar la progresión. Inténtalo de nuevo.",
+      "error_saving_progression_exception": "Excepción: ${error}",
+      "cannot_delete_default_progressions": "No se pueden eliminar las progresiones predeterminadas.",
+      "confirm_delete_preset_message": "¿Seguro que quieres eliminar la progresión \"${name}\"? Esta acción no se puede deshacer.",
+      "progression_deleted_success_short": "Progresión eliminada.",
+      "error_deleting_progression_bridge": "Error al eliminar la progresión (error del puente).",
+      "error_deleting_progression_exception": "Excepción: ${error}",
+      "progression_current_session": "Sesión Actual",
+      "save_progression_modal_title": "Guardar Progresión",
+      "progression_name_label": "Nombre de Progresión",
+      "delete_preset_modal_title": "Eliminar Progresión"
     }
   }
 }

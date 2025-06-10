@@ -1285,10 +1285,6 @@ const app = {
         const currentStrategy = PadModeManager.getCurrentStrategy();
         if (currentStrategy && typeof currentStrategy.getName === 'function' && currentStrategy.getName() === modeId && !initialLoad) {
             console.log(`[App.setPadMode] Mode ${modeId} is already active.`);
-            // Обновляем контролы даже если режим уже активен, на случай если их конфиг поменялся (редко, но возможно)
-            if (typeof sidePanel !== 'undefined' && sidePanel.displayModeSpecificControls) {
-                sidePanel.displayModeSpecificControls(modeId);
-            }
             return;
         }
 
@@ -1297,37 +1293,37 @@ const app = {
             this.state.padMode = modeId;
             bridgeFix.callBridge('setSetting', 'padMode', modeId);
             
-            // --- НОВАЯ ЦЕНТРАЛИЗОВАННАЯ ЛОГИКА ---
+            // +++ ЗАМЕНА СТАРОЙ ЛОГИКИ НА НОВУЮ +++
+            const chordPanel = document.getElementById('chord-mode-panel');
+            const expandBtn = document.getElementById('chord-panel-expand-btn');
+
             if (modeId === 'chord') {
-                // 1. Сначала скрываем все остальные панели
+                // Если мы в режиме аккордов:
+                // 1. Прячем все остальные панели.
                 sidePanel.hideAllPanels();
                 
-                // 2. Затем явно показываем и настраиваем панель аккордов
-                const chordPanel = document.getElementById('chord-mode-panel');
-                if (chordPanel) {
-                    chordPanel.style.width = `${this.state.chordPanelWidth}px`;
-                    chordPanel.classList.add('show'); // Делаем ее видимой в DOM
-                    this.toggleChordPanel(this.state.isChordPanelCollapsed); // Применяем состояние свернутости
-                }
+                // 2. Показываем контейнер панели аккордов.
+                if (chordPanel) chordPanel.classList.add('show');
                 
-                // 3. Выбираем первый аккорд, если ни один не выбран
+                // 3. Вызываем toggleChordPanel, чтобы она установила правильное состояние
+                //    (свернута/развернута) и видимость кнопки ">" на основе сохраненного состояния.
+                this.toggleChordPanel(this.state.isChordPanelCollapsed);
+                
+                // 4. Логика выбора первого аккорда и обновления топбара (остается)
                 const strategy = PadModeManager.getCurrentStrategy();
                 if (strategy && !strategy.getSelectedChordId() && strategy.getAvailableChords().length > 0) {
                     await strategy.selectChord(strategy.getAvailableChords()[0].id);
                 } else {
-                    // Если аккорд уже выбран, просто уведомляем topbar
                     this.notifyProgressionChanged();
                 }
 
             } else {
-                // Если переключаемся с режима аккордов, прячем панель
-                const chordPanel = document.getElementById('chord-mode-panel');
-                if (chordPanel) {
-                    chordPanel.classList.remove('show');
-                    this.toggleChordPanel(true); // Сворачиваем и прячем кнопку ">"
-                }
+                // Если мы НЕ в режиме аккордов:
+                // 1. Принудительно и полностью скрываем панель аккордов и ее кнопку.
+                if (chordPanel) chordPanel.classList.remove('show', 'collapsed');
+                if (expandBtn) expandBtn.classList.remove('visible');
             }
-            // --- КОНЕЦ НОВОЙ ЛОГИКИ ---
+            // --- КОНЕЦ ЗАМЕНЫ ---
             
             sidePanel.populatePadModeSelectDisplay(); 
             sidePanel.displayModeSpecificControls(modeId);
@@ -1338,7 +1334,6 @@ const app = {
         if (typeof topbar !== 'undefined') {
             if (modeId === 'chord') {
                 topbar.showProgressionDisplay();
-                // Немедленно обновить дисплей при переключении на режим
                 this.notifyProgressionChanged(); 
             } else {
                 topbar.hideProgressionDisplay();
@@ -1346,6 +1341,27 @@ const app = {
         }
     },
     
+    toggleChordPanel(shouldBeCollapsed) {
+        if (typeof shouldBeCollapsed !== 'boolean') {
+            shouldBeCollapsed = !this.state.isChordPanelCollapsed;
+        }
+        this.state.isChordPanelCollapsed = shouldBeCollapsed;
+        console.log(`[App] Chord panel collapsed state set to: ${shouldBeCollapsed}`);
+
+        const panel = document.getElementById('chord-mode-panel');
+        const expandBtn = document.getElementById('chord-panel-expand-btn');
+        if (!panel || !expandBtn) return;
+
+        // +++ ИЗМЕНЕНИЕ: Логика теперь проще и надежнее +++
+        // Эта функция вызывается только когда мы уже в режиме 'chord',
+        // поэтому она только переключает классы.
+        panel.classList.toggle('collapsed', shouldBeCollapsed);
+        expandBtn.classList.toggle('visible', shouldBeCollapsed);
+        // --- КОНЕЦ ИЗМЕНЕНИЯ ---
+
+        localStorage.setItem('isChordPanelCollapsed', shouldBeCollapsed);
+    },
+
     _updateSidePanelSettingsUI() {
         if (sidePanel && typeof sidePanel.updateSettingsControls === 'function') {
             sidePanel.updateSettingsControls(

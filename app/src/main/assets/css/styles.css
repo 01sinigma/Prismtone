@@ -705,6 +705,8 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
   border-radius: 10px;
   margin: 2px 0;
   outline: none;
+  justify-content: flex-start;
+  text-align: left;
 }
 .custom-selector-option:hover, .custom-selector-option:focus {
   background: rgba(var(--color-primary-rgb),0.10);
@@ -751,6 +753,61 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
   font-size: 16px;
   font-weight: 500;
   color: inherit;
+}
+.custom-selector-option .option-content-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 15px;
+}
+.custom-selector-option .option-text-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-width: 0;
+}
+.custom-selector-option .option-details {
+  font-size: 0.75em;
+  color: var(--color-text-secondary);
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+.custom-selector-option .option-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.custom-selector-option .option-btn-select,
+.custom-selector-option .option-btn-delete {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  height: auto;
+  font-weight: 500;
+}
+.custom-selector-option .option-btn-select {
+  background-color: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary-dark);
+}
+.custom-selector-option:hover .option-btn-select,
+.custom-selector-option:focus .option-btn-select {
+  background-color: var(--color-primary-dark);
+}
+.custom-selector-option .option-btn-delete {
+  background-color: var(--color-surface);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+.custom-selector-option:hover .option-btn-delete,
+.custom-selector-option:focus .option-btn-delete {
+  background-color: var(--color-accent);
+  color: white;
 }
 @media (max-width: 600px) {
   .custom-selector-modal { min-width: 90vw; max-width: 98vw; }
@@ -1041,69 +1098,21 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
 
 /* Стили для модального окна добавления аккорда (понадобятся позже) */
 #add-chord-modal {
-    position: fixed;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    background-color: var(--color-surface);
-    padding: 20px;
-    border-radius: var(--border-radius-large);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    z-index: 1002; 
-    display: none; 
-    width: 320px; /* Немного шире */
-    border: 1px solid var(--color-border);
+    /* Все основные стили теперь в .prism-modal */
+    /* Здесь могут быть очень специфичные переопределения для #add-chord-modal, если нужны */
 }
 
-#add-chord-modal .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-}
-
-#add-chord-modal .modal-header h3 {
-    margin: 0;
-    font-size: 1.2rem;
-    color: var(--color-on-surface);
-}
-
-#add-chord-modal .modal-content .setting-group {
-    margin-bottom: 15px;
-    display: flex;
-    flex-direction: column; /* Метки над селектами */
-}
-#add-chord-modal .modal-content .setting-group label {
-    margin-bottom: 5px;
-    font-size: 0.85rem;
-    color: var(--color-on-surface-variant);
-}
-
-#add-chord-modal .modal-content .dropdown {
-    width: 100%; /* Селекты на всю ширину */
-}
-
-#add-chord-modal .modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 20px;
-    padding-top: 15px;
-    border-top: 1px solid var(--color-border);
-}
-
-#add-chord-modal .modal-actions .button {
-    padding: 8px 24px;
-}
-
-#add-chord-modal .modal-actions .button.primary-button {
-    background-color: var(--color-primary);
-    color: var(--color-on-primary);
-}
-
-#add-chord-modal .modal-actions .button.primary-button:hover {
-    background-color: var(--color-primary-variant);
-}
+/* Удаляем старые ID-специфичные правила для детей #add-chord-modal, т.к. они теперь в .prism-modal */
+/*
+#add-chord-modal .modal-header { ... }
+#add-chord-modal .modal-header h3 { ... }
+#add-chord-modal .modal-content .setting-group { ... }
+#add-chord-modal .modal-content .setting-group label { ... }
+#add-chord-modal .modal-content .dropdown { ... } // Был .dropdown, теперь .dropdown-display
+#add-chord-modal .modal-actions { ... }
+#add-chord-modal .modal-actions .button { ... }
+#add-chord-modal .modal-actions .button.primary-button { ... } // Общие классы .button и .primary-button остаются
+*/
 
 /* Оверлей для модальных окон (если еще не определен) */
 .modal-overlay {
@@ -1340,22 +1349,46 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
 
 /* Когда панель в режиме удаления, клик по основной части кнопки не должен ничего делать */
 .chord-list.delete-mode .chord-button .chord-name-display {
-    pointer-events: none;
+    pointer-events: none; /* Чтобы не было ховера на тексте в режиме удаления */
 }
 
-/* Стилизация модального окна */
-#add-chord-modal .modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 20px;
-    padding-top: 15px;
-    border-top: 1px solid var(--color-border);
+/* Save Progression Modal - specific styles if needed later */
+#save-progression-modal {
+    /* Все основные стили теперь в .prism-modal */
+    /* Здесь могут быть очень специфичные переопределения для #save-progression-modal, если нужны */
 }
 
-#add-chord-modal .modal-actions .button {
-    padding: 8px 24px;
+/* Удаляем старые ID-специфичные правила для детей #save-progression-modal, т.к. они теперь в .prism-modal */
+/*
+#save-progression-modal .modal-header { ... }
+#save-progression-modal .modal-header h3 { ... }
+#save-progression-modal .modal-content .setting-group { ... }
+#save-progression-modal .modal-content .setting-group label { ... }
+#save-progression-modal .modal-content .text-input { ... }
+#save-progression-modal .modal-actions { ... }
+#save-progression-modal .modal-actions .button { ... }
+*/
+
+/* === Модальное окно сохранения прогрессии (Save Progression Modal) === */
+#save-progression-modal {
+    /* Все основные стили теперь в .prism-modal */
+    /* Здесь могут быть очень специфичные переопределения для #save-progression-modal, если нужны */
 }
+
+/* Удаляем старые ID-специфичные правила для детей #save-progression-modal, т.к. они теперь в .prism-modal */
+/*
+#save-progression-modal .modal-header { ... }
+#save-progression-modal .modal-header h3 { ... }
+#save-progression-modal .modal-content .setting-group { ... }
+#save-progression-modal .modal-content .setting-group label { ... }
+#save-progression-modal .modal-content .text-input { ... }
+#save-progression-modal .modal-actions { ... }
+#save-progression-modal .modal-actions .button { ... }
+*/
+
+/* #add-chord-modal .modal-actions { ... } */ /* Это правило было дубликатом, оно теперь в .prism-modal .modal-actions */
+/* #add-chord-modal .modal-actions .button { ... } */ /* Это правило было дубликатом */
+
 
 /* --- Chord Progression Display Styles --- */
 #topbar-center-content {
@@ -1442,5 +1475,141 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
     opacity: 0.4;
     background-color: var(--color-primary-light) !important; /* Стиль для "тени" на новом месте */
     border-style: dashed;
+}
+
+/* Общий класс для модальных окон Prismtone */
+.prism-modal {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background-color: var(--color-surface);
+    padding: 20px;
+    border-radius: var(--border-radius-large); /* ВОЗВРАЩАЕМ --border-radius-large, предполагая его определение в themes.css */
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    z-index: 1002;
+    display: none; /* Управляется JS */
+    width: 320px;
+    border: 1px solid var(--color-border);
+}
+
+/* Общие стили для дочерних элементов модальных окон .prism-modal */
+.prism-modal .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.prism-modal .modal-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--color-on-surface);
+}
+
+.prism-modal .modal-content .setting-group {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+.prism-modal .modal-content .setting-group label {
+    margin-bottom: 5px;
+    font-size: 0.85rem;
+    color: var(--color-on-surface-variant);
+}
+
+/* Специфичные стили для .text-input внутри .prism-modal (для окна сохранения) */
+.prism-modal .modal-content .text-input {
+    width: 100%;
+    height: 40px; /* Согласуем высоту с .dropdown-display */
+    padding: 0 10px; /* Согласуем отступы по горизонтали, вертикальный браузер обычно сам выравнивает */
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    background-color: var(--color-surface); /* ИЗМЕНЕНИЕ: Используем --color-surface вместо --color-background */ 
+    color: var(--color-text-primary);
+    font-size: 14px; /* Согласуем размер шрифта с .dropdown-display */
+    /* line-height: 38px; Для input line-height может вести себя иначе, часто достаточно padding и height */
+}
+
+/* Специфичные стили для .dropdown-display внутри .prism-modal (для окна добавления) */
+.prism-modal .modal-content .dropdown-display {
+    /* Стили для .dropdown-display уже определены глобально, 
+       но если нужны специфичные для модального окна, можно добавить сюда.
+       Например, width: 100%; если он еще не такой */
+    width: 100%; 
+}
+
+
+.prism-modal .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid var(--color-border);
+}
+
+.prism-modal .modal-actions .button {
+    padding: 8px 24px;
+    height: auto; /* Позволяем высоте подстраиваться под паддинг */
+}
+
+/* Стиль для основной кнопки действия в модальном окне (цвет темы) */
+.prism-modal .modal-actions .button.primary-button {
+    background-color: var(--color-primary);
+    color: var(--color-on-primary, white); /* Текст белый или специальный для основного цвета */
+    border-color: var(--color-primary-dark, var(--color-primary)); /* Граница чуть темнее или в цвет */
+}
+
+.prism-modal .modal-actions .button.primary-button:hover {
+    background-color: var(--color-primary-dark, var(--color-primary)); /* Затемнение при наведении */
+}
+
+/* Классы .button.danger-button и .close-button должны наследоваться глобально и уже стилизованы */
+/* Убедимся, что .danger-button имеет нужные стили */
+.button.danger-button {
+    background-color: var(--color-accent); 
+    color: white; 
+    border-color: var(--color-accent-dark, #d32f2f); 
+}
+
+.button.danger-button:hover {
+    background-color: var(--color-accent-dark, #d32f2f); 
+    border-color: var(--color-accent-darker, #b71c1c); 
+}
+
+.button.danger-button:active {
+    background-color: var(--color-accent-darker, #b71c1c); 
+}
+
+/* === Конец общих стилей для .prism-modal детей === */
+
+/* Стили для сообщения в модальном окне подтверждения удаления */
+.prism-modal .modal-content p#confirm-delete-preset-message {
+    margin: 0;
+    padding: 10px 0;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--color-text-primary);
+    text-align: center;
+}
+
+/* Стилизация стрелки для кнопки сворачивания панели аккордов */
+#chord-panel-collapse-btn svg polyline {
+    stroke: var(--color-primary); /* Используем основной цвет темы */
+}
+
+#chord-panel-collapse-btn:hover svg polyline {
+    stroke: var(--color-primary-dark); /* Темнее при наведении */
+}
+
+/* Стилизация стрелки для кнопки разворачивания панели аккордов */
+#chord-panel-expand-btn svg polyline {
+    stroke: var(--color-primary); /* Используем основной цвет темы */
+}
+
+#chord-panel-expand-btn:hover svg polyline {
+    stroke: var(--color-primary-dark); /* Темнее при наведении */
 }
 

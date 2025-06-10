@@ -9,7 +9,9 @@ function showCustomSelectorPopover(options) {
         selectElement, // Оригинальный <select> элемент (для получения текущего значения или как fallback)
         currentValue, // Текущее выбранное значение
         onSelect, // callback(newValue)
-        parentPanelId // (Опционально) ID родительской панели для позиционирования или стилизации
+        onDelete,
+        parentPanelId, // (Опционально) ID родительской панели для позиционирования или стилизации
+        itemsArray
     } = options;
 
     console.log(`[CustomSelector] Showing for type: ${type}, title: ${title}, currentValue: ${currentValue}`);
@@ -35,11 +37,9 @@ function showCustomSelectorPopover(options) {
 
     let itemsPromise;
 
-    // === ПАТЧ: поддержка передачи itemsArray напрямую ===
     if (options.itemsArray) {
         itemsPromise = Promise.resolve(options.itemsArray);
     } else {
-        // Загружаем опции в зависимости от типа
         switch (type) {
             case 'language':
             case 'theme':
@@ -47,8 +47,9 @@ function showCustomSelectorPopover(options) {
             case 'touchEffect':
             case 'scale':
             case 'fxChain':
+            case 'chordProgression':
                 console.log(`[CustomSelector] Calling moduleManager.getModules with type: ${type}`);
-                itemsPromise = moduleManager.getModules(type, true); // true для forceRefresh, чтобы всегда были свежие данные
+                itemsPromise = moduleManager.getModules(type, true);
                 break;
             default:
                 console.warn(`[CustomSelector] Unknown type: ${type}. Trying to read from selectElement.`);
@@ -103,56 +104,114 @@ function showCustomSelectorPopover(options) {
              optionsContainer.appendChild(noneOption);
         }
 
-
         items.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
 
         items.forEach(item => {
             const optionButton = document.createElement('button');
             optionButton.className = 'custom-selector-option';
             optionButton.dataset.value = item.id;
+            
+            if (type === 'chordProgression') {
+                // Создаем сложную структуру для пресета прогрессии
+                const contentWrapper = document.createElement('div');
+                contentWrapper.className = 'option-content-wrapper';
 
-            const previewSpan = document.createElement('span');
-            previewSpan.className = 'option-preview';
-            // Добавляем специфичные для типа превью
-            if (type === 'theme' && item.data?.data?.colors?.primary) {
-                previewSpan.classList.add('theme');
-                previewSpan.style.backgroundColor = item.data.data.colors.primary;
-                if (item.data.data.colors.text) { // Цвет текста для лучшей читаемости превью
-                    const textColor = item.data.data.colors.text;
-                    const contrastBackground =視覺対比の良い色(item.data.data.colors.primary, textColor); // вымышленная функция
-                    if (contrastBackground !== item.data.data.colors.primary) {
-                         // previewSpan.style.borderColor = textColor; // или другой способ указать контраст
-                    }
+                const textWrapper = document.createElement('div');
+                textWrapper.className = 'option-text-wrapper';
+
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'option-label';
+                labelSpan.textContent = item.name || item.id;
+                textWrapper.appendChild(labelSpan);
+
+                // Добавляем список аккордов
+                const chordIds = item.data?.data?.chordIds || [];
+                const detailsSpan = document.createElement('span');
+                detailsSpan.className = 'option-details';
+                detailsSpan.textContent = chordIds.join(' → ');
+                textWrapper.appendChild(detailsSpan);
+
+                contentWrapper.appendChild(textWrapper);
+
+                // Создаем контейнер для кнопок
+                const actionsWrapper = document.createElement('div');
+                actionsWrapper.className = 'option-actions';
+
+                // Кнопка "Удалить" (только для пользовательских пресетов)
+                if (item.id.startsWith('user_')) {
+                    const deleteButton = document.createElement('button');
+                    deleteButton.className = 'option-btn-delete';
+                    deleteButton.textContent = '✕'; // Или иконка
+                    deleteButton.title = 'Delete Preset';
+                    deleteButton.addEventListener('click', (e) => {
+                        e.stopPropagation(); // Предотвращаем закрытие поповера
+                        if (typeof onDelete === 'function') {
+                            onDelete(item.id);
+                        }
+                        closePopover();
+                    });
+                    actionsWrapper.appendChild(deleteButton);
                 }
-            } else if (type === 'language') {
-                previewSpan.classList.add('language');
-                previewSpan.textContent = item.id.toUpperCase(); // Например, "EN", "RU"
-            } else if (type === 'visualizer') {
-                previewSpan.classList.add('visualizer');
-                previewSpan.textContent = 'V'; // Простая иконка
-            } else if (type === 'touchEffect') {
-                 previewSpan.classList.add('touchEffect');
-                 previewSpan.textContent = '✨';
-            } else if (type === 'scale') {
-                previewSpan.classList.add('scale');
-                previewSpan.textContent = '♪';
-            } else if (type === 'fxChain') {
-                 previewSpan.classList.add('fxchain');
-                 previewSpan.textContent = 'FX';
-            }
-            // ... другие типы по необходимости ...
-            optionButton.appendChild(previewSpan);
 
-            const labelSpan = document.createElement('span');
-            labelSpan.className = 'option-label';
-            labelSpan.textContent = item.name || item.id;
-            optionButton.appendChild(labelSpan);
+                // Кнопка "Выбрать"
+                const selectButton = document.createElement('button');
+                selectButton.className = 'option-btn-select';
+                selectButton.textContent = i18n.translate('select', 'Select');
+                selectButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    handleSelect(item.id);
+                });
+                actionsWrapper.appendChild(selectButton);
+
+                contentWrapper.appendChild(actionsWrapper);
+                optionButton.appendChild(contentWrapper);
+
+            } else {
+                // Стандартный рендеринг для всех остальных типов
+                const previewSpan = document.createElement('span');
+                previewSpan.className = 'option-preview';
+                // Добавляем специфичные для типа превью
+                if (type === 'theme' && item.data?.data?.colors?.primary) {
+                    previewSpan.classList.add('theme');
+                    previewSpan.style.backgroundColor = item.data.data.colors.primary;
+                    if (item.data.data.colors.text) { // Цвет текста для лучшей читаемости превью
+                        const textColor = item.data.data.colors.text;
+                        const contrastBackground =視覺対比の良い色(item.data.data.colors.primary, textColor); // вымышленная функция
+                        if (contrastBackground !== item.data.data.colors.primary) {
+                             // previewSpan.style.borderColor = textColor; // или другой способ указать контраст
+                        }
+                    }
+                } else if (type === 'language') {
+                    previewSpan.classList.add('language');
+                    previewSpan.textContent = item.id.toUpperCase(); // Например, "EN", "RU"
+                } else if (type === 'visualizer') {
+                    previewSpan.classList.add('visualizer');
+                    previewSpan.textContent = 'V'; // Простая иконка
+                } else if (type === 'touchEffect') {
+                     previewSpan.classList.add('touchEffect');
+                     previewSpan.textContent = '✨';
+                } else if (type === 'scale') {
+                    previewSpan.classList.add('scale');
+                    previewSpan.textContent = '♪';
+                } else if (type === 'fxChain') {
+                     previewSpan.classList.add('fxchain');
+                     previewSpan.textContent = 'FX';
+                }
+                // ... другие типы по необходимости ...
+                optionButton.appendChild(previewSpan);
+
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'option-label';
+                labelSpan.textContent = item.name || item.id;
+                optionButton.appendChild(labelSpan);
+
+                // Старый обработчик клика для простых опций
+                optionButton.addEventListener('click', () => handleSelect(item.id));
+            }
 
             if (item.id === currentValue) {
                 optionButton.classList.add('active');
             }
-
-            optionButton.addEventListener('click', () => handleSelect(item.id));
             optionsContainer.appendChild(optionButton);
         });
 

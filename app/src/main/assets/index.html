@@ -194,6 +194,39 @@
         <div class="panel-resize-handle"></div>
     </div>
 
+    <!-- Save Progression Modal (структура как у add-chord-modal) -->
+    <div id="save-progression-modal" class="prism-modal" style="display: none;">
+        <div class="modal-header">
+            <h3 data-i18n="save_progression_modal_title">Save Progression</h3>
+            <button id="close-save-progression-modal-btn" class="close-button">×</button>
+        </div>
+        <div class="modal-content">
+            <div class="setting-group">
+                <label for="progression-name-input" data-i18n="progression_name_label">Progression Name</label>
+                <input type="text" id="progression-name-input" class="text-input" placeholder="Enter name...">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button id="cancel-save-progression-btn" class="button" data-i18n="cancel">Cancel</button>
+            <button id="confirm-save-progression-btn" class="button primary-button" data-i18n="save">Save</button>
+        </div>
+    </div>
+
+    <!-- Confirm Delete Preset Modal -->
+    <div id="confirm-delete-preset-modal" class="prism-modal" style="display: none;">
+        <div class="modal-header">
+            <h3 data-i18n="delete_preset_modal_title">Delete Progression</h3>
+            <button id="close-confirm-delete-preset-modal-btn" class="close-button">×</button>
+        </div>
+        <div class="modal-content">
+            <p id="confirm-delete-preset-message">Are you sure you want to delete this progression?</p>
+        </div>
+        <div class="modal-actions">
+            <button id="cancel-delete-preset-btn" class="button" data-i18n="cancel">Cancel</button>
+            <button id="confirm-delete-preset-action-btn" class="button danger-button" data-i18n="delete">Delete</button>
+        </div>
+    </div>
+
     <div id="pad-overlay-controls">
         <button id="chord-panel-expand-btn" class="round-button" title="Expand Chord Panel">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -314,7 +347,7 @@
 <script src="js/harmonicMarkerEngine.js"></script>
 <script src="js/padModes/zoneGenerators/classicZoneGenerator.js"></script>
 <script src="js/padModes/zoneGenerators/chordZoneGenerator.js"></script>
-<!-- <script src="js/padModes/RocketModeStrategy.js"></script> -->
+<script src="js/customSelectorPopover.js"></script>
 <script src="js/padModes/ClassicModeStrategy.js"></script>
 <script src="js/padModes/ChordModeStrategy.js"></script>
 <script src="js/bridge-fix.js"></script>
@@ -356,7 +389,6 @@
 <script src="js/pad.js"></script>
 <script src="js/soundpresets.js"></script>
 <script src="js/fxchains.js"></script>
-<script src="js/customSelectorPopover.js"></script>
 <script src="js/sidepanel.js"></script>
 <script src="js/topbar.js"></script>
 <script src="js/loading/audio.js"></script>
@@ -365,7 +397,7 @@
 <script src="js/app.js"></script>
 
     <!-- Обновленное модальное окно добавления аккорда -->
-    <div id="add-chord-modal" style="display: none;">
+    <div id="add-chord-modal" class="prism-modal" style="display: none;">
         <div class="modal-header">
             <h3 data-i18n="add_chord_modal_title">Add New Chord</h3>
             <button id="close-add-chord-modal" class="close-button" title="Close">×</button>
@@ -381,7 +413,7 @@
             </div>
         </div>
         <div class="modal-actions">
-            <button id="cancel-add-chord-button" class="button" data-i18n="cancel_button_label">Cancel</button>
+            <button id="cancel-add-chord-button" class="button danger-button" data-i18n="cancel_button_label">Cancel</button>
             <button id="confirm-add-chord-button" class="button primary-button" data-i18n="add_button_label">Add</button>
         </div>
     </div>

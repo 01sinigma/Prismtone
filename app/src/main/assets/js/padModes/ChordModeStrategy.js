@@ -54,9 +54,9 @@ const ChordModeStrategy = {
         "dim": "Diminished",
         "aug": "Augmented",
         "sus4": "Suspended 4th",
-        "sus2": "Suspended 2nd",
+        "sus2": "sus2", // Изменено с "Suspended 2nd"
         "6": "Major 6th",
-        "m6": "Minor 6th",
+        "m6": "min6",     // Изменено с "Minor 6th"
         "dim7": "Diminished 7th",
         "m7b5": "Minor 7th b5 (Half-dim)"
     },
@@ -104,35 +104,67 @@ const ChordModeStrategy = {
         pointers: new Map() // Map<pointerId, {x, y}>
     },
 
+    // === НОВЫЕ СВОЙСТВА для МОДАЛЬНОГО ОКНА СОХРАНЕНИЯ ПРОГРЕССИИ ===
+    _saveProgressionModal: null,
+    _progressionNameInput: null,
+    _confirmSaveProgressionButton: null,
+    _cancelSaveProgressionButton: null,
+    _closeSaveProgressionModalButton: null,
+    _boundHideSaveProgressionModal: null,
+    _boundConfirmSaveProgression: null,
+    // =============================================================
+
+    // === НОВЫЕ СВОЙСТВА для МОДАЛЬНОГО ОКНА ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ ПРЕСЕТА ===
+    _confirmDeletePresetModal: null,
+    _confirmDeletePresetMessageElement: null,
+    _confirmDeletePresetActionButton: null,
+    _cancelDeletePresetButton: null,
+    _closeConfirmDeletePresetModalButton: null,
+    _progressionIdToDelete: null, // Для хранения ID пресета, ожидающего удаления
+    _boundShowConfirmDeletePresetModal: null, // Не используется напрямую, но для симметрии
+    _boundHideConfirmDeletePresetModal: null,
+    _boundExecuteActualPresetDeletion: null,
+    _xyPadContainerElementForModalClose: null, // Ссылка на элемент пэда для закрытия модального окна
+    _boundHideAddChordModalOnPadInteraction: null, // Обработчик для закрытия модального окна добавления по клику на пэд
+    _boundHideSaveProgressionModalOnPadInteraction: null, // Для окна сохранения
+    _boundHideConfirmDeletePresetModalOnPadInteraction: null, // Для окна подтверждения удаления
+
     init(appReference, musicTheoryServiceInstance, harmonicMarkerEngineInstance) {
         this.appRef = appReference;
         this.musicTheoryServiceRef = musicTheoryServiceInstance;
         this.harmonicMarkerEngineRef = harmonicMarkerEngineInstance;
-        this._boundHandleChordButtonClick = this._handleChordButtonClick.bind(this);
-        // Привязываем обработчики для модального окна
-        this._boundShowAddChordModal = this._showAddChordModal.bind(this);
-        this._boundHideAddChordModal = this._hideAddChordModal.bind(this);
-        this._boundConfirmAddChord = this._confirmAddChord.bind(this);
+        
+        // +++ ИЗМЕНЕНИЕ: Привязываем ВСЕ обработчики один раз в init +++
         this._boundHandleClickOnChordList = this._handleClickOnChordList.bind(this);
         this._boundHandleClickOnSuggestedChords = this._handleClickOnSuggestedChords.bind(this);
         
-        // Привязываем новые обработчики
+        this._boundShowProgressionPopover = this._showProgressionPopover.bind(this);
+        this._boundSaveCurrentProgression = this.saveCurrentProgression.bind(this);
+        
         this._boundCollapsePanel = () => this.appRef.toggleChordPanel(true);
         this._boundExpandPanel = () => this.appRef.toggleChordPanel(false);
+
         this._boundToggleDeleteMode = this._toggleDeleteMode.bind(this);
         
-        // Привязываем новые обработчики
+        // Обработчики для модального окна добавления
+        this._boundShowAddChordModal = this._showAddChordModal.bind(this);
+        this._boundHideAddChordModal = this._hideAddChordModal.bind(this);
+        this._boundConfirmAddChord = this._confirmAddChord.bind(this);
         this._boundShowRootNotePopover = this._showRootNotePopover.bind(this);
         this._boundShowChordTypePopover = this._showChordTypePopover.bind(this);
         
-        // Привязываем обработчики для жеста щипка
-        this._boundOnPinchPointerDown = this._onPinchPointerDown.bind(this);
-        this._boundOnPinchPointerMove = this._onPinchPointerMove.bind(this);
-        this._boundOnPinchPointerUp = this._onPinchPointerUp.bind(this);
-        
-        // Привязываем обработчики для управления прогрессиями
-        this._boundShowProgressionPopover = this._showProgressionPopover.bind(this);
-        this._boundSaveCurrentProgression = this.saveCurrentProgression.bind(this);
+        // === ПРИВЯЗКА ОБРАБОТЧИКОВ для МОДАЛЬНОГО ОКНА СОХРАНЕНИЯ ===
+        this._boundHideSaveProgressionModal = this._hideSaveProgressionModal.bind(this);
+        this._boundConfirmSaveProgression = this._confirmSaveProgression.bind(this);
+        // ==========================================================
+        // === ПРИВЯЗКА ОБРАБОТЧИКОВ для МОДАЛЬНОГО ОКНА ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ ===
+        this._boundHideConfirmDeletePresetModal = this._hideConfirmDeletePresetModal.bind(this);
+        this._boundExecuteActualPresetDeletion = this._executeActualPresetDeletion.bind(this);
+        // =======================================================================
+        this._boundHideAddChordModalOnPadInteraction = this._hideAddChordModal.bind(this); 
+        this._boundHideSaveProgressionModalOnPadInteraction = this._hideSaveProgressionModal.bind(this); // Привязка для окна сохранения
+        this._boundHideConfirmDeletePresetModalOnPadInteraction = this._hideConfirmDeletePresetModal.bind(this); // Привязка для окна подтверждения удаления
+        // --- КОНЕЦ ИЗМЕНЕНИЯ ---
         
         console.log(`[${this.getName()}Strategy] Initialized.`);
     },
@@ -281,112 +313,255 @@ const ChordModeStrategy = {
 
     async onModeActivated(appState, services, uiModules) {
         this._isActive = true;
+        console.log(`[${this.getName()}Strategy] Activated.`);
+
+        // --- Получение ссылок на DOM-элементы панели аккордов ---
         this._currentChordPanel = document.getElementById('chord-mode-panel');
-        this._chordListContainer = document.getElementById('chord-list-container');
-        this._suggestedChordsContainer = document.getElementById('suggested-chords-list');
-        this._addChordButtonOnPanel = document.getElementById('add-chord-button');
-        this._deleteModeToggleButton = document.getElementById('delete-chords-toggle-btn');
+        if (!this._currentChordPanel) {
+            console.error('[ChordModeStrategy.onModeActivated] Chord panel element not found!');
+            // Можно добавить более строгую обработку ошибки, если панель критична
+        }
+
+        this._chordListContainer = this._currentChordPanel?.querySelector('#chord-list-container');
+        this._suggestedChordsContainer = this._currentChordPanel?.querySelector('#suggested-chords-list');
+        this._addChordButtonOnPanel = this._currentChordPanel?.querySelector('#add-chord-button');
+        this._deleteModeToggleButton = this._currentChordPanel?.querySelector('#delete-chords-toggle-btn');
+        
+        this._progressionSelectDisplay = this._currentChordPanel?.querySelector('#progression-select-display');
+        this._saveProgressionBtn = this._currentChordPanel?.querySelector('#save-progression-btn');
+
+
+        // --- Получение ссылок на DOM-элементы модального окна добавления аккорда ---
+        this._addChordModal = document.getElementById('add-chord-modal');
+        if (this._addChordModal) {
+            console.log('[ChordStrategy.onModeActivated] #add-chord-modal element FOUND.');
+            this._chordRootDisplay = this._addChordModal.querySelector('#chord-root-note-display'); 
+            this._chordTypeDisplay = this._addChordModal.querySelector('#chord-type-display');    
+            this._confirmAddChordButton = this._addChordModal.querySelector('#confirm-add-chord-button'); 
+            this._cancelAddChordButton = this._addChordModal.querySelector('#cancel-add-chord-button');   
+            this._closeAddChordModalButton = this._addChordModal.querySelector('#close-add-chord-modal'); 
+
+            console.log(`[ChordStrategy.onModeActivated] Querying for #chord-root-note-display: ${this._chordRootDisplay ? 'FOUND' : 'NOT FOUND'}`);
+            console.log(`[ChordStrategy.onModeActivated] Querying for #chord-type-display: ${this._chordTypeDisplay ? 'FOUND' : 'NOT FOUND'}`);
+            console.log(`[ChordStrategy.onModeActivated] Querying for #confirm-add-chord-button (Add): ${this._confirmAddChordButton ? 'FOUND' : 'NOT FOUND'}`);
+            console.log(`[ChordStrategy.onModeActivated] Querying for #cancel-add-chord-button (Cancel): ${this._cancelAddChordButton ? 'FOUND' : 'NOT FOUND'}`);
+            console.log(`[ChordStrategy.onModeActivated] Querying for #close-add-chord-modal (X): ${this._closeAddChordModalButton ? 'FOUND' : 'NOT FOUND'}`);
+        } else {
+            console.error('[ChordStrategy.onModeActivated] #add-chord-modal element itself NOT FOUND!');
+        }
+
+        // === ПОЛУЧЕНИЕ ССЫЛОК для МОДАЛЬНОГО ОКНА СОХРАНЕНИЯ ПРОГРЕССИИ ===
+        this._saveProgressionModal = document.getElementById('save-progression-modal');
+        if (this._saveProgressionModal) {
+            this._progressionNameInput = this._saveProgressionModal.querySelector('#progression-name-input');
+            this._confirmSaveProgressionButton = this._saveProgressionModal.querySelector('#confirm-save-progression-btn');
+            this._cancelSaveProgressionButton = this._saveProgressionModal.querySelector('#cancel-save-progression-btn');
+            this._closeSaveProgressionModalButton = this._saveProgressionModal.querySelector('#close-save-progression-modal-btn');
+        } else {
+            console.error('[ChordModeStrategy.onModeActivated] Save progression modal element not found!');
+        }
+        // ====================================================================
+        // === ПОЛУЧЕНИЕ ССЫЛОК для МОДАЛЬНОГО ОКНА ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ ===
+        this._confirmDeletePresetModal = document.getElementById('confirm-delete-preset-modal');
+        if (this._confirmDeletePresetModal) {
+            this._confirmDeletePresetMessageElement = this._confirmDeletePresetModal.querySelector('#confirm-delete-preset-message');
+            this._confirmDeletePresetActionButton = this._confirmDeletePresetModal.querySelector('#confirm-delete-preset-action-btn');
+            this._cancelDeletePresetButton = this._confirmDeletePresetModal.querySelector('#cancel-delete-preset-btn');
+            this._closeConfirmDeletePresetModalButton = this._confirmDeletePresetModal.querySelector('#close-confirm-delete-preset-modal-btn');
+        } else {
+            console.error('[ChordModeStrategy.onModeActivated] Confirm delete preset modal element not found!');
+        }
+        // ===========================================================================
+
+        // --- Добавление обработчиков событий ---
+        this._chordListContainer?.addEventListener('click', this._boundHandleClickOnChordList);
+        this._suggestedChordsContainer?.addEventListener('click', this._boundHandleClickOnSuggestedChords);
+        this._addChordButtonOnPanel?.addEventListener('click', this._boundShowAddChordModal);
+        this._deleteModeToggleButton?.addEventListener('click', this._boundToggleDeleteMode);
+        
+        this._progressionSelectDisplay?.addEventListener('click', this._boundShowProgressionPopover);
+        this._saveProgressionBtn?.addEventListener('click', this._boundSaveCurrentProgression); // Теперь вызывает _showSaveProgressionModal
+
+        // Обработчики для модального окна добавления аккорда
+        // Удаляем слушатель с _modalOverlay, так как его нет в HTML для #add-chord-modal
+        // this._modalOverlay?.addEventListener('click', this._boundHideAddChordModal);
+        
+        this._chordRootDisplay?.addEventListener('click', this._boundShowRootNotePopover);
+        this._chordTypeDisplay?.addEventListener('click', this._boundShowChordTypePopover);
+
+        // Явное добавление слушателей для кнопок модального окна #add-chord-modal
+        if (this._confirmAddChordButton) {
+            this._confirmAddChordButton.addEventListener('click', this._boundConfirmAddChord);
+            console.log('[ChordStrategy.onModeActivated] Listener ADDED for #confirm-add-chord-button (Add).');
+        } else {
+            console.error('[ChordStrategy.onModeActivated] _confirmAddChordButton was NOT FOUND, listener for Add not added.');
+        }
+
+        if (this._cancelAddChordButton) {
+            this._cancelAddChordButton.addEventListener('click', this._boundHideAddChordModal);
+            console.log('[ChordStrategy.onModeActivated] Listener ADDED for #cancel-add-chord-button (Cancel).');
+        } else {
+            console.error('[ChordStrategy.onModeActivated] _cancelAddChordButton was NOT FOUND, listener for Cancel not added.');
+        }
+
+        if (this._closeAddChordModalButton) {
+            this._closeAddChordModalButton.addEventListener('click', this._boundHideAddChordModal);
+            console.log('[ChordStrategy.onModeActivated] Listener ADDED for #close-add-chord-modal (X).');
+        } else {
+            console.error('[ChordStrategy.onModeActivated] _closeAddChordModalButton was NOT FOUND, listener for X not added.');
+        }
+
+        // === ДОБАВЛЕНИЕ ОБРАБОТЧИКОВ для МОДАЛЬНОГО ОКНА СОХРАНЕНИЯ ПРОГРЕССИИ ===
+        if (this._saveProgressionModal) {
+            this._confirmSaveProgressionButton?.addEventListener('click', this._boundConfirmSaveProgression);
+            this._cancelSaveProgressionButton?.addEventListener('click', this._boundHideSaveProgressionModal);
+            this._closeSaveProgressionModalButton?.addEventListener('click', this._boundHideSaveProgressionModal);
+            // Добавляем обработчик для Enter в поле ввода
+            this._progressionNameInput?.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault(); // Предотвращаем стандартное поведение (например, перенос строки)
+                    this._boundConfirmSaveProgression();
+                }
+            });
+        }
+        // ======================================================================
+        // === ДОБАВЛЕНИЕ ОБРАБОТЧИКОВ для МОДАЛЬНОГО ОКНА ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ ===
+        if (this._confirmDeletePresetModal) {
+            this._confirmDeletePresetActionButton?.addEventListener('click', this._boundExecuteActualPresetDeletion);
+            this._cancelDeletePresetButton?.addEventListener('click', this._boundHideConfirmDeletePresetModal);
+            this._closeConfirmDeletePresetModalButton?.addEventListener('click', this._boundHideConfirmDeletePresetModal);
+        }
+        // ===========================================================================
+
+        // Кнопки сворачивания/разворачивания панели
         this._collapseBtn = document.getElementById('chord-panel-collapse-btn');
         this._expandBtn = document.getElementById('chord-panel-expand-btn');
-        
-        // Находим новые элементы для управления прогрессиями
-        this._progressionSelectDisplay = document.getElementById('progression-select-display');
-        this._saveProgressionBtn = document.getElementById('save-progression-btn');
-        
-        // Добавляем обработчики для прогрессий
-        this._progressionSelectDisplay?.addEventListener('mousedown', this._boundShowProgressionPopover);
-        this._saveProgressionBtn?.addEventListener('click', this._boundSaveCurrentProgression);
-        
-        // Вызываем начальное обновление текста в выпадающем списке
-        this._updateProgressionDisplay("Current Session");
-        
-        // Добавляем обработчики для модального окна
-        this._modalOverlay = document.getElementById('modal-overlay');
-        this._addChordModal = document.getElementById('add-chord-modal');
-        this._chordRootSelect = document.getElementById('chord-root-select');
-        this._chordOctaveSelect = document.getElementById('chord-octave-select');
-        this._chordTypeSelect = document.getElementById('chord-type-select');
-        this._confirmAddChordButton = document.getElementById('confirm-add-chord-button');
-        this._cancelAddChordButton = document.getElementById('cancel-add-chord-button');
-        this._closeAddChordModalButton = document.getElementById('close-add-chord-modal-button');
-        
-        // Добавляем обработчики для модального окна
-        this._addChordButtonOnPanel?.addEventListener('click', this._boundShowAddChordModal);
-        this._closeAddChordModalButton?.addEventListener('click', this._boundHideAddChordModal);
-        this._cancelAddChordButton?.addEventListener('click', this._boundHideAddChordModal);
-        this._confirmAddChordButton?.addEventListener('click', this._boundConfirmAddChord);
-        
-        // Добавляем обработчики для кнопок сворачивания/разворачивания
         this._collapseBtn?.addEventListener('click', this._boundCollapsePanel);
         this._expandBtn?.addEventListener('click', this._boundExpandPanel);
         
-        // Добавляем обработчик для режима удаления
-        this._deleteModeToggleButton?.addEventListener('click', this._boundToggleDeleteMode);
-        
-        // Добавляем обработчики для жеста щипка
-        this._currentChordPanel?.addEventListener('pointerdown', this._boundOnPinchPointerDown);
-        this._currentChordPanel?.addEventListener('pointermove', this._boundOnPinchPointerMove);
-        this._currentChordPanel?.addEventListener('pointerup', this._boundOnPinchPointerUp);
-        this._currentChordPanel?.addEventListener('pointercancel', this._boundOnPinchPointerUp);
-        
-        // Инициализируем SortableJS для списка аккордов
-        if (this._chordListContainer && !this._sortableInstance) {
-            this._sortableInstance = new Sortable(this._chordListContainer, {
+        // Инициализация SortableJS для списка аккордов
+        if (this._chordListContainer && typeof Sortable !== 'undefined') {
+            this._sortableInstance = Sortable.create(this._chordListContainer, {
                 animation: 150,
-                ghostClass: 'sortable-ghost',
+                ghostClass: 'sortable-ghost', // Класс для элемента-призрака
+                chosenClass: 'sortable-chosen', // Класс для выбранного элемента
+                dragClass: 'sortable-dragging', // Класс для перетаскиваемого элемента
+                filter: '.delete-chord-btn', // Игнорировать перетаскивание по кнопке удаления
+                preventOnFilter: true,
                 onEnd: (evt) => {
-                    // Обновляем порядок аккордов в _availableChords
-                    const newOrder = Array.from(this._chordListContainer.children).map(button => {
-                        const chordId = button.getAttribute('data-chord-id');
-                        return this._availableChords.find(chord => chord.id === chordId);
-                    }).filter(Boolean);
-                    
-                    if (newOrder.length === this._availableChords.length) {
-                        this._availableChords = newOrder;
-                        // Обновляем UI после изменения порядка
+                    if (evt.oldIndex !== evt.newIndex) {
+                        const movedItem = this._availableChords.splice(evt.oldIndex, 1)[0];
+                        this._availableChords.splice(evt.newIndex, 0, movedItem);
+                        console.log(`[ChordStrategy.onEnd] Dragged item: ${movedItem.displayName} (ID: ${movedItem.id}) from ${evt.oldIndex} to ${evt.newIndex}`);
                         this._renderChordPanel();
+                        
+                        this.selectChord(movedItem.id).then(() => {
+                            console.log(`[ChordStrategy.onEnd] AFTER selectChord for ${movedItem.id}, current selected ID is: ${this._selectedChordId}`);
+                        }).catch(error => {
+                            console.error(`[ChordStrategy.onEnd] Error selecting chord ${movedItem.id} after drag-n-drop:`, error);
+                        });
+                        console.log('[ChordModeStrategy] Chord order changed by drag-n-drop.');
                     }
                 }
             });
         }
         
-        // Отрисовываем панель аккордов
+
+        // --- Инициализация состояния панели и UI ---
         this._renderChordPanel();
-        
-        // Если есть выбранный аккорд, обновляем предложения
-        if (this._selectedChordId) {
-            this._updateSuggestedChordsDisplay(this._selectedChordId);
+        this._updateDeleteModeUI();
+
+        // Загрузка прогрессии по умолчанию или последней выбранной (если есть)
+        if (!this._loadedProgressionId && moduleManager) {
+            const defaultProg = await moduleManager.getModule('default_progression');
+            if (defaultProg && defaultProg.id) {
+                await this.loadProgression(defaultProg.id);
+            } else if (this._availableChords.length > 0) {
+                // Если нет дефолтной, но есть какие-то аккорды, выбираем первый
+                await this.selectChord(this._availableChords[0].id);
+            }
+        } else if (this._loadedProgressionId) {
+             await this.loadProgression(this._loadedProgressionId); // Перезагружаем текущую, чтобы обновить дисплей
         }
         
-        console.log(`[${this.getName()}Strategy] Mode activated.`);
+        // Если аккордов нет, но и прогрессия не загружена, может быть, стоит выбрать первый добавленный аккорд.
+        // Но selectChord уже вызывается в loadProgression или при загрузке по умолчанию.
+        if (this._availableChords.length > 0 && !this._selectedChordId) {
+            await this.selectChord(this._availableChords[0].id);
+        }
+
+
+        this.appRef.updateZoneLayout(); // Первоначальная отрисовка зон
+        this.appRef.notifyProgressionChanged(); // Обновить топбар
+
+        // Убедимся, что оверлей модального окна добавления аккорда скрыт при активации режима
+        this._hideAddChordModal(); 
+        this._hideSaveProgressionModal(); // И для окна сохранения
     },
 
     onModeDeactivated(appState, services, uiModules) {
         this._isActive = false;
-        this._activeNoteInfo.clear();
         
-        // Удаляем обработчики для прогрессий
-        this._progressionSelectDisplay?.removeEventListener('mousedown', this._boundShowProgressionPopover);
+        // Отвязываем ВСЕ слушатели
+        this._chordListContainer?.removeEventListener('click', this._boundHandleClickOnChordList);
+        this._suggestedChordsContainer?.removeEventListener('click', this._boundHandleClickOnSuggestedChords);
+        this._progressionSelectDisplay?.removeEventListener('click', this._boundShowProgressionPopover);
         this._saveProgressionBtn?.removeEventListener('click', this._boundSaveCurrentProgression);
-        
-        // Удаляем обработчики для модального окна
+        this._collapseBtn?.removeEventListener('click', this._boundCollapsePanel);
+        this._expandBtn?.removeEventListener('click', this._boundExpandPanel);
         this._addChordButtonOnPanel?.removeEventListener('click', this._boundShowAddChordModal);
+        this._deleteModeToggleButton?.removeEventListener('click', this._boundToggleDeleteMode);
         this._closeAddChordModalButton?.removeEventListener('click', this._boundHideAddChordModal);
         this._cancelAddChordButton?.removeEventListener('click', this._boundHideAddChordModal);
         this._confirmAddChordButton?.removeEventListener('click', this._boundConfirmAddChord);
+        this._chordRootDisplay?.removeEventListener('click', this._boundShowRootNotePopover);
+        this._chordTypeDisplay?.removeEventListener('click', this._boundShowChordTypePopover);
+
+        // === УДАЛЕНИЕ ОБРАБОТЧИКОВ для МОДАЛЬНОГО ОКНА СОХРАНЕНИЯ ПРОГРЕССИИ ===
+        if (this._saveProgressionModal) {
+            this._confirmSaveProgressionButton?.removeEventListener('click', this._boundConfirmSaveProgression);
+            this._cancelSaveProgressionButton?.removeEventListener('click', this._boundHideSaveProgressionModal);
+            this._closeSaveProgressionModalButton?.removeEventListener('click', this._boundHideSaveProgressionModal);
+            // Удаляем обработчик для Enter (если он был добавлен таким же способом)
+            // Для анонимных функций, как в примере выше, прямое удаление сложно.
+            // Лучше определить именованную функцию-обработчик и привязывать/удалять ее.
+            // Но для данного случая, так как слушатель добавляется только если this._progressionNameInput существует,
+            // и сам this._progressionNameInput обнуляется в onModeDeactivated, это не должно вызвать утечек.
+            // Если бы это было проблемой, нужно было бы сохранить ссылку на функцию обработчика.
+        }
+        // ========================================================================
+        // === УДАЛЕНИЕ ОБРАБОТЧИКОВ для МОДАЛЬНОГО ОКНА ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ ===
+        if (this._confirmDeletePresetModal) {
+            this._confirmDeletePresetActionButton?.removeEventListener('click', this._boundExecuteActualPresetDeletion);
+            this._cancelDeletePresetButton?.removeEventListener('click', this._boundHideConfirmDeletePresetModal);
+            this._closeConfirmDeletePresetModalButton?.removeEventListener('click', this._boundHideConfirmDeletePresetModal);
+        }
+        // ===========================================================================
+
+        // Очистка ссылок на DOM элементы модального окна добавления
+        this._addChordModal = null;
+        this._modalOverlay = null;
+        this._chordRootDisplay = null;
+        this._chordTypeDisplay = null;
+        this._confirmAddChordButton = null;
+        this._cancelAddChordButton = null;
+        this._closeAddChordModalButton = null;
         
-        // Удаляем обработчики для кнопок сворачивания/разворачивания
-        this._collapseBtn?.removeEventListener('click', this._boundCollapsePanel);
-        this._expandBtn?.removeEventListener('click', this._boundExpandPanel);
-        
-        // Удаляем обработчик для режима удаления
-        this._deleteModeToggleButton?.removeEventListener('click', this._boundToggleDeleteMode);
-        
-        // Удаляем обработчики для жеста щипка
-        this._currentChordPanel?.removeEventListener('pointerdown', this._boundOnPinchPointerDown);
-        this._currentChordPanel?.removeEventListener('pointermove', this._boundOnPinchPointerMove);
-        this._currentChordPanel?.removeEventListener('pointerup', this._boundOnPinchPointerUp);
-        this._currentChordPanel?.removeEventListener('pointercancel', this._boundOnPinchPointerUp);
+        // === ОЧИСТКА ССЫЛОК для МОДАЛЬНОГО ОКНА СОХРАНЕНИЯ ПРОГРЕССИИ ===
+        this._saveProgressionModal = null;
+        this._progressionNameInput = null;
+        this._confirmSaveProgressionButton = null;
+        this._cancelSaveProgressionButton = null;
+        this._closeSaveProgressionModalButton = null;
+        // ================================================================
+        // === ОЧИСТКА ССЫЛОК для МОДАЛЬНОГО ОКНА ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ ===
+        this._confirmDeletePresetModal = null;
+        this._confirmDeletePresetMessageElement = null;
+        this._confirmDeletePresetActionButton = null;
+        this._cancelDeletePresetButton = null;
+        this._closeConfirmDeletePresetModalButton = null;
+        this._progressionIdToDelete = null;
+        // ====================================================================
         
         // Уничтожаем экземпляр SortableJS
         if (this._sortableInstance) {
@@ -394,7 +569,7 @@ const ChordModeStrategy = {
             this._sortableInstance = null;
         }
         
-        console.log(`[${this.getName()}Strategy] Mode deactivated.`);
+        console.log(`[${this.getName()}Strategy] Mode deactivated and listeners removed.`);
     },
 
     _renderChordPanel() {
@@ -466,7 +641,7 @@ const ChordModeStrategy = {
         
         if (!this._addChordModal) return;
         
-        // Сбрасываем временные значения на дефолтные
+        // Сбрасываем временные значения на дефолтные при каждом открытии
         this._modalSelectedRoot = 'C';
         this._modalSelectedType = 'M';
         
@@ -475,21 +650,38 @@ const ChordModeStrategy = {
         if (this._chordTypeDisplay) this._chordTypeDisplay.textContent = this._chordTypes[this._modalSelectedType];
         
         this._addChordModal.style.display = 'block';
-        if (this._modalOverlay) this._modalOverlay.style.display = 'block';
-        if(this._chordRootDisplay) this._chordRootDisplay.focus();
+
+        // Добавляем слушатель на XY-пэд для закрытия модального окна
+        this._xyPadContainerElementForModalClose = document.getElementById('xy-pad-container');
+        if (this._xyPadContainerElementForModalClose) {
+            this._xyPadContainerElementForModalClose.addEventListener('pointerdown', this._boundHideAddChordModalOnPadInteraction, { once: true });
+            console.log('[ChordStrategy._showAddChordModal] Added pointerdown listener to xy-pad-container');
+        } else {
+            console.warn('[ChordStrategy._showAddChordModal] xy-pad-container not found for attaching close listener.');
+        }
     },
 
     _hideAddChordModal() {
+        console.log('[ChordStrategy._hideAddChordModal] CALLED'); 
         if (this._addChordModal) {
             this._addChordModal.style.display = 'none';
         }
-        if (this._modalOverlay) {
-            this._modalOverlay.style.display = 'none';
+        // Удаляем слушатель с XY-пэда, если он был добавлен
+        if (this._xyPadContainerElementForModalClose && this._boundHideAddChordModalOnPadInteraction) {
+            // Опция { once: true } не указывается при удалении, только сам флаг useCapture (третий аргумент), если он был true.
+            // В нашем случае useCapture не использовался, поэтому достаточно двух аргументов.
+            this._xyPadContainerElementForModalClose.removeEventListener('pointerdown', this._boundHideAddChordModalOnPadInteraction);
+            console.log('[ChordStrategy._hideAddChordModal] Removed pointerdown listener from xy-pad-container');
         }
+        this._xyPadContainerElementForModalClose = null; 
     },
 
     _showRootNotePopover() {
-        if (typeof showCustomSelectorPopover !== 'function') return;
+        console.log('[ChordStrategy._showRootNotePopover] CALLED'); // Лог вызова
+        if (typeof showCustomSelectorPopover !== 'function') {
+            console.error('[ChordStrategy._showRootNotePopover] showCustomSelectorPopover is not a function!');
+            return;
+        }
         
         showCustomSelectorPopover({
             type: 'chordRootNote',
@@ -506,7 +698,11 @@ const ChordModeStrategy = {
     },
     
     _showChordTypePopover() {
-        if (typeof showCustomSelectorPopover !== 'function') return;
+        console.log('[ChordStrategy._showChordTypePopover] CALLED'); // Лог вызова
+        if (typeof showCustomSelectorPopover !== 'function') {
+            console.error('[ChordStrategy._showChordTypePopover] showCustomSelectorPopover is not a function!');
+            return;
+        }
         
         const chordTypeOptions = Object.entries(this._chordTypes).map(([key, displayName]) => ({
             id: key,
@@ -528,115 +724,44 @@ const ChordModeStrategy = {
     },
 
     _confirmAddChord() {
+        console.log('[ChordStrategy._confirmAddChord] CALLED'); 
         const root = this._modalSelectedRoot;
         const typeKey = this._modalSelectedType;
-        const octave = 4; // Октава по умолчанию
-        
-        const displayName = root + octave + " " + this._chordTypes[typeKey];
-        const newChordId = root + octave + typeKey;
-        const nameForService = root + octave + typeKey;
+        const octave = 4; // Октава по умолчанию для ID и nameForService
+
+        // Формируем displayName без октавы
+        const displayName = `${root} ${this._chordTypes[typeKey] || typeKey}`;
+        // ID и nameForService по-прежнему включают октаву для уникальности и работы с Tonal.js
+        const newChordId = `${root}${octave}${typeKey}`;
+        const nameForService = newChordId;
         
         if (this._availableChords.find(c => c.id === newChordId)) {
-            console.warn(`[${this.getName()}Strategy] Chord ${newChordId} already exists.`);
+            console.warn(`[ChordStrategy] Chord ${newChordId} already exists.`);
             this._hideAddChordModal();
             return;
         }
         
-        const newChordData = {
-            id: newChordId,
-            nameForService: nameForService,
-            displayName: displayName
-        };
+        const newChordData = { id: newChordId, nameForService, displayName };
         
         this._availableChords.push(newChordData);
-        this._renderChordPanel();
+        this._renderChordPanel(); // Обновляем отображение списка аккордов на панели
         
-        console.log(`[${this.getName()}Strategy] Added new chord:`, newChordData);
-        this._hideAddChordModal();
-        if (this.appRef && typeof this.appRef.notifyProgressionChanged === 'function') {
-            this.appRef.notifyProgressionChanged();
-        }
-    },
-
-    _handleChordButtonClick(event) {
-        const button = event.target.closest('.chord-button');
-        if (button && button.dataset.chordId) {
-            const chordId = button.dataset.chordId;
-            console.log(`[${this.getName()}Strategy] Chord button clicked: ${chordId}`);
-            this.selectChord(chordId);
-        }
-    },
-
-    _updateChordButtonSelection(activeChordId) {
-        if (this._chordListContainer) {
-            const buttons = this._chordListContainer.querySelectorAll('.chord-button');
-            buttons.forEach(btn => {
-                if (btn.dataset.chordId === activeChordId) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
-                }
-            });
-        }
-    },
-
-    async onTonicChanged(newTonic, appState, services) {
-        console.log(`[${this.getName()}Strategy] Global tonic changed to: ${newTonic}. This might affect chord suggestions later.`);
-    },
-
-    async onScaleChanged(newScale, appState, services) {
-        console.log(`[${this.getName()}Strategy] Global scale changed to: ${newScale}. Generally not used in Chord Mode directly.`);
-    },
-    
-    // Новый метод для обработки выбора аккорда с панели
-    async selectChord(chordId) {
-        const chordData = this._availableChords.find(c => c.id === chordId);
-        let successfullySelected = false;
-
-        if (!chordData) {
-            console.warn(`[${this.getName()}Strategy] Chord with id "${chordId}" not found in _availableChords.`);
-            this._selectedChordId = null;
-            this._selectedChordDisplayName = null;
-            this._selectedChordNotes = [];
-        } else {
-            this._selectedChordId = chordData.id;
-            this._selectedChordDisplayName = chordData.displayName;
-            
-            const chordSymbolForService = chordData.nameForService;
-
-            if (this.musicTheoryServiceRef && typeof this.musicTheoryServiceRef.getChordNotes === 'function') {
-                const notes = await this.musicTheoryServiceRef.getChordNotes(chordSymbolForService); 
-                this._selectedChordNotes = notes || [];
-                if (!notes || notes.length === 0) {
-                     console.warn(`[${this.getName()}Strategy] Could not get notes or no notes found for chord symbol: ${chordSymbolForService} from MusicTheoryService.`);
-                     this._selectedChordId = null; 
-                     this._selectedChordDisplayName = null;
-                } else {
-                    successfullySelected = true;
-                }
-            } else {
-                console.error(`[${this.getName()}Strategy] MusicTheoryServiceRef or getChordNotes method is not available.`);
-                this._selectedChordNotes = [];
-                this._selectedChordId = null;
-                this._selectedChordDisplayName = null;
-            }
-            console.log(`[${this.getName()}Strategy] Chord selected: ${this._selectedChordDisplayName} (ID: ${this._selectedChordId}, Queried as: ${chordSymbolForService}), Notes:`, this._selectedChordNotes.map(n=>n.name));
-        }
-
-        this._updateChordButtonSelection(this._selectedChordId);
+        console.log(`[ChordStrategy] Added new chord:`, newChordData);
+        this._hideAddChordModal(); // Скрываем модальное окно
         
-        if (this.appRef && typeof this.appRef.updateZoneLayout === 'function') {
-            await this.appRef.updateZoneLayout();
-        }
+        // АВТОМАТИЧЕСКИ ВЫБИРАЕМ НОВЫЙ АККОРД
+        // Это должно вызвать обновление зон XY-пэда и звука
+        this.selectChord(newChordData.id).then(() => {
+            console.log(`[ChordStrategy] New chord ${newChordData.id} selected after add.`);
+            // Дополнительно уведомляем топбар, если selectChord сам этого не делает в конце
+            // (хотя он должен это делать)
+            this.appRef.notifyProgressionChanged(); 
+        }).catch(error => {
+            console.error(`[ChordStrategy] Error selecting new chord ${newChordData.id} after add:`, error);
+        });
 
-        if (successfullySelected) {
-            this._updateSuggestedChordsDisplay(chordData); 
-        } else {
-            this._updateSuggestedChordsDisplay(null); 
-        }
-        if (this.appRef && typeof this.appRef.notifyProgressionChanged === 'function') {
-            this.appRef.notifyProgressionChanged();
-        }
+        // Старый вызов notifyProgressionChanged, который мог быть преждевременным
+        // this.appRef.notifyProgressionChanged(); 
     },
 
     _handleClickOnChordList(event) {
@@ -646,18 +771,28 @@ const ChordModeStrategy = {
         const targetChordButton = event.target.closest('.chord-button');
         
         if (this._isDeleteModeActive) {
-            if (targetDeleteButton) {
-                event.stopPropagation();
+            if (targetDeleteButton && targetChordButton) { // Клик на иконку "X" внутри кнопки аккорда
+                event.stopPropagation(); // Предотвращаем обработку клика родительской кнопкой
                 const chordIdToDelete = targetDeleteButton.dataset.deleteChordId;
-                if (chordIdToDelete) {
+                // Убедимся, что это "X" от той же кнопки, на которую кликнули
+                if (chordIdToDelete === targetChordButton.dataset.chordId) { 
+                    console.log(`[ChordStrategy] Delete icon clicked for chord: ${chordIdToDelete}. Executing delete.`);
                     this._deleteChord(chordIdToDelete);
+                } else {
+                    console.warn("[ChordStrategy] Mismatch between delete icon's chordId and parent button's chordId or button not found.");
                 }
+            } else if (targetChordButton) { // Клик на тело кнопки аккорда (не на "X") в режиме удаления
+                console.log(`[ChordStrategy] Chord button body clicked in delete mode for chord: ${targetChordButton.dataset.chordId}. No action.`);
+                // Ничего не делаем, предотвращаем выбор
             }
-        } else {
+            return; // В режиме удаления дальнейшая логика выбора не нужна
+        }
+
+        // Логика для обычного режима (не режим удаления)
             if (targetChordButton) {
-                const chordId = targetChordButton.dataset.chordId;
-                this.selectChord(chordId);
-            }
+            const chordIdToSelect = targetChordButton.dataset.chordId;
+            console.log(`[ChordStrategy] Chord button clicked (normal mode): ${chordIdToSelect}. Selecting.`);
+            this.selectChord(chordIdToSelect);
         }
     },
 
@@ -710,70 +845,94 @@ const ChordModeStrategy = {
     },
     
     _getChordSuggestions(currentChordData) {
-        if (!currentChordData || !this.musicTheoryServiceRef) return [];
-        const suggestions = [];
-        const currentTonic = this.appRef.state.currentTonic || 'C4'; // Глобальная тоника проекта
-        const currentScale = this.appRef.state.scale || 'major'; // Глобальный лад проекта
+        if (!this.musicTheoryServiceRef || typeof this.musicTheoryServiceRef.getDiatonicChordSuggestions !== 'function') {
+            console.warn("[ChordStrategy._getChordSuggestions] MusicTheoryService or getDiatonicChordSuggestions not available.");
+            return [];
+        }
 
-        // Пример логики (очень упрощенный):
-        // Если текущий аккорд - тоника (I ступень в текущей тональности), предложить IV и V
-        // Это требует определения ступени текущего аккорда в глобальной тональности
-        // Для простоты, пока сделаем проще, как обсуждали:
-        if (currentChordData.id.startsWith('C')) { // Если выбран C-мажорный или минорный аккорд
-            suggestions.push({ id: 'F4M', nameForService: 'F4M', displayName: 'F Major (IV)' });
-            suggestions.push({ id: 'G4M', nameForService: 'G4M', displayName: 'G Major (V)' });
-        } else if (currentChordData.id.startsWith('G')) {
-            suggestions.push({ id: 'C4M', nameForService: 'C4M', displayName: 'C Major (IV)' });
-            suggestions.push({ id: 'D4M', nameForService: 'D4M', displayName: 'D Major (V)' });
-        } else if (currentChordData.id.startsWith('E') && currentChordData.id.includes('m')) { // Em
-            suggestions.push({ id: 'A4m', nameForService: 'A4m', displayName: 'A minor (iv)' });
-            suggestions.push({ id: 'C4M', nameForService: 'C4M', displayName: 'C Major (VI)' });
+        const globalTonic = this.appRef?.state?.currentTonic || 'C4';
+        const globalScale = this.appRef?.state?.scale || 'major';
+        let currentChordTokenized = null;
+        let desiredOctave = 4; // Дефолтная октава для предложений
+
+        if (currentChordData && currentChordData.nameForService) {
+            try {
+                const currentChordInfo = Tonal.Chord.get(currentChordData.nameForService);
+                if (!currentChordInfo.empty) {
+                    currentChordTokenized = {
+                        tonic: Tonal.Note.pitchClass(currentChordInfo.tonic),
+                        type: currentChordInfo.type
+                    };
+                    // Попробуем взять октаву из текущего аккорда для предложений
+                    if (currentChordInfo.tonic && /\d/.test(currentChordInfo.tonic)) {
+                        desiredOctave = parseInt(currentChordInfo.tonic.slice(-1), 10);
+                    }
+                }
+            } catch (e) {
+                console.warn("[ChordStrategy._getChordSuggestions] Error tokenizing current chord:", e);
+            }
         }
         
-        return suggestions.filter(sugg => !this._availableChords.find(avail => avail.id === sugg.id));
+        console.log(`[ChordStrategy._getChordSuggestions] Requesting suggestions for tonic: ${globalTonic}, scale: ${globalScale}, current: ${JSON.stringify(currentChordTokenized)}, octave: ${desiredOctave}`);
+
+        const suggestionsFromService = this.musicTheoryServiceRef.getDiatonicChordSuggestions({
+            tonic: globalTonic,
+            scaleName: globalScale,
+            currentChordTokenized: currentChordTokenized,
+            desiredOctave: desiredOctave
+        });
+
+        if (!Array.isArray(suggestionsFromService)) {
+            console.warn("[ChordStrategy._getChordSuggestions] Suggestions from service is not an array.");
+            return [];
+        }
+
+        // Фильтруем предложения, которые уже есть в _availableChords
+        const finalSuggestions = suggestionsFromService.filter(sugg => 
+            !this._availableChords.find(avail => avail.id === sugg.id)
+        );
+        
+        console.log("[ChordStrategy._getChordSuggestions] Final suggestions after filtering:", finalSuggestions);
+        return finalSuggestions;
     },
 
     _updateSuggestedChordsDisplay(selectedChordData) {
-        const suggestions = this._getChordSuggestions(selectedChordData);
-        this._renderSuggestedChords(suggestions);
+        // +++ Сохраняем предложения в свойство экземпляра +++
+        this._currentSuggestions = this._getChordSuggestions(selectedChordData);
+        this._renderSuggestedChords(this._currentSuggestions);
     },
 
     _handleClickOnSuggestedChords(event) {
         const button = event.target.closest('.chord-button'); 
-        if (button && button.dataset.chordId) {
+        if (!button) return;
+
             const chordId = button.dataset.chordId;
-            console.log(`[${this.getName()}Strategy] Suggested chord button clicked: ${chordId}`);
-            
-            let chordData = this._availableChords.find(c => c.id === chordId);
-            if (!chordData) {
-                const activeChord = this._selectedChordId ? this._availableChords.find(c => c.id === this._selectedChordId) : null;
-                const allSuggestions = this._getChordSuggestions(activeChord); 
-                const suggestedChordInfo = allSuggestions.find(s => s.id === chordId);
-                
-                if (suggestedChordInfo) {
+        console.log(`[ChordStrategy] Suggested chord button clicked: ${chordId}`);
+
+        // +++ ИЗМЕНЕНИЕ: Ищем в _currentSuggestions, а не вызываем get... заново +++
+        const suggestedChordInfo = this._currentSuggestions.find(s => s.id === chordId);
+
+        if (!suggestedChordInfo) {
+            console.error(`Could not find suggestion data for ID: ${chordId}. This shouldn't happen.`);
+            return;
+        }
+
                     if (!this._availableChords.find(c => c.id === suggestedChordInfo.id)) {
                         this._availableChords.push(suggestedChordInfo); 
                         this._renderChordPanel(); 
                     }
-                    chordData = suggestedChordInfo; 
-                } else {
-                     console.warn(`[${this.getName()}Strategy] Clicked suggested chord ${chordId} but its info not found to add.`);
-                     return;
-                }
-            }
+        
             this.selectChord(chordId); 
-        }
     },
 
     _toggleDeleteMode() {
         this._isDeleteModeActive = !this._isDeleteModeActive;
-        console.log(`[${this.getName()}Strategy] Delete mode toggled to: ${this._isDeleteModeActive}`);
+        console.log(`[ChordStrategy] Delete mode toggled to: ${this._isDeleteModeActive}`);
         this._updateDeleteModeUI();
     },
 
     _updateDeleteModeUI() {
         if (!this._chordListContainer || !this._deleteModeToggleButton) return;
-        
         this._chordListContainer.classList.toggle('delete-mode', this._isDeleteModeActive);
         this._deleteModeToggleButton.classList.toggle('active', this._isDeleteModeActive);
     },
@@ -853,11 +1012,16 @@ const ChordModeStrategy = {
     _showProgressionPopover() {
         showCustomSelectorPopover({
             type: 'chordProgression',
-            title: 'Select Progression',
+            title: i18n.translate('progression_select_title', 'Select Progression'),
             currentValue: this._loadedProgressionId,
             onSelect: (presetId) => {
                 if (presetId) {
                     this.loadProgression(presetId);
+                }
+            },
+            onDelete: (presetId) => {
+                if (presetId) {
+                    this.deleteProgression(presetId);
                 }
             }
         });
@@ -872,65 +1036,326 @@ const ChordModeStrategy = {
     async loadProgression(progressionId) {
         console.log(`[ChordStrategy] Loading progression: ${progressionId}`);
         const module = await moduleManager.getModule(progressionId);
-        if (!module || !module.data?.data?.chordIds) {
+        if (!module?.data?.data?.chordIds) {
             console.error(`Failed to load progression data for ${progressionId}`);
             return;
         }
+
         const chordIds = module.data.data.chordIds;
-        // Преобразуем массив ID в наш рабочий массив _availableChords
-        const newChords = [];
-        for (const id of chordIds) {
-            // Эта логика парсинга ID в displayName и nameForService должна быть в хелпере
-            const root = id.match(/[A-Ga-g#b]+/)[0];
-            const octave = id.match(/\d/)[0];
+        this._availableChords = chordIds.map(id => {
+            const rootMatch = id.match(/[A-Ga-g][#b]?/);
+            const octaveMatch = id.match(/\d/);
+            if (!rootMatch || !octaveMatch) return null; 
+            
+            const root = rootMatch[0];
+            const octave = octaveMatch[0];
             const typeKey = id.replace(root, '').replace(octave, '');
-            const displayName = `${root}${octave} ${this._chordTypes[typeKey] || typeKey}`;
-            newChords.push({ id, nameForService: id, displayName });
-        }
-        this._availableChords = newChords;
-        this._loadedProgressionId = progressionId; // Сохраняем ID загруженного пресета
+            // Формируем displayName без октавы
+            const displayName = `${root} ${this._chordTypes[typeKey] || typeKey}`;
+
+            return { id: id, nameForService: id, displayName: displayName };
+        }).filter(Boolean); 
+
+        this._loadedProgressionId = progressionId;
         
-        this._renderChordPanel(); // Перерисовываем панель
-        this._updateProgressionDisplay(module.name); // Обновляем текст в выпадающем списке
+        this._renderChordPanel();
+        this._updateProgressionDisplay(module.name);
         
-        // Выбираем первый аккорд из новой прогрессии
+        // Выбираем первый аккорд или сбрасываем, если прогрессия пуста
         if (this._availableChords.length > 0) {
-            this.selectChord(this._availableChords[0].id);
+            await this.selectChord(this._availableChords[0].id);
         } else {
-            this.appRef.notifyProgressionChanged();
-            this.appRef.updateZoneLayout();
+            await this.selectChord(null); // Сбросить выбор, если прогрессия пуста
         }
     },
 
     async saveCurrentProgression() {
-        const name = window.prompt("Enter a name for the chord progression:", "My Progression");
-        if (!name) return;
+        if (!this._isActive) return;
+        
+        // Теперь этот метод просто показывает модальное окно
+        this._showSaveProgressionModal();
+    },
+
+    async deleteProgression(progressionId) {
+        if (!progressionId.startsWith('user_')) {
+            alert(i18n.translate('cannot_delete_default_progressions', "Cannot delete default progressions."));
+            return;
+        }
+        
+        const progressionToDelete = moduleManager.moduleDataCache[progressionId];
+        const progressionName = progressionToDelete ? progressionToDelete.name : progressionId;
+
+        this._showConfirmDeletePresetModal(progressionId, progressionName);
+    },
+
+    // === НОВЫЕ МЕТОДЫ для МОДАЛЬНОГО ОКНА ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ ПРЕСЕТА ===
+    _showConfirmDeletePresetModal(progressionId, progressionName) {
+        if (!this._confirmDeletePresetModal || !this._confirmDeletePresetMessageElement) return;
+
+        this._progressionIdToDelete = progressionId; 
+        
+        const message = i18n.translate('confirm_delete_preset_message', 
+            `Are you sure you want to delete the progression "${progressionName || 'this preset'}"? This action cannot be undone.`
+        );
+        this._confirmDeletePresetMessageElement.textContent = message;
+        
+        this._confirmDeletePresetModal.style.display = 'block';
+
+        // Добавляем слушатель на XY-пэд для закрытия модального окна подтверждения удаления
+        this._xyPadContainerElementForModalClose = document.getElementById('xy-pad-container');
+        if (this._xyPadContainerElementForModalClose) {
+            this._xyPadContainerElementForModalClose.addEventListener('pointerdown', this._boundHideConfirmDeletePresetModalOnPadInteraction, { once: true });
+            console.log('[ChordStrategy._showConfirmDeletePresetModal] Added pointerdown listener to xy-pad-container');
+        } else {
+            console.warn('[ChordStrategy._showConfirmDeletePresetModal] xy-pad-container not found for attaching close listener.');
+        }
+    },
+
+    _hideConfirmDeletePresetModal() {
+        if (!this._confirmDeletePresetModal) return;
+        this._confirmDeletePresetModal.style.display = 'none';
+        this._progressionIdToDelete = null; 
+        if (this._confirmDeletePresetMessageElement) {
+            this._confirmDeletePresetMessageElement.textContent = ''; 
+        }
+
+        // Удаляем слушатель с XY-пэда, если он был добавлен
+        if (this._xyPadContainerElementForModalClose && this._boundHideConfirmDeletePresetModalOnPadInteraction) {
+            this._xyPadContainerElementForModalClose.removeEventListener('pointerdown', this._boundHideConfirmDeletePresetModalOnPadInteraction, { once: true });
+            console.log('[ChordStrategy._hideConfirmDeletePresetModal] Removed pointerdown listener from xy-pad-container');
+        }
+        // this._xyPadContainerElementForModalClose = null; // Обнулять здесь не нужно
+    },
+
+    async _executeActualPresetDeletion() {
+        if (!this._progressionIdToDelete) {
+            this._hideConfirmDeletePresetModal();
+            return;
+        }
+
+        const progressionId = this._progressionIdToDelete;
+        this._hideConfirmDeletePresetModal(); // Сначала скрываем модальное окно
+
+        try {
+            console.log(`[ChordStrategy._executeActualPresetDeletion] Attempting to delete progression: ${progressionId}`);
+            const success = await bridgeFix.callBridge('deleteChordProgression', progressionId);
+            
+            if (success) {
+                alert(i18n.translate('progression_deleted_success_short', "Progression deleted."));
+                
+                // Важно: Обновляем UI немедленно, не дожидаясь полного обновления от moduleManager,
+                // если есть проблемы с кэшированием на стороне Java/FS.
+                if (moduleManager.moduleDataCache && moduleManager.moduleDataCache[progressionId]) {
+                    delete moduleManager.moduleDataCache[progressionId];
+                }
+                if (moduleManager.modules && moduleManager.modules['chordProgression']) {
+                    const index = moduleManager.modules['chordProgression'].findIndex(p => p.id === progressionId);
+                    if (index > -1) {
+                        moduleManager.modules['chordProgression'].splice(index, 1);
+                    }
+                }
+                // Запускаем полный рефреш в фоне, чтобы синхронизироваться с сервером/FS в итоге
+                moduleManager.getModules('chordProgression', true).catch(err => {
+                    console.warn('[ChordStrategy] Background refresh of chord progressions failed after delete:', err);
+                });
+
+                if (this._loadedProgressionId === progressionId) {
+                    this._loadedProgressionId = null;
+                    this._updateProgressionDisplay(i18n.translate('progression_current_session', "Current Session"));
+                }
+                // Если поповер выбора пресетов был открыт, его нужно будет обновить/переоткрыть,
+                // но он и так делает getModules(true) при каждом открытии.
+            } else {
+                alert(i18n.translate('error_deleting_progression_bridge', "Failed to delete progression (bridge error)."));
+            }
+        } catch (e) {
+            console.error(`[ChordStrategy._executeActualPresetDeletion] Exception while deleting ${progressionId}:`, e);
+            alert(i18n.translate('error_deleting_progression_exception', `Exception: ${e.message}`));
+        }
+    },
+    // ===========================================================================
+
+    // === НОВЫЕ МЕТОДЫ для МОДАЛЬНОГО ОКНА СОХРАНЕНИЯ ПРОГРЕССИИ ===
+    _showSaveProgressionModal() {
+        if (!this._saveProgressionModal || !this._progressionNameInput) return;
+
+        const currentName = this._loadedProgressionId ? moduleManager.moduleDataCache[this._loadedProgressionId]?.name : '';
+        const defaultName = currentName || i18n.translate('my_progression_default_name', 'My Progression');
+        this._progressionNameInput.value = defaultName;
+        
+        this._saveProgressionModal.style.display = 'block'; 
+
+        this._progressionNameInput.focus();
+        this._progressionNameInput.select();
+
+        // Добавляем слушатель на XY-пэд для закрытия модального окна сохранения
+        this._xyPadContainerElementForModalClose = document.getElementById('xy-pad-container');
+        if (this._xyPadContainerElementForModalClose) {
+            this._xyPadContainerElementForModalClose.addEventListener('pointerdown', this._boundHideSaveProgressionModalOnPadInteraction, { once: true });
+            console.log('[ChordStrategy._showSaveProgressionModal] Added pointerdown listener to xy-pad-container');
+        } else {
+            console.warn('[ChordStrategy._showSaveProgressionModal] xy-pad-container not found for attaching close listener.');
+        }
+    },
+
+    _hideSaveProgressionModal() {
+        if (!this._saveProgressionModal) return;
+        
+        this._saveProgressionModal.style.display = 'none';
+        if (this._progressionNameInput) this._progressionNameInput.value = ''; 
+
+        // Удаляем слушатель с XY-пэда, если он был добавлен
+        if (this._xyPadContainerElementForModalClose && this._boundHideSaveProgressionModalOnPadInteraction) {
+            this._xyPadContainerElementForModalClose.removeEventListener('pointerdown', this._boundHideSaveProgressionModalOnPadInteraction, { once: true });
+            console.log('[ChordStrategy._hideSaveProgressionModal] Removed pointerdown listener from xy-pad-container');
+        }
+        // this._xyPadContainerElementForModalClose = null; // Обнулять здесь не нужно, если используется разными модальными окнами
+    },
+
+    async _confirmSaveProgression() {
+        if (!this._progressionNameInput) {
+            this._hideSaveProgressionModal();
+            return;
+        }
+        const progressionName = this._progressionNameInput.value.trim();
+
+        if (!progressionName) {
+            alert(i18n.translate('progression_name_required', 'Progression name cannot be empty.'));
+            this._progressionNameInput.focus();
+            return;
+        }
+
+        const chordIds = this._availableChords.map(c => c.id);
+        if (chordIds.length === 0) {
+            alert(i18n.translate('cannot_save_empty_progression', 'Cannot save an empty progression.'));
+            this._hideSaveProgressionModal();
+            return;
+        }
         
         const progressionData = {
-            id: `user_prog_${Date.now()}`, // Временный ID, будет заменен нативным
-            type: "chordProgression",
-            name: name,
-            version: "1.0.0",
-            description: "User-saved chord progression.",
-            active: false,
+            name: progressionName,
+            type: 'chordProgression',
             data: {
-                chordIds: this._availableChords.map(c => c.id)
+                chordIds: chordIds
             }
         };
         
         try {
-            const savedId = await bridgeFix.callBridge('saveChordProgression', JSON.stringify(progressionData));
-            if (savedId && !savedId.startsWith("Error:")) {
-                console.log(`Progression saved with ID: ${savedId}`);
-                // Опционально: обновить список в выпадающем меню без перезагрузки
+            console.log('[ChordModeStrategy._confirmSaveProgression] Saving progression:', progressionData);
+            const newProgressionId = await bridgeFix.callBridge('saveChordProgression', JSON.stringify(progressionData));
+
+            if (typeof newProgressionId === 'string' && newProgressionId.startsWith('Error:')) {
+                console.error('[ChordModeStrategy._confirmSaveProgression] Error saving progression from bridge:', newProgressionId);
+                alert(i18n.translate('error_saving_progression_details', `Error: ${newProgressionId.substring(7)}`));
+                // Не скрываем модальное окно, чтобы пользователь мог исправить имя
+                return;
+            }
+
+            if (newProgressionId && !newProgressionId.startsWith("Error:")) {
+                console.log(`[ChordModeStrategy._confirmSaveProgression] Progression saved with ID: ${newProgressionId}`);
                 await moduleManager.getModules('chordProgression', true); // Принудительно обновить кэш
+                alert(i18n.translate('progression_saved_success', `Progression '${progressionName}' saved!`));
+                this._hideSaveProgressionModal();
+                // Опционально, загружаем новую сохраненную прогрессию
+                await this.loadProgression(newProgressionId);
             } else {
-                alert(`Error saving progression: ${savedId}`);
+                console.error('[ChordModeStrategy._confirmSaveProgression] Failed to save progression, no valid ID returned.');
+                alert(i18n.translate('error_saving_progression_unknown', 'Unknown error saving progression. Please try again.'));
+                // Не скрываем модальное окно
             }
         } catch (e) {
-            alert(`Exception while saving: ${e.message}`);
+            console.error('[ChordModeStrategy._confirmSaveProgression] Exception while saving:', e);
+            alert(i18n.translate('error_saving_progression_exception', `Exception: ${e.message}`));
+            // Не скрываем модальное окно
         }
-    }
+    },
+    // =================================================================
+
+    // === НАЧАЛО ВОССТАНОВЛЕННЫХ МЕТОДОВ ===
+    _updateChordButtonSelection(activeChordId) {
+        console.log(`[ChordStrategy._updateChordButtonSelection] Called with activeChordId: ${activeChordId}`);
+        if (this._chordListContainer) {
+            const buttons = this._chordListContainer.querySelectorAll('.chord-button');
+            buttons.forEach(btn => {
+                // console.log(`[ChordStrategy._updateChordButtonSelection] Checking button with ID: ${btn.dataset.chordId}`);
+                if (btn.dataset.chordId === activeChordId) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+    },
+
+    async onTonicChanged(newTonic, appState, services) {
+        console.log(`[${this.getName()}Strategy] Global tonic changed to: ${newTonic}. This might affect chord suggestions later.`);
+        // Если в будущем понадобится реакция на смену тоники (например, для пересчета предложений),
+        // логика будет добавлена здесь. Пока только логируем.
+        // Может потребоваться this.appRef.updateZoneLayout() или this._updateSuggestedChordsDisplay(),
+        // если отображение аккордов или их зон зависит от глобальной тоники.
+    },
+
+    async onScaleChanged(newScale, appState, services) {
+        console.log(`[${this.getName()}Strategy] Global scale changed to: ${newScale}. Generally not used in Chord Mode directly.`);
+        // Аналогично onTonicChanged, Chord Mode обычно не зависит от глобального лада напрямую,
+        // но это может быть полезно для более умных предложений аккордов.
+    },
+    
+    async selectChord(chordId) {
+        console.log(`[ChordStrategy.selectChord] CALLED with chordId: ${chordId}`);
+        const chordData = this._availableChords.find(c => c.id === chordId);
+        let successfullySelected = false;
+
+        if (!chordData) {
+            console.warn(`[ChordStrategy.selectChord] Chord with id "${chordId}" not found in _availableChords.`);
+            this._selectedChordId = null;
+            this._selectedChordDisplayName = null;
+            this._selectedChordNotes = [];
+        } else {
+            this._selectedChordId = chordData.id; 
+            this._selectedChordDisplayName = chordData.displayName;
+            const chordSymbolForService = chordData.nameForService;
+            console.log(`[ChordStrategy.selectChord] Attempting to get notes for: ${chordSymbolForService}`);
+
+            if (this.musicTheoryServiceRef && typeof this.musicTheoryServiceRef.getChordNotes === 'function') {
+                const notes = await this.musicTheoryServiceRef.getChordNotes(chordSymbolForService); 
+                console.log(`[ChordStrategy.selectChord] Notes received from service for ${chordSymbolForService}:`, notes);
+                this._selectedChordNotes = notes || [];
+                if (!notes || notes.length === 0) {
+                     console.warn(`[ChordStrategy.selectChord] No notes found for ${chordSymbolForService}. Resetting selection.`);
+                     this._selectedChordId = null; 
+                     this._selectedChordDisplayName = null;
+                } else {
+                    successfullySelected = true;
+                }
+            } else {
+                console.error(`[ChordStrategy.selectChord] MusicTheoryServiceRef or getChordNotes method is not available.`);
+                this._selectedChordNotes = [];
+                this._selectedChordId = null;
+                this._selectedChordDisplayName = null;
+            }
+            console.log(`[ChordStrategy.selectChord] After getting notes - _selectedChordId: ${this._selectedChordId}, Name: ${this._selectedChordDisplayName}, Notes count: ${this._selectedChordNotes.length}`);
+        }
+
+        console.log(`[ChordStrategy.selectChord] BEFORE _updateChordButtonSelection, _selectedChordId is: ${this._selectedChordId}`);
+        this._updateChordButtonSelection(this._selectedChordId);
+        
+        if (this.appRef && typeof this.appRef.updateZoneLayout === 'function') {
+            console.log(`[ChordStrategy.selectChord] BEFORE updateZoneLayout, notes:`, this._selectedChordNotes.map(n=>n.name));
+            await this.appRef.updateZoneLayout();
+        }
+
+        if (successfullySelected) {
+            this._updateSuggestedChordsDisplay(chordData); 
+        } else {
+            this._updateSuggestedChordsDisplay(null); 
+        }
+        if (this.appRef && typeof this.appRef.notifyProgressionChanged === 'function') {
+            console.log(`[ChordStrategy.selectChord] BEFORE notifyProgressionChanged, _selectedChordId is: ${this._selectedChordId}`);
+            this.appRef.notifyProgressionChanged();
+        }
+    },
+    // === КОНЕЦ ВОССТАНОВЛЕННЫХ МЕТОДОВ ===
 };
 
 if (typeof PadModeManager !== 'undefined' && PadModeManager.registerStrategy) {

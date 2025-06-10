@@ -15,6 +15,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner; // Для более надежного чтения файла
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ModuleManager {
     private final Context context;
@@ -258,8 +260,52 @@ public class ModuleManager {
 
     public List<ModuleInfo> getModules(String moduleType) {
         Log.d(TAG, "getModules (Java): Received moduleType: " + moduleType);
-        List<ModuleInfo> result = modules.getOrDefault(moduleType, new ArrayList<>());
-        Log.d(TAG, "getModules (Java): Found " + result.size() + " modules in cache for type: " + moduleType);
+        List<ModuleInfo> result = new ArrayList<>(modules.getOrDefault(moduleType, new ArrayList<>()));
+        Log.d(TAG, "getModules (Java): Found " + result.size() + " modules in asset cache for type: " + moduleType);
+
+        if ("chordProgression".equals(moduleType)) {
+            Log.d(TAG, "getModules (Java): Fetching user-saved chord progressions.");
+            ChordProgressionRepository repository = ChordProgressionRepository.getInstance(context);
+            List<JsonObject> userProgressionsJson = repository.getUserProgressions();
+            Log.d(TAG, "getModules (Java): Found " + userProgressionsJson.size() + " user progressions from repository.");
+
+            List<ModuleInfo> userModuleInfos = new ArrayList<>();
+            for (JsonObject json : userProgressionsJson) {
+                try {
+                    String id = json.has("id") ? json.get("id").getAsString() : null;
+                    String type = json.has("type") ? json.get("type").getAsString() : moduleType; // Fallback to requested type
+                    String name = json.has("name") ? json.get("name").getAsString() : "Unnamed";
+                    String version = json.has("version") ? json.get("version").getAsString() : "1.0.0";
+                    String description = json.has("description") ? json.get("description").getAsString() : "";
+                    boolean active = json.has("active") ? json.get("active").getAsBoolean() : true;
+                    // User progressions are not from assets, so path is null or could be file path
+                    String path = "user_defined";
+
+                    if (id != null && moduleType.equals(type)) {
+                        ModuleInfo info = new ModuleInfo(id, type, name, version, description, active, path, json);
+                        userModuleInfos.add(info);
+                    } else {
+                        Log.w(TAG, "Skipping user progression due to missing ID or type mismatch: " + json.toString());
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error converting user progression JsonObject to ModuleInfo: " + json.toString(), e);
+                }
+            }
+
+            // Merge asset modules and user modules.
+            // Create a map to easily overwrite asset modules with user modules if IDs conflict (user takes precedence)
+            // or add new user modules.
+            Map<String, ModuleInfo> combinedModulesMap = new HashMap<>();
+            for (ModuleInfo assetModule : result) {
+                combinedModulesMap.put(assetModule.getId(), assetModule);
+            }
+            for (ModuleInfo userModule : userModuleInfos) {
+                combinedModulesMap.put(userModule.getId(), userModule); // User module will overwrite if ID exists
+            }
+            
+            result = new ArrayList<>(combinedModulesMap.values());
+            Log.d(TAG, "getModules (Java): Total " + result.size() + " chord progressions after merging assets and user files.");
+        }
         return result;
     }
     // compareVersions не нужен, если мы просто заменяем по ID
