@@ -189,6 +189,10 @@
                 </div>
                 <button id="add-chord-button" class="button" data-i18n="add_chord_button_label">Add Chord</button>
                 <button id="delete-chords-toggle-btn" class="button" data-i18n="delete_chords_button_label">Delete Chords</button>
+                <button id="chord-timer-toggle-btn" class="button" data-i18n-title="toggle_chord_timer_tooltip" title="Toggle Chord Timer">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <span data-i18n="start_timer_label" style="margin-left: 8px;">Auto-Switch</span>
+                </button>
             </div>
         </div>
         <div class="panel-resize-handle"></div>
@@ -224,6 +228,47 @@
         <div class="modal-actions">
             <button id="cancel-delete-preset-btn" class="button" data-i18n="cancel">Cancel</button>
             <button id="confirm-delete-preset-action-btn" class="button danger-button" data-i18n="delete">Delete</button>
+        </div>
+    </div>
+
+    <!-- Chord Timer Modal -->
+    <div id="chord-timer-modal" class="prism-modal" style="display: none;">
+        <div class="modal-header">
+            <h3 data-i18n="chord_timer_modal_title">Chord Auto-Switch</h3>
+            <button id="close-chord-timer-modal-btn" class="close-button">×</button>
+        </div>
+        <div class="modal-content">
+            <div class="setting-group">
+                <label data-i18n="timer_mode_label">Switch Mode</label>
+                <div style="display: flex; gap: 15px; margin-top: 5px;">
+                    <label><input type="radio" name="timer-mode" value="rhythm" checked> <span data-i18n="rhythm">Rhythm</span></label>
+                    <label><input type="radio" name="timer-mode" value="seconds"> <span data-i18n="seconds">Seconds</span></label>
+                </div>
+            </div>
+
+            <!-- Настройки для режима "Ритм" -->
+            <div id="timer-rhythm-settings">
+                <div class="setting-group">
+                    <label for="timer-bpm-input" data-i18n="bpm_label">BPM</label>
+                    <input type="number" id="timer-bpm-input" class="text-input" value="120" min="20" max="300">
+                </div>
+                <div class="setting-group">
+                    <label for="timer-interval-select-display" data-i18n="interval_label">Interval</label>
+                    <div id="timer-interval-select-display" class="dropdown-display" tabindex="0">1 Bar (4/4)</div>
+                </div>
+            </div>
+
+            <!-- Настройки для режима "Секунды" -->
+            <div id="timer-seconds-settings" style="display: none;">
+                <div class="setting-group">
+                    <label for="timer-seconds-input" data-i18n="seconds_interval_label">Interval (seconds)</label>
+                    <input type="number" id="timer-seconds-input" class="text-input" value="4" min="0.5" step="0.1">
+                </div>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button id="cancel-chord-timer-btn" class="button" data-i18n="cancel">Cancel</button>
+            <button id="start-chord-timer-btn" class="button primary-button" data-i18n="start">Start</button>
         </div>
     </div>
 

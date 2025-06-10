@@ -127,7 +127,188 @@ const ChordModeStrategy = {
     _xyPadContainerElementForModalClose: null, // Ссылка на элемент пэда для закрытия модального окна
     _boundHideAddChordModalOnPadInteraction: null, // Обработчик для закрытия модального окна добавления по клику на пэд
     _boundHideSaveProgressionModalOnPadInteraction: null, // Для окна сохранения
-    _boundHideConfirmDeletePresetModalOnPadInteraction: null, // Для окна подтверждения удаления
+    _boundHideConfirmDeletePresetModalOnPadInteraction: null, // Привязка для окна подтверждения удаления
+    // === НОВЫЕ СВОЙСТВА ДЛЯ ТАЙМЕРА ===
+    _timerState: {
+        isActive: false,
+        mode: 'rhythm', // 'rhythm' или 'seconds'
+        interval: '1m', // Значение для Tone.Transport (1 мера)
+        seconds: 4,
+        bpm: 120,
+        scheduleId: null // ID для отмены события Tone.Transport
+    },
+
+    // Ссылки на UI элементы таймера
+    _timerModal: null,
+    _timerToggleButton: null,
+    _timerModeRadios: null,
+    _rhythmSettingsContainer: null,
+    _secondsSettingsContainer: null,
+    _bpmInput: null,
+    _intervalDisplay: null,
+    _secondsInput: null,
+    _startTimerBtn: null,
+    _cancelTimerBtn: null,
+    _closeTimerModalBtn: null,
+
+    // Привязанные обработчики для таймера
+    _boundToggleTimer: null,
+    _boundShowTimerModal: null,
+    _boundHideTimerModal: null,
+    _boundStartTimer: null,
+    _boundStopTimer: null,
+    _boundSwitchTimerModeUI: null,
+    _boundShowIntervalPopover: null,
+    _boundSelectNextChord: null, 
+
+    // === НАЧАЛО ЗАМЕНЫ: _handleActiveTouchesOnChordSwitch ===
+    _handleActiveTouchesOnChordSwitch() {
+        console.log('[ChordModeStrategy] Auto-switch triggered. Handling active touches...');
+        
+        if (typeof pad === 'undefined' || !pad.activeTouchesInternal || pad.activeTouchesInternal.size === 0) {
+            return null; // Возвращаем null, если нечего было сбрасывать
+        }
+
+        const releasedTouches = new Map(pad.activeTouchesInternal); // <<<--- СОЗДАЕМ КОПИЮ КАСАНИЙ
+        console.log(`[ChordModeStrategy] Found ${releasedTouches.size} active touches to clean up.`);
+
+        // 1. Используем глобальный метод synth для остановки всех нот.
+        if (typeof synth !== 'undefined' && synth.stopAllNotes) {
+            synth.stopAllNotes();
+        }
+
+        // 2. Уведомляем визуализатор об "отпускании" каждого касания
+        if (typeof visualizer !== 'undefined' && typeof visualizer.notifyTouchUp === 'function') {
+            releasedTouches.forEach((touchData, touchId) => { // Итерируем по копии
+                visualizer.notifyTouchUp(touchId);
+            });
+        }
+
+        // 3. Очищаем состояние
+        this._activeNoteInfo.clear();
+        if (pad.activeTouchesInternal) { // Добавлена проверка на существование
+            pad.activeTouchesInternal.clear();
+        }
+        
+        console.log('[ChordModeStrategy] All active touches have been handled and cleared from pad state.');
+
+        return releasedTouches; // <<<--- ВОЗВРАЩАЕМ КОПИЮ
+    },
+    // === КОНЕЦ ЗАМЕНЫ: _handleActiveTouchesOnChordSwitch ===
+
+    // === НАЧАЛО: НОВЫЙ УНИВЕРСАЛЬНЫЙ МЕТОД ПЕРЕКЛЮЧЕНИЯ АККОРДОВ ===
+    _switchChord(direction) {
+        if (!this._availableChords || this._availableChords.length < 2) { // Добавлена проверка на существование _availableChords
+            console.log('[ChordStrategy._switchChord] Not enough chords to switch or chord list not initialized.');
+            return;
+        }
+
+        // 1. Сбрасываем активные касания и сохраняем их состояние
+        const releasedTouches = this._handleActiveTouchesOnChordSwitch();
+
+        // 2. Используем requestAnimationFrame для плавной смены
+        requestAnimationFrame(async () => {
+            // Повторная проверка, так как состояние могло измениться
+            if (!this._availableChords || this._availableChords.length < 2) {
+                console.log('[ChordStrategy._switchChord in rAF] Not enough chords to switch after rAF.');
+                return;
+            }
+            if (this._selectedChordId === null && this._availableChords.length > 0) {
+                 // Если _selectedChordId не установлен, но аккорды есть, установим на первый перед вычислением индекса
+                 // Это предотвратит NaN, если currentIndex = -1 и direction = -1
+                 await this.selectChord(this._availableChords[0].id); // Это обновит _selectedChordId
+                 console.log('[ChordStrategy._switchChord in rAF] Initialized _selectedChordId to first available chord.');
+            }
+
+
+            const currentIndex = this._availableChords.findIndex(c => c.id === this._selectedChordId);
+            
+            // Если currentIndex все еще -1 (например, если this.selectChord выше не смог установить его, хотя должен),
+            // или если this._availableChords пуст (хотя мы проверили), то выходим.
+            if (currentIndex === -1 && this._availableChords.length > 0) {
+                console.warn('[ChordStrategy._switchChord in rAF] Could not find current chord index, defaulting to 0 for next calculation.');
+                // Можно было бы просто установить currentIndex = 0, но это может быть нежелательно, если список пуст.
+                // Вместо этого, если selectChord не установил, то лучше выйти.
+                // Однако, для безопасности, если аккорды есть, а selectChord по какой-то причине не обновил _selectedChordId,
+                // но мы хотим продолжить, можно сделать так:
+                // const current ChordToUseForIndex = this._selectedChordId || this._availableChords[0].id;
+                // const currentIndex = this._availableChords.findIndex(c => c.id === current ChordToUseForIndex);
+                // Это уже слишком сложно, this.selectChord должен был отработать.
+                // Проще выйти, если currentIndex === -1 после selectChord
+                if (this._selectedChordId === null) { // Если selectChord не смог ничего выбрать
+                    console.error('[ChordStrategy._switchChord in rAF] _selectedChordId is still null after attempting to select one. Cannot proceed.');
+                    return;
+                }
+            }
+
+
+            // Вычисляем следующий индекс с учетом направления
+            const nextIndex = (currentIndex + direction + this._availableChords.length) % this._availableChords.length;
+            
+            if (!this._availableChords[nextIndex] || !this._availableChords[nextIndex].id) {
+                console.error(`[ChordStrategy._switchChord in rAF] Could not determine next chord at index ${nextIndex}. Available:`, this._availableChords);
+                return;
+            }
+            const nextChordId = this._availableChords[nextIndex].id;
+            
+            console.log(`[ChordStrategy._switchChord] Switching from ${this._selectedChordId} to: ${nextChordId} (Direction: ${direction}, CurrentIndex: ${currentIndex}, NextIndex: ${nextIndex})`);
+            
+            // 3. Вызываем основной метод смены аккорда
+            await this.selectChord(nextChordId);
+
+            // 4. Восстанавливаем касания для нового аккорда
+            if (releasedTouches && releasedTouches.size > 0) {
+                console.log(`[ChordStrategy] Re-evaluating ${releasedTouches.size} touches for the new chord: ${nextChordId}`);
+                
+                if (typeof pad === 'undefined' || !pad._currentDisplayedZones || typeof pad._getPadContext !== 'function') {
+                    console.warn('[ChordStrategy._switchChord] Pad context not fully available for re-evaluating touches.');
+                    return;
+                }
+
+                for (const [pointerId, touchData] of releasedTouches.entries()) {
+                    const { x, y } = touchData;
+                    // Убедимся, что pad._currentDisplayedZones актуальны для нового аккорда
+                    // this.selectChord(nextChordId) уже должен был обновить их через app.updateZoneLayout()
+                    const noteAction = await this.onPointerDown(pointerId, x, y, pad._currentDisplayedZones, pad._getPadContext());
+
+                    if (noteAction && noteAction.type === 'note_on' && noteAction.note) {
+                        console.log(`[ChordStrategy._switchChord] Re-starting note ${noteAction.note.name} for persistent touchId: ${pointerId} on new chord ${nextChordId}`);
+                        
+                        if (typeof synth !== 'undefined' && typeof synth.startNote === 'function') {
+                            synth.startNote(noteAction.note.frequency, 0.7, y, pointerId);
+                        } else {
+                            console.warn(`[ChordStrategy._switchChord] synth.startNote not available for re-starting note.`);
+                        }
+                        
+                        if (pad.activeTouchesInternal) {
+                            const zone = pad._currentDisplayedZones.find(z => z.midiNote === noteAction.note.midiNote);
+                            pad.activeTouchesInternal.set(pointerId, {
+                                pointerId: pointerId, x: x, y: y,
+                                currentZoneIndex: zone ? zone.index : -1, // Убедимся, что zone существует
+                                baseFrequency: noteAction.note.frequency,
+                                state: 'down'
+                            });
+                        } else {
+                            console.warn(`[ChordStrategy._switchChord] pad.activeTouchesInternal not available for re-registering touch.`);
+                        }
+                        
+                        if (typeof visualizer !== 'undefined' && typeof visualizer.notifyTouchDown === 'function') {
+                            visualizer.notifyTouchDown({
+                                id: pointerId, x: x, y: y, 
+                                rawX: touchData.rawX || 0, // Добавим проверку на существование rawX/rawY
+                                rawY: touchData.rawY || 0,
+                                noteInfo: noteAction.note,
+                                state: 'down'
+                            });
+                        } else {
+                            console.warn(`[ChordStrategy._switchChord] visualizer.notifyTouchDown not available.`);
+                        }
+                    }
+                }
+            }
+        });
+    },
+    // === КОНЕЦ: НОВЫЙ УНИВЕРСАЛЬНЫЙ МЕТОД ПЕРЕКЛЮЧЕНИЯ АККОРДОВ ===
 
     init(appReference, musicTheoryServiceInstance, harmonicMarkerEngineInstance) {
         this.appRef = appReference;
@@ -497,6 +678,46 @@ const ChordModeStrategy = {
         // Убедимся, что оверлей модального окна добавления аккорда скрыт при активации режима
         this._hideAddChordModal(); 
         this._hideSaveProgressionModal(); // И для окна сохранения
+
+        // --- Получение ссылок на UI таймера ---
+        this._timerModal = document.getElementById('chord-timer-modal');
+        this._timerToggleButton = this._currentChordPanel?.querySelector('#chord-timer-toggle-btn');
+        if (this._timerModal) {
+            this._timerModeRadios = this._timerModal.querySelectorAll('input[name="timer-mode"]');
+            this._rhythmSettingsContainer = this._timerModal.querySelector('#timer-rhythm-settings');
+            this._secondsSettingsContainer = this._timerModal.querySelector('#timer-seconds-settings');
+            this._bpmInput = this._timerModal.querySelector('#timer-bpm-input');
+            this._intervalDisplay = this._timerModal.querySelector('#timer-interval-select-display');
+            this._secondsInput = this._timerModal.querySelector('#timer-seconds-input');
+            this._startTimerBtn = this._timerModal.querySelector('#start-chord-timer-btn');
+            this._cancelTimerBtn = this._timerModal.querySelector('#cancel-chord-timer-btn');
+            this._closeTimerModalBtn = this._timerModal.querySelector('#close-chord-timer-modal-btn');
+        }
+
+        // --- Привязка обработчиков таймера ---
+        this._boundToggleTimer = this._toggleTimer.bind(this);
+        this._boundShowTimerModal = this._showTimerModal.bind(this);
+        this._boundHideTimerModal = this._hideTimerModal.bind(this);
+        this._boundStartTimer = this._startTimer.bind(this);
+        this._boundStopTimer = this._stopTimer.bind(this);
+        this._boundSwitchTimerModeUI = this._switchTimerModeUI.bind(this);
+        this._boundShowIntervalPopover = this._showIntervalPopover.bind(this);
+        // _boundSelectNextChord will be bound to this._selectNextChord (a new method) later if needed for direct event listening,
+        // for now it's called directly by the timer. The plan had this.selectNextChord.bind(this) which is an existing method.
+        // Let's stick to the plan:
+        this._boundSelectNextChord = this._selectNextChord.bind(this);
+
+
+        // --- Добавление слушателей для таймера ---
+        this._timerToggleButton?.addEventListener('click', this._boundToggleTimer);
+        this._startTimerBtn?.addEventListener('click', this._boundStartTimer);
+        this._cancelTimerBtn?.addEventListener('click', this._boundHideTimerModal);
+        this._closeTimerModalBtn?.addEventListener('click', this._boundHideTimerModal);
+        this._timerModeRadios?.forEach(radio => radio.addEventListener('change', this._boundSwitchTimerModeUI));
+        this._intervalDisplay?.addEventListener('mousedown', this._boundShowIntervalPopover);
+
+        // this.appRef.updateZones(); // Обновление зон, если оно не вызывается где-то еще после активации
+        // console.log(`[${this.getName()}Strategy] Activated. Selected chord: ${this._selectedChordId}`); // Этот лог уже может быть в конце метода
     },
 
     onModeDeactivated(appState, services, uiModules) {
@@ -570,6 +791,16 @@ const ChordModeStrategy = {
         }
         
         console.log(`[${this.getName()}Strategy] Mode deactivated and listeners removed.`);
+
+        this._stopTimer(); // Гарантированно останавливаем таймер
+
+        // --- Удаление слушателей таймера ---
+        this._timerToggleButton?.removeEventListener('click', this._boundToggleTimer);
+        this._startTimerBtn?.removeEventListener('click', this._boundStartTimer);
+        this._cancelTimerBtn?.removeEventListener('click', this._boundHideTimerModal);
+        this._closeTimerModalBtn?.removeEventListener('click', this._boundHideTimerModal);
+        this._timerModeRadios?.forEach(radio => radio.removeEventListener('change', this._boundSwitchTimerModeUI));
+        this._intervalDisplay?.removeEventListener('mousedown', this._boundShowIntervalPopover);
     },
 
     _renderChordPanel() {
@@ -1302,60 +1533,302 @@ const ChordModeStrategy = {
     },
     
     async selectChord(chordId) {
-        console.log(`[ChordStrategy.selectChord] CALLED with chordId: ${chordId}`);
+        if (this._selectedChordId === chordId && chordId !== null) {
+            console.log(`[ChordStrategy] Chord ${chordId} is already selected. No action taken.`);
+            return;
+        }
+        console.log(`[ChordStrategy] Selecting new chord: ${chordId}`);
+
+        // ИЗМЕНЕНИЕ: Получаем активные голоса напрямую из synth.js - это наш новый источник правды.
+        const activeSynthVoices = synth.activeVoices;
+        const hasActiveTouches = activeSynthVoices.size > 0;
+
+        // Стандартная логика поиска данных нового аккорда.
         const chordData = this._availableChords.find(c => c.id === chordId);
-        let successfullySelected = false;
 
         if (!chordData) {
-            console.warn(`[ChordStrategy.selectChord] Chord with id "${chordId}" not found in _availableChords.`);
+            console.warn(`[ChordStrategy] Chord with id "${chordId}" not found in available chords.`);
             this._selectedChordId = null;
             this._selectedChordDisplayName = null;
             this._selectedChordNotes = [];
         } else {
-            this._selectedChordId = chordData.id; 
+            // Обновляем внутреннее состояние стратегии на новый аккорд.
+            this._selectedChordId = chordData.id;
             this._selectedChordDisplayName = chordData.displayName;
-            const chordSymbolForService = chordData.nameForService;
-            console.log(`[ChordStrategy.selectChord] Attempting to get notes for: ${chordSymbolForService}`);
+            this._selectedChordNotes = await this.musicTheoryServiceRef.getChordNotes(chordData.nameForService);
+        }
 
-            if (this.musicTheoryServiceRef && typeof this.musicTheoryServiceRef.getChordNotes === 'function') {
-                const notes = await this.musicTheoryServiceRef.getChordNotes(chordSymbolForService); 
-                console.log(`[ChordStrategy.selectChord] Notes received from service for ${chordSymbolForService}:`, notes);
-                this._selectedChordNotes = notes || [];
-                if (!notes || notes.length === 0) {
-                     console.warn(`[ChordStrategy.selectChord] No notes found for ${chordSymbolForService}. Resetting selection.`);
-                     this._selectedChordId = null; 
-                     this._selectedChordDisplayName = null;
-                } else {
-                    successfullySelected = true;
+        // --- УЛУЧШЕННАЯ ЛОГИКА: Мгновенное обновление звучания ---
+        if (hasActiveTouches) {
+            console.log(`[ChordStrategy] Live-updating ${activeSynthVoices.size} active touch(es) from synth.activeVoices.`);
+
+            // 1. Генерируем раскладку зон для НОВОГО аккорда, чтобы знать, какие ноты должны зазвучать.
+            const layoutContext = await this.getZoneLayoutOptions(this.appRef.state);
+            const services = { musicTheoryService: this.musicTheoryServiceRef };
+            const newZones = await this.generateZoneData(layoutContext, this.appRef.state, services);
+
+            if (newZones && newZones.length > 0) {
+                // 2. Итерируем по каждому АКТИВНОМУ ГОЛОСУ из synth.js
+                for (const [touchId, voiceInfo] of activeSynthVoices.entries()) {
+
+                    // 3. Получаем КООРДИНАТЫ этого касания из pad.js
+                    const touchData = pad.activeTouchesInternal.get(touchId);
+
+                    if (!touchData) {
+                        console.warn(`[ChordStrategy] No coordinate data in pad.js for active voice with touchId ${touchId}. Releasing note.`);
+                        synth.triggerRelease(touchId);
+                        continue; // Пропускаем это касание, если для него нет данных в pad
+                    }
+
+                    // 4. Находим, в какую зону нового аккорда попадает текущее касание
+                    const newZoneForTouch = newZones.find(z => touchData.x >= z.startX && touchData.x < z.endX);
+
+                    // 5. Плавно останавливаем старую ноту.
+                    synth.triggerRelease(touchId);
+
+                    // 6. Если для этой координаты найдена нота в новом аккорде...
+                    if (newZoneForTouch) {
+                        // ...немедленно запускаем новую ноту.
+                        console.log(`  > Retargeting touch ${touchId} to new note: ${newZoneForTouch.noteName}`);
+                        const velocity = 0.7; // Стандартная громкость для переключения
+                        // Используем сохраненные координаты `y` из `touchData`
+                        synth.startNote(newZoneForTouch.frequency, velocity, touchData.y, touchId);
+                    } else {
+                        console.log(`  > Touch ${touchId} has no corresponding zone in the new chord layout. Releasing only.`);
+                    }
                 }
             } else {
-                console.error(`[ChordStrategy.selectChord] MusicTheoryServiceRef or getChordNotes method is not available.`);
-                this._selectedChordNotes = [];
-                this._selectedChordId = null;
-                this._selectedChordDisplayName = null;
+                // Если для нового аккорда не удалось сгенерировать зоны, просто останавливаем все звучащие ноты.
+                console.warn(`[ChordStrategy] Could not generate new zones for chord ${chordId}. Releasing all active notes.`);
+                activeSynthVoices.forEach((_, touchId) => synth.triggerRelease(touchId));
             }
-            console.log(`[ChordStrategy.selectChord] After getting notes - _selectedChordId: ${this._selectedChordId}, Name: ${this._selectedChordDisplayName}, Notes count: ${this._selectedChordNotes.length}`);
         }
+        // --- КОНЕЦ УЛУЧШЕННОЙ ЛОГИКИ ---
 
-        console.log(`[ChordStrategy.selectChord] BEFORE _updateChordButtonSelection, _selectedChordId is: ${this._selectedChordId}`);
+        // Обновляем UI, как и раньше.
         this._updateChordButtonSelection(this._selectedChordId);
-        
-        if (this.appRef && typeof this.appRef.updateZoneLayout === 'function') {
-            console.log(`[ChordStrategy.selectChord] BEFORE updateZoneLayout, notes:`, this._selectedChordNotes.map(n=>n.name));
-            await this.appRef.updateZoneLayout();
-        }
 
-        if (successfullySelected) {
-            this._updateSuggestedChordsDisplay(chordData); 
-        } else {
-            this._updateSuggestedChordsDisplay(null); 
-        }
-        if (this.appRef && typeof this.appRef.notifyProgressionChanged === 'function') {
-            console.log(`[ChordStrategy.selectChord] BEFORE notifyProgressionChanged, _selectedChordId is: ${this._selectedChordId}`);
+        if (this.appRef) {
+            // `updateZoneLayout` теперь отрисует визуальное представление нового аккорда.
+            await this.appRef.updateZoneLayout();
+            // `notifyProgressionChanged` обновит дисплей в topbar.
             this.appRef.notifyProgressionChanged();
         }
+
+        this._updateSuggestedChordsDisplay(chordData);
     },
+
     // === КОНЕЦ ВОССТАНОВЛЕННЫХ МЕТОДОВ ===
+
+    _toggleTimer() {
+        if (this._timerState.isActive) {
+            this._stopTimer();
+        } else {
+            this._showTimerModal();
+        }
+    },
+
+    _showTimerModal() {
+        if (!this._timerModal) return;
+        
+        if (this.appRef && this.appRef.state) {
+           this._timerState.bpm = this.appRef.state.transportBpm;
+        }
+        if (this._bpmInput) this._bpmInput.value = this._timerState.bpm;
+        if (this._secondsInput) this._secondsInput.value = this._timerState.seconds;
+        if (this._intervalDisplay) this._intervalDisplay.textContent = this._getIntervalDisplayName(this._timerState.interval);
+
+        this._switchTimerModeUI(); 
+        this._timerModal.style.display = 'block';
+    },
+
+    _hideTimerModal() {
+        if (this._timerModal) {
+            this._timerModal.style.display = 'none';
+        }
+    },
+
+    _switchTimerModeUI() {
+        if (!this._timerModal) return; 
+        const selectedRadio = this._timerModal.querySelector('input[name="timer-mode"]:checked');
+        if (!selectedRadio) return; 
+        const selectedMode = selectedRadio.value;
+        this._timerState.mode = selectedMode;
+        
+        if (this._rhythmSettingsContainer) {
+            this._rhythmSettingsContainer.style.display = selectedMode === 'rhythm' ? 'block' : 'none';
+        }
+        if (this._secondsSettingsContainer) {
+            this._secondsSettingsContainer.style.display = selectedMode === 'seconds' ? 'block' : 'none';
+        }
+    },
+
+    _showIntervalPopover() {
+        const intervals = [
+            { id: '4n', name: 'Quarter Note (1/4)' },
+            { id: '2n', name: 'Half Note (1/2)' },
+            { id: '1m', name: '1 Bar (4/4)' },
+            { id: '2m', name: '2 Bars (4/4)' },
+            { id: '3n', name: '3 Beats (3/4 time feel)' }
+        ];
+        
+        const title = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate('interval_label', 'Interval') : 'Interval';
+
+        if (typeof showCustomSelectorPopover === 'function') {
+            showCustomSelectorPopover({
+                type: 'timerInterval',
+                title: title,
+                itemsArray: intervals,
+                currentValue: this._timerState.interval,
+                targetElement: this._intervalDisplay,
+                onSelect: (value) => {
+                    this._timerState.interval = value;
+                    if (this._intervalDisplay) {
+                        this._intervalDisplay.textContent = this._getIntervalDisplayName(value);
+                    }
+                }
+            });
+        } else {
+            console.error("[ChordModeStrategy._showIntervalPopover] showCustomSelectorPopover is not defined.");
+            const promptMessage = 'Select interval:\n' + intervals.map(i => i.id + ': ' + i.name).join('\n');
+            const selectedInterval = prompt(promptMessage, this._timerState.interval);
+            if (selectedInterval && intervals.some(i => i.id === selectedInterval)) {
+                 this._timerState.interval = selectedInterval;
+                 if (this._intervalDisplay) {
+                     this._intervalDisplay.textContent = this._getIntervalDisplayName(selectedInterval);
+                 }
+            }
+        }
+    },
+
+    _getIntervalDisplayName(intervalId) {
+        const intervalMap = {
+            '4n': 'Quarter Note (1/4)',
+            '2n': 'Half Note (1/2)',
+            '1m': '1 Bar (4/4)',
+            '2m': '2 Bars (4/4)',
+            '3n': '3 Beats (3/4 feel)'
+        };
+        return intervalMap[intervalId] || intervalId;
+    },
+
+    _stopTimer() {
+        if (!this._timerState.isActive) return;
+        
+        if (this._timerState.scheduleId !== null && typeof Tone !== 'undefined' && Tone.Transport) {
+            Tone.Transport.clear(this._timerState.scheduleId);
+        }
+        
+        this._timerState.isActive = false;
+        this._timerState.scheduleId = null;
+
+        // === НАЧАЛО ИЗМЕНЕНИЙ ДЛЯ ТЕКСТА КНОПКИ ===
+        if (this._timerToggleButton) {
+            this._timerToggleButton.classList.remove('active');
+            const span = this._timerToggleButton.querySelector('span');
+            // Используем i18n.translate с фолбэком
+            const buttonText = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate('start_timer_label', 'Auto-Switch') : 'Auto-Switch';
+            if (span) span.textContent = buttonText;
+        }
+        // === КОНЕЦ ИЗМЕНЕНИЙ ДЛЯ ТЕКСТА КНОПКИ ===
+        console.log('[ChordStrategy] Timer stopped.');
+    },
+
+    _startTimer() {
+        this._stopTimer(); 
+
+        if (!this._timerModal || !this._bpmInput || !this._secondsInput || !this.appRef) {
+            console.error("[ChordStrategy._startTimer] Timer modal or inputs not found, or appRef is missing.");
+            return;
+        }
+
+        const selectedRadio = this._timerModal.querySelector('input[name="timer-mode"]:checked');
+        if (!selectedRadio) {
+             console.error("[ChordStrategy._startTimer] No timer mode selected.");
+             alert("Please select a timer mode."); 
+             return;
+        }
+        this._timerState.mode = selectedRadio.value;
+        this._timerState.bpm = parseInt(this._bpmInput.value, 10);
+        this._timerState.seconds = parseFloat(this._secondsInput.value);
+
+        if (this._timerState.mode === 'rhythm') {
+            if (isNaN(this._timerState.bpm) || this._timerState.bpm < 20 || this._timerState.bpm > 300) { 
+                alert('Invalid BPM value. Must be between 20 and 300.'); return; 
+            }
+            this.appRef.setBpm(this._timerState.bpm); 
+        } else { 
+            if (isNaN(this._timerState.seconds) || this._timerState.seconds < 0.5) { 
+                alert('Invalid seconds value. Must be at least 0.5.'); return; 
+            }
+        }
+
+        this._timerState.isActive = true;
+        const interval = this._timerState.mode === 'rhythm' ? this._timerState.interval : this._timerState.seconds;
+
+        if (typeof Tone === 'undefined' || !Tone.Transport) {
+            console.error("[ChordStrategy._startTimer] Tone.js or Tone.Transport not available.");
+            alert("Audio scheduling system (Tone.Transport) is not available.");
+            this._timerState.isActive = false; 
+            return;
+        }
+
+        try {
+            this._timerState.scheduleId = Tone.Transport.scheduleRepeat(time => {
+                Tone.Draw.schedule(() => {
+                    this._selectNextChord(); 
+                }, time);
+            }, interval);
+    
+            if (Tone.Transport.state !== 'started') { 
+                Tone.Transport.start();
+                console.log('[ChordStrategy._startTimer] Tone.Transport was not started, starting now.');
+            }
+
+        } catch (e) {
+            console.error("[ChordStrategy._startTimer] Error scheduling with Tone.Transport:", e);
+            alert("Error starting timer: " + e.message);
+            this._timerState.isActive = false;
+            return;
+        }
+
+        // === НАЧАЛО ИЗМЕНЕНИЙ ДЛЯ ТЕКСТА КНОПКИ ===
+        if (this._timerToggleButton) {
+            this._timerToggleButton.classList.add('active');
+            const span = this._timerToggleButton.querySelector('span');
+            // Используем i18n.translate с фолбэком
+            const buttonText = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate('stop_timer_label', 'Stop') : 'Stop';
+            if (span) span.textContent = buttonText;
+        }
+        // === КОНЕЦ ИЗМЕНЕНИЙ ДЛЯ ТЕКСТА КНОПКИ ===
+
+        console.log(`[ChordStrategy] Timer started. Mode: ${this._timerState.mode}, Interval: ${interval}, BPM: ${this._timerState.bpm}`);
+        this._hideTimerModal();
+    },
+
+    // This method was _selectNextChord in the plan, used by the timer.
+    // The plan also had _boundSelectNextChord = this.selectNextChord.bind(this) which is an existing method.
+    // Clarifying: the timer should call a method that selects the *next* chord.
+    // The existing selectChord(chordId) selects a *specific* chord.
+    // So, _selectNextChord is a new helper for the timer.
+    // === НАЧАЛО ЗАМЕНЫ: _selectNextChord ===
+    _selectNextChord() {
+        // Этот метод вызывается таймером
+        this._switchChord(1); // 1 означает "вперед"
+    },
+    // === КОНЕЦ ЗАМЕНЫ: _selectNextChord ===
+
+    // === НАЧАЛО: НОВЫЕ ПУБЛИЧНЫЕ МЕТОДЫ ДЛЯ ПЕРЕКЛЮЧЕНИЯ АККОРДОВ ===
+    selectNextChord() {
+        // Этот метод может быть вызван, например, кнопками UI
+        this._switchChord(1);
+    },
+
+    selectPreviousChord() {
+        // Этот метод может быть вызван, например, кнопками UI
+        this._switchChord(-1);
+    }
+    // === КОНЕЦ: НОВЫЕ ПУБЛИЧНЫЕ МЕТОДЫ ДЛЯ ПЕРЕКЛЮЧЕНИЯ АККОРДОВ ===
 };
 
 if (typeof PadModeManager !== 'undefined' && PadModeManager.registerStrategy) {

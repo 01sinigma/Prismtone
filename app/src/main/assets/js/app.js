@@ -75,6 +75,8 @@ const app = {
         yAxisDefinedByPreset: false, // true, если yAxisControls были установлены из текущего звукового пресета
         isChordPanelCollapsed: false,
         chordPanelWidth: 320,
+        // === ДОБАВЛЕНО ДЛЯ ТАЙМЕРА ===
+        transportBpm: 120, // BPM по умолчанию
     },
     elements: {
         loadingOverlay: null,
@@ -215,6 +217,12 @@ const app = {
             if (typeof synth === 'undefined') throw new Error("synth.js is not loaded!");
             synth.init();
             if(synth.isReady) synth.applyMasterVolumeSettings();
+
+            // === ДОБАВЛЕНО: Инициализация Tone.Transport BPM ===
+            if (typeof Tone !== 'undefined' && Tone.Transport) {
+                Tone.Transport.bpm.value = this.state.transportBpm;
+                console.log(`[App.init] Tone.Transport initialized with BPM: ${this.state.transportBpm}`);
+            }
 
             // Visualizer
             let analyserNode = (synth?.isReady) ? synth.getAnalyser() : null;
@@ -1157,6 +1165,12 @@ const app = {
         if (typeof i18n !== 'undefined' && i18n.loadLanguage) {
              await i18n.loadLanguage(this.state.language);
         }
+
+        // === ДОБАВЛЕНО: Остановка Tone.Transport ===
+        if (typeof Tone !== 'undefined' && Tone.Transport && Tone.Transport.state === 'started') {
+            Tone.Transport.stop();
+            Tone.Transport.cancel(0); // Отменить все запланированные события
+        }
     },
     async triggerFullReload() {
         // ... (без изменений от v5) ...
@@ -1778,49 +1792,50 @@ const app = {
      * @param {number} newWidth - Новая ширина в пикселях.
      */
     setChordPanelWidth(newWidth) {
-        const minWidth = 150;
-        const maxWidth = window.innerWidth * 0.7;
-        const clampedWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
-        
-        if (this.state.chordPanelWidth === clampedWidth) return;
+        const minWidth = 200;
+        const maxWidth = 600;
+        const currentWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
 
-        this.state.chordPanelWidth = clampedWidth;
-        console.log(`[App] Chord panel width set to: ${clampedWidth}px`);
-
-        const panel = document.getElementById('chord-mode-panel');
-        if (panel) {
-            panel.style.width = `${clampedWidth}px`;
+        this.state.chordPanelWidth = currentWidth;
+        const chordPanelElement = document.getElementById('chord-mode-panel');
+        if (chordPanelElement) {
+            chordPanelElement.style.width = `${currentWidth}px`;
+            chordPanelElement.style.flexBasis = `${currentWidth}px`; // Для flex-контейнера
         }
 
-        localStorage.setItem('chordPanelWidth', clampedWidth);
+        // Сохраняем ширину с задержкой, чтобы не перегружать bridge
+        clearTimeout(this._chordPanelResizeTimeout);
+        this._chordPanelResizeTimeout = setTimeout(() => {
+            bridge.saveSetting('chordPanelWidth', currentWidth);
+        }, 500);
     },
 
     // Добавляем новые функции для работы с прогрессией аккордов
     selectNextChord() {
-        if (this.state.padMode !== 'chord') return;
+        if (this.state.padMode !== 'chord') {
+            console.log('[App.selectNextChord] Not in chord mode.');
+            return;
+        }
         const strategy = PadModeManager.getCurrentStrategy();
-        if (strategy && typeof strategy.getAvailableChords === 'function') {
-            const chords = strategy.getAvailableChords();
-            const currentId = strategy.getSelectedChordId();
-            if (!chords || chords.length === 0) return;
-            const currentIndex = chords.findIndex(c => c.id === currentId);
-            const nextIndex = (currentIndex + 1) % chords.length;
-            const nextChordId = chords[nextIndex].id;
-            strategy.selectChord(nextChordId); // Делегируем выбор стратегии
+        // Убеждаемся, что у стратегии есть нужный метод
+        if (strategy && typeof strategy.selectNextChord === 'function') {
+            strategy.selectNextChord();
+        } else {
+            console.warn('[App.selectNextChord] Current strategy does not have selectNextChord method or strategy not found.');
         }
     },
 
     selectPreviousChord() {
-        if (this.state.padMode !== 'chord') return;
+        if (this.state.padMode !== 'chord') {
+            console.log('[App.selectPreviousChord] Not in chord mode.');
+            return;
+        }
         const strategy = PadModeManager.getCurrentStrategy();
-        if (strategy && typeof strategy.getAvailableChords === 'function') {
-            const chords = strategy.getAvailableChords();
-            const currentId = strategy.getSelectedChordId();
-            if (!chords || chords.length === 0) return;
-            const currentIndex = chords.findIndex(c => c.id === currentId);
-            const prevIndex = (currentIndex - 1 + chords.length) % chords.length;
-            const prevChordId = chords[prevIndex].id;
-            strategy.selectChord(prevChordId);
+        // Убеждаемся, что у стратегии есть нужный метод
+        if (strategy && typeof strategy.selectPreviousChord === 'function') {
+            strategy.selectPreviousChord();
+        } else {
+            console.warn('[App.selectPreviousChord] Current strategy does not have selectPreviousChord method or strategy not found.');
         }
     },
 
@@ -1854,6 +1869,16 @@ const app = {
             const t1 = performance.now();
             console.log(`[App.notifyProgressionChanged] Duration: ${(t1 - t0).toFixed(2)}ms`);
         }
+    },
+
+    setBpm: function(newBpm) {
+        const bpm = Math.max(20, Math.min(300, newBpm)); // Ограничиваем BPM
+        this.state.transportBpm = bpm;
+        if (typeof Tone !== 'undefined' && Tone.Transport) {
+            Tone.Transport.bpm.value = bpm;
+        }
+        console.log(`[App] Global BPM set to: ${bpm}`);
+        // TODO: Сохранить в localStorage или через Bridge, если нужно
     },
 };
 
