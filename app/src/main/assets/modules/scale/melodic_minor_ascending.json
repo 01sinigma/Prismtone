@@ -4,7 +4,7 @@
   "name": "melodic_minor_ascending",
   "version": "1.0.0",
   "description": "Melodic minor scale (ascending form) with raised sixth and seventh degrees.",
-  "active": true,
+  "active": false,
   "data": {
     "intervals": [0, 2, 3, 5, 7, 9, 11]
   }

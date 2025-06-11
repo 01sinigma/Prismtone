@@ -4,7 +4,7 @@
   "name": "Crystal",
   "version": "1.0.0",
   "description": "A crystalline theme with prismatic light effects",
-  "active": true,
+  "active": false,
   "data": {
     "colors": {
       "background": "#000033",

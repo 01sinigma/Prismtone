@@ -4,7 +4,7 @@
   "name": "Ocean",
   "version": "1.0.0",
   "description": "A deep ocean theme with blue tones and coral accents",
-  "active": true,
+  "active": false,
   "data": {
     "colors": {
       "background": "#001f3f",

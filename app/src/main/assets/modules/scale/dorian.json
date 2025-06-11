@@ -4,7 +4,7 @@
   "name": "dorian",
   "version": "1.0.0",
   "description": "Dorian mode, a minor-type scale with a major sixth.",
-  "active": true,
+  "active": false,
   "data": {
     "intervals": [0, 2, 3, 5, 7, 9, 10]
   }

@@ -4,7 +4,7 @@
   "name": "minor_pentatonic",
   "version": "1.0.0",
   "description": "Minor pentatonic scale.",
-  "active": true,
+  "active": false,
   "data": {
     "intervals": [0, 3, 5, 7, 10]
   }

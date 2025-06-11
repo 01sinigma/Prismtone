@@ -4,7 +4,7 @@
   "name": "spanish_8_note",
   "version": "1.0.0",
   "description": "Spanish 8-note scale (Phrygian dominant).",
-  "active": true,
+  "active": false,
   "data": {
     "intervals": [0, 1, 4, 5, 7, 8, 10, 11]
   }

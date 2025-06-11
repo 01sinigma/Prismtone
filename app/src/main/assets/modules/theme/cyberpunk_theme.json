@@ -4,7 +4,7 @@
   "name": "Cyberpunk",
   "version": "1.0.0",
   "description": "A futuristic cyberpunk theme with acid neon colors",
-  "active": true,
+  "active": false,
   "data": {
     "colors": {
       "background": "#000000",

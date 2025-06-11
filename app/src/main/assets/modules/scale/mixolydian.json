@@ -4,7 +4,7 @@
   "name": "mixolydian",
   "version": "1.0.0",
   "description": "Mixolydian mode, a dominant-type scale with a minor seventh.",
-  "active": true,
+  "active": false,
   "data": {
     "intervals": [0, 2, 4, 5, 7, 9, 10]
   }

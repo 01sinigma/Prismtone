@@ -4,7 +4,7 @@
   "name": "lydian",
   "version": "1.0.0",
   "description": "Lydian mode, a major-type scale with an augmented fourth.",
-  "active": true,
+  "active": false,
   "data": {
     "intervals": [0, 2, 4, 6, 7, 9, 11]
   }

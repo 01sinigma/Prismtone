@@ -4,7 +4,7 @@
   "name": "phrygian",
   "version": "1.0.0",
   "description": "Phrygian mode, a minor-type scale with a minor second.",
-  "active": true,
+  "active": false,
   "data": {
     "intervals": [0, 1, 3, 5, 7, 8, 10]
   }

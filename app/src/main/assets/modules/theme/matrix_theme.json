@@ -4,7 +4,7 @@
   "name": "Matrix",
   "version": "1.0.0",
   "description": "A digital rain matrix theme with falling green code",
-  "active": true,
+  "active": false,
   "data": {
     "colors": {
       "background": "#000000",

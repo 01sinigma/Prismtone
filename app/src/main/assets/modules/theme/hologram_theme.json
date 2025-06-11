@@ -4,7 +4,7 @@
   "name": "Hologram",
   "version": "1.0.0",
   "description": "A futuristic hologram theme with scanning effects",
-  "active": true,
+  "active": false,
   "data": {
     "colors": {
       "background": "#000000",

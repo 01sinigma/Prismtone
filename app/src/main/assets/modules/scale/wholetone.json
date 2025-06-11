@@ -4,7 +4,7 @@
   "name": "wholetone",
   "version": "1.0.0",
   "description": "Whole tone scale, consisting entirely of whole steps.",
-  "active": true,
+  "active": false,
   "data": {
     "intervals": [0, 2, 4, 6, 8, 10]
   }

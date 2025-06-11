@@ -4,7 +4,7 @@
   "name": "Fire",
   "version": "1.0.0",
   "description": "A dynamic fire theme with realistic flame effects",
-  "active": true,
+  "active": false,
   "data": {
     "colors": {
       "background": "#1a0000",

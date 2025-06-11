@@ -4,7 +4,7 @@
   "name": "Night",
   "version": "1.0.0",
   "description": "A dark theme with purple accents",
-  "active": true,
+  "active": false,
   "data": {
     "colors": {
       "background": "#121212",

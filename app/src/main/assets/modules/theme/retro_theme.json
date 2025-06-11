@@ -4,7 +4,7 @@
   "name": "Retro",
   "version": "1.0.0",
   "description": "A warm retro theme with vintage colors",
-  "active": true,
+  "active": false,
   "data": {
     "colors": {
       "background": "#fff8e1",
