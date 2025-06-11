@@ -49,24 +49,26 @@ const ampEnvManager = {
      * @returns {boolean} - true при успехе.
      */
     update(nodes, newSettings) {
-        const t0 = performance.now();
-        console.log("[AmpEnvManager] update() called with:", newSettings);
         if (!nodes || !nodes.envelope || !newSettings) {
             console.warn("[AmpEnvManager] Update called with invalid args", { nodes, newSettings });
             return false;
         }
-        const envelope = nodes.envelope;
         try {
-            if (newSettings.attack !== undefined) envelope.attack = newSettings.attack;
-            if (newSettings.decay !== undefined) envelope.decay = newSettings.decay;
-            if (newSettings.sustain !== undefined) envelope.sustain = newSettings.sustain;
-            if (newSettings.release !== undefined) envelope.release = newSettings.release;
-            if (newSettings.attackCurve !== undefined) envelope.attackCurve = newSettings.attackCurve;
-            if (newSettings.decayCurve !== undefined) envelope.decayCurve = newSettings.decayCurve;
-            if (newSettings.releaseCurve !== undefined) envelope.releaseCurve = newSettings.releaseCurve;
-            console.log("[AmpEnvManager] update() finished.");
-            const t1 = performance.now();
-            console.log(`[AmpEnvManager] update() duration: ${(t1-t0).toFixed(2)}ms`);
+            // >>> НАЧАЛО ИЗМЕНЕНИЙ (Оптимизация) <<<
+            // Используем метод .set() для пакетного обновления параметров
+            const settingsToUpdate = {};
+            if (newSettings.attack !== undefined) settingsToUpdate.attack = newSettings.attack;
+            if (newSettings.decay !== undefined) settingsToUpdate.decay = newSettings.decay;
+            if (newSettings.sustain !== undefined) settingsToUpdate.sustain = newSettings.sustain;
+            if (newSettings.release !== undefined) settingsToUpdate.release = newSettings.release;
+            if (newSettings.attackCurve !== undefined) settingsToUpdate.attackCurve = newSettings.attackCurve;
+            if (newSettings.decayCurve !== undefined) settingsToUpdate.decayCurve = newSettings.decayCurve;
+            if (newSettings.releaseCurve !== undefined) settingsToUpdate.releaseCurve = newSettings.releaseCurve;
+
+            if (Object.keys(settingsToUpdate).length > 0) {
+                nodes.envelope.set(settingsToUpdate);
+            }
+            // >>> КОНЕЦ ИЗМЕНЕНИЙ <<<
             return true;
         } catch (err) {
             console.error("[AmpEnvManager] Error in update():", err);

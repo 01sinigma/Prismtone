@@ -66,42 +66,39 @@ const filterManager = {
      * @returns {boolean} - true при успехе.
      */
     update(nodes, newSettings) {
-        const t0 = performance.now();
-        console.log("[FilterManager] update() called with:", newSettings);
         if (!nodes || !nodes.filter || !newSettings) {
             console.warn("[FilterManager] Update called with invalid args", { nodes, newSettings });
             return false;
         }
         const filterNode = nodes.filter;
         try {
-            if (newSettings.frequency !== undefined && filterNode.frequency instanceof Tone.Param) {
-                filterNode.frequency.rampTo(newSettings.frequency, 0.02);
+            // >>> НАЧАЛО ИЗМЕНЕНИЙ (Оптимизация) <<<
+            const paramsToUpdate = {};
+            const rampTime = 0.02; // Стандартное время для плавного перехода
+
+            if (newSettings.frequency !== undefined) paramsToUpdate.frequency = newSettings.frequency;
+            if (newSettings.Q !== undefined) paramsToUpdate.Q = newSettings.Q;
+            if (newSettings.gain !== undefined) paramsToUpdate.gain = newSettings.gain;
+            
+            // Применяем параметры, которые можно плавно изменять
+            if (Object.keys(paramsToUpdate).length > 0) {
+                filterNode.set(paramsToUpdate, rampTime);
             }
-            if (newSettings.Q !== undefined && filterNode.Q instanceof Tone.Param) {
-                filterNode.Q.rampTo(newSettings.Q, 0.02);
-            }
-            if (newSettings.gain !== undefined && filterNode.gain instanceof Tone.Param) {
-                filterNode.gain.rampTo(newSettings.gain, 0.02);
-            }
+
+            // Применяем параметры, которые изменяются мгновенно
             if (newSettings.type !== undefined) {
                 const validTypes = ['lowpass', 'highpass', 'bandpass', 'lowshelf', 'highshelf', 'notch', 'allpass', 'peaking'];
                 if (validTypes.includes(newSettings.type)) {
                     filterNode.type = newSettings.type;
-                } else {
-                    console.warn(`[FilterManager] Invalid filter type '${newSettings.type}' ignored.`);
                 }
             }
             if (newSettings.rolloff !== undefined) {
                 const validRolloffs = [-12, -24, -48, -96];
                 if (validRolloffs.includes(newSettings.rolloff)) {
                     filterNode.rolloff = newSettings.rolloff;
-                } else {
-                    console.warn(`[FilterManager] Invalid filter rolloff '${newSettings.rolloff}' ignored.`);
                 }
             }
-            console.log("[FilterManager] update() finished.");
-            const t1 = performance.now();
-            console.log(`[FilterManager] update() duration: ${(t1-t0).toFixed(2)}ms`);
+            // >>> КОНЕЦ ИЗМЕНЕНИЙ <<<
             return true;
         } catch (err) {
             console.error("[FilterManager] Error in update():", err);

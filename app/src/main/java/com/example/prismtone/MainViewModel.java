@@ -188,23 +188,48 @@ public class MainViewModel extends ViewModel {
     }
 
     public Object getSetting(String key) {
-        // ... (логика для masterVolumeCeiling и enablePolyphonyVolumeScaling остается) ...
+        Object value = genericSettings.get(key);
+
+        // >>> НАЧАЛО ИЗМЕНЕНИЙ (Исправление NPE) <<<
         switch (key) {
-            case "theme": return Objects.requireNonNullElse(currentTheme.getValue(), genericSettings.get(key));
-            case "language": return Objects.requireNonNullElse(currentLanguage.getValue(), genericSettings.get(key));
-            case "soundPreset": return Objects.requireNonNullElse(currentSoundPreset.getValue(), genericSettings.get(key));
-            case "fxChain": return currentFxChain.getValue();
-            case "visualizer": return Objects.requireNonNullElse(currentVisualizer.getValue(), genericSettings.get(key));
-            case "touchEffect": return Objects.requireNonNullElse(touchEffect.getValue(), genericSettings.get(key));
-            case "scale": return Objects.requireNonNullElse(currentScale.getValue(), genericSettings.get(key));
-            case "octaveOffset": return Objects.requireNonNullElse(octaveOffset.getValue(), genericSettings.get(key));
-            case "zoneCount": return Objects.requireNonNullElse(zoneCount.getValue(), genericSettings.get(key));
-            // yAxisControls получается целиком через getYAxisControls().getValue()
-            case "masterVolumeCeiling":
+            case "theme":
+                return Objects.requireNonNullElse(currentTheme.getValue(), "day");
+            case "language":
+                return Objects.requireNonNullElse(currentLanguage.getValue(), "en");
+            case "soundPreset":
+                return Objects.requireNonNullElse(currentSoundPreset.getValue(), "default_piano");
+            case "fxChain":
+                return currentFxChain.getValue(); // Может быть null
+            case "visualizer":
+                return Objects.requireNonNullElse(currentVisualizer.getValue(), "waves");
+            case "touchEffect":
+                return Objects.requireNonNullElse(touchEffect.getValue(), "glow");
+            case "scale":
+                return Objects.requireNonNullElse(currentScale.getValue(), "major");
+            case "octaveOffset":
+                return Objects.requireNonNullElse(octaveOffset.getValue(), 0);
+            case "zoneCount":
+                return Objects.requireNonNullElse(zoneCount.getValue(), 12);
+            case "currentTonic":
+                 return Objects.requireNonNullElse(currentTonic.getValue(), "C4");
+
+            // Для genericSettings используем явные проверки и дефолты
+            case "showNoteNames":
+            case "showLines":
             case "enablePolyphonyVolumeScaling":
-            case "currentTonic": return Objects.requireNonNullElse(currentTonic.getValue(), genericSettings.get(key));
+            case "highlightSharpsFlats":
+            case "vibrationEnabled":
+                return value instanceof Boolean ? value : true; // Безопасный дефолт
+
+            case "masterVolumeCeiling":
+                return value instanceof Double ? value : 1.0;
+            
+            case "vibrationIntensity":
+                 return value instanceof String ? value : "weak";
+
             default:
-                return genericSettings.get(key);
+                return value; // Для неизвестных ключей возвращаем то, что есть (может быть null)
         }
+        // >>> КОНЕЦ ИЗМЕНЕНИЙ <<<
     }
 }

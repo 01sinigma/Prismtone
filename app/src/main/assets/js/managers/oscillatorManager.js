@@ -155,142 +155,94 @@ const oscillatorManager = {
         return { nodes, audioInput: null, audioOutput, modInputs, modOutputs: {}, error };
     },
     update(nodes, newSettings) {
-        const t0 = performance.now();
-        console.log("[OscillatorManager] update() called with:", JSON.stringify(newSettings, null, 2));
         if (!nodes?.oscillatorNode || !newSettings) {
-            console.warn("[OscillatorManager] Update called with invalid args", JSON.parse(JSON.stringify({ nodes, newSettings })));
+            console.warn("[OscillatorManager] Update called with invalid args", { nodes, newSettings });
             return false;
         }
         const oscNode = nodes.oscillatorNode;
-        const oscType = nodes.oscillatorType;
+        const currentOscType = nodes.oscillatorType; // The type category set during creation
+
         try {
-            // Логируем состояние перед изменением
-            console.log("[OscillatorManager] update() oscNode state before:", {
-                frequency: oscNode.frequency?.value,
-                detune: oscNode.detune?.value,
-                phase: oscNode.phase,
-                portamento: oscNode.portamento,
-                type: oscNode.type,
-                count: oscNode.count,
-                spread: oscNode.spread,
-                width: oscNode.width?.value,
-                modulationFrequency: oscNode.modulationFrequency?.value,
-                harmonicity: oscNode.harmonicity?.value,
-                modulationIndex: oscNode.modulationIndex?.value,
-                modulationType: oscNode.modulationType
-            });
-            let t_param_start, t_param_end;
-            if (newSettings.frequency !== undefined && oscNode.frequency && (oscNode.frequency instanceof Tone.Param || oscNode.frequency instanceof Tone.Signal)) {
-                if (oscNode.frequency.cancelScheduledValues) oscNode.frequency.cancelScheduledValues(Tone.now());
-                t_param_start = performance.now();
-                oscNode.frequency.value = newSettings.frequency;
-                t_param_end = performance.now();
-                console.log(`[OscillatorManager] frequency.value set in ${(t_param_end-t_param_start).toFixed(2)}ms`);
+            const paramsToSet = {};
+
+            // Collect parameters that are part of Tone.Param or Tone.Signal and can be batched
+            if (newSettings.frequency !== undefined && oscNode.frequency?.value !== undefined) {
+                paramsToSet.frequency = newSettings.frequency;
             }
-            if (newSettings.detune !== undefined && oscNode.detune && (oscNode.detune instanceof Tone.Param || oscNode.detune instanceof Tone.Signal)) {
-                if (oscNode.detune.cancelScheduledValues) oscNode.detune.cancelScheduledValues(Tone.now());
-                t_param_start = performance.now();
-                oscNode.detune.value = newSettings.detune;
-                t_param_end = performance.now();
-                console.log(`[OscillatorManager] detune.value set in ${(t_param_end-t_param_start).toFixed(2)}ms`);
+            if (newSettings.detune !== undefined && oscNode.detune?.value !== undefined) {
+                paramsToSet.detune = newSettings.detune;
             }
-            if (newSettings.phase !== undefined && oscNode.hasOwnProperty('phase') && typeof oscNode.phase === 'number') {
-                t_param_start = performance.now();
-                oscNode.phase = newSettings.phase;
-                t_param_end = performance.now();
-                console.log(`[OscillatorManager] phase set in ${(t_param_end-t_param_start).toFixed(2)}ms`);
-            }
-            if (newSettings.portamento !== undefined && oscNode.hasOwnProperty('portamento') && typeof oscNode.portamento === 'number') {
-                t_param_start = performance.now();
-                oscNode.portamento = newSettings.portamento;
-                t_param_end = performance.now();
-                console.log(`[OscillatorManager] portamento set in ${(t_param_end-t_param_start).toFixed(2)}ms`);
-            }
-            switch (oscType) {
+
+            switch (currentOscType) {
                 case 'pwm':
-                    if (newSettings.modulationFrequency !== undefined && oscNode.modulationFrequency && (oscNode.modulationFrequency instanceof Tone.Param || oscNode.modulationFrequency instanceof Tone.Signal)) {
-                        if (oscNode.modulationFrequency.cancelScheduledValues) oscNode.modulationFrequency.cancelScheduledValues(Tone.now());
-                        t_param_start = performance.now();
-                        oscNode.modulationFrequency.value = newSettings.modulationFrequency;
-                        t_param_end = performance.now();
-                        console.log(`[OscillatorManager] modulationFrequency.value set in ${(t_param_end-t_param_start).toFixed(2)}ms`);
+                    if (newSettings.modulationFrequency !== undefined && oscNode.modulationFrequency?.value !== undefined) {
+                        paramsToSet.modulationFrequency = newSettings.modulationFrequency;
                     }
                     break;
                 case 'pulse':
-                    if (newSettings.width !== undefined && oscNode.width && (oscNode.width instanceof Tone.Param || oscNode.width instanceof Tone.Signal)) {
-                        if (oscNode.width.cancelScheduledValues) oscNode.width.cancelScheduledValues(Tone.now());
-                        t_param_start = performance.now();
-                        oscNode.width.value = newSettings.width;
-                        t_param_end = performance.now();
-                        console.log(`[OscillatorManager] width.value set in ${(t_param_end-t_param_start).toFixed(2)}ms`);
-                    }
-                    break;
-                case 'fatsine': case 'fatsquare': case 'fatsawtooth': case 'fattriangle':
-                    if (newSettings.count !== undefined && oscNode.hasOwnProperty('count') && typeof oscNode.count === 'number') {
-                        t_param_start = performance.now();
-                        const maxFatCount = 5;
-                        const newCount = Math.max(1, Math.min(parseInt(newSettings.count, 10), maxFatCount));
-                        if (parseInt(newSettings.count, 10) > maxFatCount) {
-                            console.warn(`[OscillatorManager] FatOscillator count (${newSettings.count}) exceeded max (${maxFatCount}). Clamped to ${newCount}.`);
-                        }
-                        oscNode.count = newCount;
-                        t_param_end = performance.now();
-                        console.log(`[OscillatorManager] count set in ${(t_param_end-t_param_start).toFixed(2)}ms`);
-                    }
-                    if (newSettings.spread !== undefined && oscNode.hasOwnProperty('spread') && typeof oscNode.spread === 'number') {
-                        t_param_start = performance.now();
-                        oscNode.spread = newSettings.spread;
-                        t_param_end = performance.now();
-                        console.log(`[OscillatorManager] spread set in ${(t_param_end-t_param_start).toFixed(2)}ms`);
+                    if (newSettings.width !== undefined && oscNode.width?.value !== undefined) {
+                        paramsToSet.width = newSettings.width;
                     }
                     break;
                 case 'amtriangle': case 'amsine': case 'amsquare': case 'amsawtooth':
-                    if (newSettings.harmonicity !== undefined && oscNode.harmonicity && (oscNode.harmonicity instanceof Tone.Param || oscNode.harmonicity instanceof Tone.Signal)) {
-                        if (oscNode.harmonicity.cancelScheduledValues) oscNode.harmonicity.cancelScheduledValues(Tone.now());
-                        t_param_start = performance.now();
-                        oscNode.harmonicity.value = newSettings.harmonicity;
-                        t_param_end = performance.now();
-                        console.log(`[OscillatorManager] harmonicity.value set in ${(t_param_end-t_param_start).toFixed(2)}ms`);
-                    }
-                    if (newSettings.modulationType !== undefined && oscNode.hasOwnProperty('modulationType')) {
-                        t_param_start = performance.now();
-                        oscNode.modulationType = newSettings.modulationType;
-                        t_param_end = performance.now();
-                        console.log(`[OscillatorManager] modulationType set in ${(t_param_end-t_param_start).toFixed(2)}ms`);
+                    if (newSettings.harmonicity !== undefined && oscNode.harmonicity?.value !== undefined) {
+                        paramsToSet.harmonicity = newSettings.harmonicity;
                     }
                     break;
                 case 'fmtriangle': case 'fmsine': case 'fmsquare': case 'fmsawtooth':
-                    if (newSettings.harmonicity !== undefined && oscNode.harmonicity && (oscNode.harmonicity instanceof Tone.Param || oscNode.harmonicity instanceof Tone.Signal)) {
-                        if (oscNode.harmonicity.cancelScheduledValues) oscNode.harmonicity.cancelScheduledValues(Tone.now());
-                        t_param_start = performance.now();
-                        oscNode.harmonicity.value = newSettings.harmonicity;
-                        t_param_end = performance.now();
-                        console.log(`[OscillatorManager] harmonicity.value set in ${(t_param_end-t_param_start).toFixed(2)}ms`);
+                    if (newSettings.harmonicity !== undefined && oscNode.harmonicity?.value !== undefined) {
+                        paramsToSet.harmonicity = newSettings.harmonicity;
                     }
-                    if (newSettings.modulationIndex !== undefined && oscNode.modulationIndex && (oscNode.modulationIndex instanceof Tone.Param || oscNode.modulationIndex instanceof Tone.Signal)) {
-                        if (oscNode.modulationIndex.cancelScheduledValues) oscNode.modulationIndex.cancelScheduledValues(Tone.now());
-                        t_param_start = performance.now();
-                        oscNode.modulationIndex.value = newSettings.modulationIndex;
-                        t_param_end = performance.now();
-                        console.log(`[OscillatorManager] modulationIndex.value set in ${(t_param_end-t_param_start).toFixed(2)}ms`);
-                    }
-                    if (newSettings.modulationType !== undefined && oscNode.hasOwnProperty('modulationType')) {
-                        t_param_start = performance.now();
-                        oscNode.modulationType = newSettings.modulationType;
-                        t_param_end = performance.now();
-                        console.log(`[OscillatorManager] modulationType set in ${(t_param_end-t_param_start).toFixed(2)}ms`);
+                    if (newSettings.modulationIndex !== undefined && oscNode.modulationIndex?.value !== undefined) {
+                        paramsToSet.modulationIndex = newSettings.modulationIndex;
                     }
                     break;
             }
-            if (newSettings.type !== undefined && oscNode.hasOwnProperty('type')) {
-                t_param_start = performance.now();
-                oscNode.type = newSettings.type;
-                t_param_end = performance.now();
-                console.log(`[OscillatorManager] type set in ${(t_param_end-t_param_start).toFixed(2)}ms`);
+
+            if (Object.keys(paramsToSet).length > 0) {
+                oscNode.set(paramsToSet); // Applies changes immediately
             }
-            console.log("[OscillatorManager] update() finished.");
-            const t1 = performance.now();
-            console.log(`[OscillatorManager] update() duration: ${(t1-t0).toFixed(2)}ms`);
+
+            // Direct property assignments
+            if (newSettings.phase !== undefined && oscNode.hasOwnProperty('phase')) {
+                oscNode.phase = newSettings.phase;
+            }
+            if (newSettings.portamento !== undefined && oscNode.hasOwnProperty('portamento')) {
+                oscNode.portamento = newSettings.portamento;
+            }
+
+            // Update oscillator's internal 'type' (waveform) if applicable and changed
+            if (newSettings.type !== undefined && oscNode.hasOwnProperty('type') && typeof oscNode.type === 'string') {
+                if (oscNode.type !== newSettings.type) {
+                    oscNode.type = newSettings.type;
+                }
+            }
+
+            // Oscillator-specific direct property assignments
+            switch (currentOscType) {
+                case 'fatsine': case 'fatsquare': case 'fatsawtooth': case 'fattriangle':
+                    if (newSettings.count !== undefined && oscNode.hasOwnProperty('count')) {
+                        const maxFatCount = 5; 
+                        const newCount = Math.max(1, Math.min(parseInt(newSettings.count, 10), maxFatCount));
+                        if (oscNode.count !== newCount) {
+                            oscNode.count = newCount;
+                        }
+                    }
+                    if (newSettings.spread !== undefined && oscNode.hasOwnProperty('spread')) {
+                         if (oscNode.spread !== newSettings.spread) {
+                            oscNode.spread = newSettings.spread;
+                        }
+                    }
+                    break;
+                case 'amtriangle': case 'amsine': case 'amsquare': case 'amsawtooth':
+                case 'fmtriangle': case 'fmsine': case 'fmsquare': case 'fmsawtooth':
+                    if (newSettings.modulationType !== undefined && oscNode.hasOwnProperty('modulationType')) {
+                        if (oscNode.modulationType !== newSettings.modulationType) {
+                            oscNode.modulationType = newSettings.modulationType;
+                        }
+                    }
+                    break;
+            }
             return true;
         } catch (err) {
             console.error("[OscillatorManager] Error in update():", err);

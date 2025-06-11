@@ -21,6 +21,7 @@ const pad = {
     _lastMoveEvent: null,
     _lastMoveProcessTime: 0,
     _isMoveProcessingQueued: false,
+    _pendingMoveEvents: new Map(), // Map<pointerId, event> для хранения последних событий
 
     init(containerElement) {
         console.log('[Pad v10.2 - Crash Fix] Initializing...');
@@ -312,13 +313,13 @@ const pad = {
         }
     },
 
-    handlePointerMove(event) {
+    processSinglePointerMove(event) {
         if (!this.activeTouchesInternal.has(event.pointerId) || !this.isReady) return;
-        event.preventDefault();
-
+        
         this.lastInteractionTime = Date.now();
         const touchInfo = this.getTouchInfo(event);
         if (!touchInfo) return;
+
         this.lastY = touchInfo.y;
         
         const internalTouchData = this.activeTouchesInternal.get(event.pointerId);
@@ -338,17 +339,13 @@ const pad = {
                 if (zone) newZoneIndex = zone.index;
             }
 
-            // >>> НАЧАЛО ЛОГИКИ ВИБРАЦИИ (v2) <<<
             if (VibrationService.isEnabled) {
                 if (newZoneIndex !== -1 && newZoneIndex !== previousZoneIndex) {
-                    console.log(`[Pad.js] >>> VIBRATION TRIGGERED: 'zone_cross'`);
-                    const strength = touchInfo.y; // Сила для возобновления вибрации
+                    const strength = touchInfo.y;
                     VibrationService.trigger('zone_cross', strength);
                     if (internalTouchData) internalTouchData.previousZoneIndex = newZoneIndex;
                 }
-                // Мы больше НЕ вызываем trigger('slide') здесь, чтобы избежать дребезжания.
             }
-            // >>> КОНЕЦ ЛОГИКИ ВИБРАЦИИ <<<
             
             if (noteAction.type === 'note_change') {
                 synth.updateNote(noteAction.newNote.frequency, 0.7, touchInfo.y, event.pointerId);
@@ -368,6 +365,32 @@ const pad = {
             internalTouchData.x = touchInfo.x;
             internalTouchData.y = touchInfo.y;
             internalTouchData.state = 'move';
+        }
+    },
+
+    _processPendingMoves() {
+        if (this._pendingMoveEvents.size === 0) {
+            this._isMoveProcessingQueued = false;
+            return;
+        }
+
+        this._pendingMoveEvents.forEach(event => {
+            this.processSinglePointerMove(event);
+        });
+
+        this._pendingMoveEvents.clear();
+        this._isMoveProcessingQueued = false;
+    },
+
+    handlePointerMove(event) {
+        if (!this.activeTouchesInternal.has(event.pointerId)) return;
+        event.preventDefault();
+
+        this._pendingMoveEvents.set(event.pointerId, event);
+
+        if (!this._isMoveProcessingQueued) {
+            this._isMoveProcessingQueued = true;
+            requestAnimationFrame(this._processPendingMoves.bind(this));
         }
     },
 

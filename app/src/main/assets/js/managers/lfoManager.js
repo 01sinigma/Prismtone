@@ -40,24 +40,30 @@ const lfoManager = {
     },
 
     update(nodes, newSettings) {
-        const t0 = performance.now();
-        console.log("[LFOManager] update() called with:", newSettings);
         if (!nodes?.lfo || !nodes?.depth) {
             console.warn("[LFOManager] Update called with invalid nodes.", nodes);
             return false;
         }
         try {
-            if (newSettings.frequency !== undefined) nodes.lfo.frequency.value = newSettings.frequency;
-            if (newSettings.type !== undefined) nodes.lfo.type = newSettings.type;
-            if (newSettings.phase !== undefined) nodes.lfo.phase = newSettings.phase;
-            if (newSettings.depth !== undefined && nodes.depth.factor instanceof Tone.Signal) {
-                nodes.depth.factor.value = newSettings.depth;
-            } else if (newSettings.depth !== undefined) {
-                nodes.depth.value = newSettings.depth;
+            const lfoNode = nodes.lfo;
+            const depthNode = nodes.depth;
+
+            const lfoPropsToSet = {};
+            if (newSettings.frequency !== undefined) lfoPropsToSet.frequency = newSettings.frequency;
+            if (newSettings.type !== undefined) lfoPropsToSet.type = newSettings.type;
+            if (newSettings.phase !== undefined) lfoPropsToSet.phase = newSettings.phase;
+
+            if (Object.keys(lfoPropsToSet).length > 0) {
+                lfoNode.set(lfoPropsToSet);
             }
-            console.log("[LFOManager] update() finished.");
-            const t1 = performance.now();
-            console.log(`[LFOManager] update() duration: ${(t1-t0).toFixed(2)}ms`);
+
+            if (newSettings.depth !== undefined) {
+                if (depthNode.factor && (depthNode.factor instanceof Tone.Signal || depthNode.factor instanceof Tone.Param)) {
+                    depthNode.factor.value = newSettings.depth;
+                } else {
+                    console.warn("[LFOManager] depthNode.factor is not a Signal or Param. Depth not set for LFO.");
+                }
+            }
             return true;
         } catch (err) {
             console.error("[LFOManager] Error in update():", err);

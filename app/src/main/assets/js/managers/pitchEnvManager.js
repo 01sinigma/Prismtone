@@ -61,8 +61,6 @@ const pitchEnvManager = {
      * @returns {boolean} - true при успехе.
      */
     update(nodes, newSettings) {
-        const t0 = performance.now();
-        console.log("[PitchEnvManager] update() called with:", newSettings);
         if (!nodes?.env || !nodes?.amount) {
             console.warn("[PitchEnvManager] Update called with invalid nodes.", nodes);
             return false;
@@ -74,17 +72,24 @@ const pitchEnvManager = {
             if (newSettings.sustain !== undefined) envSettings.sustain = newSettings.sustain;
             if (newSettings.release !== undefined) envSettings.release = newSettings.release;
             if (newSettings.attackCurve !== undefined) envSettings.attackCurve = newSettings.attackCurve;
+            // decayCurve and releaseCurve are not directly settable on Tone.Envelope via .set like this.
+            // They are usually set at construction or by replacing the curve property if available.
+
             if (Object.keys(envSettings).length > 0) {
                 nodes.env.set(envSettings);
             }
-            if (newSettings.amount !== undefined && nodes.amount.factor instanceof Tone.Signal) {
-                nodes.amount.factor.value = newSettings.amount;
-            } else if (newSettings.amount !== undefined) {
-                nodes.amount.value = newSettings.amount;
+
+            if (newSettings.amount !== undefined) {
+                // Check if nodes.amount.factor exists and is a Tone.Signal or Tone.Param
+                if (nodes.amount.factor && (nodes.amount.factor instanceof Tone.Signal || nodes.amount.factor instanceof Tone.Param)) {
+                    nodes.amount.factor.value = newSettings.amount;
+                } else if (nodes.amount.hasOwnProperty('value')) {
+                    // Fallback for nodes where 'value' is a direct property (e.g., if it's not a Signal/Param wrapper)
+                    nodes.amount.value = newSettings.amount; 
+                } else {
+                    console.warn("[PitchEnvManager] Could not set amount on nodes.amount", nodes.amount);
+                }
             }
-            console.log("[PitchEnvManager] update() finished.");
-            const t1 = performance.now();
-            console.log(`[PitchEnvManager] update() duration: ${(t1-t0).toFixed(2)}ms`);
             return true;
         } catch (err) {
             console.error("[PitchEnvManager] Error in update():", err);

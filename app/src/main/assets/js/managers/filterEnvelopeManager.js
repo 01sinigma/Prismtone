@@ -61,8 +61,6 @@ const filterEnvelopeManager = {
      * @returns {boolean} - true при успехе.
      */
     update(nodes, newSettings) {
-        const t0 = performance.now();
-        console.log("[FilterEnvManager] update() called with:", newSettings);
         if (!nodes?.env || !nodes?.amountControl) {
             console.warn("[FilterEnvManager] Update called with invalid nodes.", nodes);
             return false;
@@ -76,17 +74,22 @@ const filterEnvelopeManager = {
             if (newSettings.attackCurve !== undefined) envParamsToSet.attackCurve = newSettings.attackCurve;
             if (newSettings.decayCurve !== undefined) envParamsToSet.decayCurve = newSettings.decayCurve;
             if (newSettings.releaseCurve !== undefined) envParamsToSet.releaseCurve = newSettings.releaseCurve;
+
             if (Object.keys(envParamsToSet).length > 0) {
                 nodes.env.set(envParamsToSet);
             }
-            if (newSettings.amount !== undefined && nodes.amountControl.factor instanceof Tone.Signal) {
-                nodes.amountControl.factor.value = newSettings.amount;
-            } else if (newSettings.amount !== undefined) {
-                nodes.amountControl.value = newSettings.amount;
+
+            if (newSettings.amount !== undefined) {
+                // Check if nodes.amountControl.factor exists and is a Tone.Signal or Tone.Param
+                if (nodes.amountControl.factor && (nodes.amountControl.factor instanceof Tone.Signal || nodes.amountControl.factor instanceof Tone.Param)) {
+                    nodes.amountControl.factor.value = newSettings.amount;
+                } else if (nodes.amountControl.hasOwnProperty('value')) { 
+                    // Fallback for nodes where 'value' is a direct property
+                    nodes.amountControl.value = newSettings.amount;
+                } else {
+                    console.warn("[FilterEnvManager] Could not set amount on nodes.amountControl", nodes.amountControl);
+                }
             }
-            console.log("[FilterEnvManager] update() finished.");
-            const t1 = performance.now();
-            console.log(`[FilterEnvManager] update() duration: ${(t1-t0).toFixed(2)}ms`);
             return true;
         } catch (err) {
             console.error("[FilterEnvManager] Error in update():", err);
