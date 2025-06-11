@@ -713,8 +713,8 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
   color: var(--color-primary);
 }
 .custom-selector-option.active {
-  background: rgba(var(--color-primary-rgb),0.18);
-  color: var(--color-accent, var(--color-primary));
+  background: rgba(var(--color-primary-rgb), 0.18);
+  color: var(--color-primary); /* <--- Исправлено */
   font-weight: 600;
 }
 .custom-selector-option .option-preview {
@@ -1611,5 +1611,295 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
 
 #chord-panel-expand-btn:hover svg polyline {
     stroke: var(--color-primary-dark); /* Темнее при наведении */
+}
+
+/* Timer Progress Bar Styles */
+#timer-progress-container {
+    display: none; /* Hidden by default */
+    position: absolute;
+    bottom: 0; /* Position at the bottom of the xy-pad-container */
+    left: 0;
+    width: 100%;
+    height: 3px; /* Thin bar */
+    pointer-events: none; /* Allow clicks to pass through */
+    z-index: 4; /* Above zones, below labels if labels have higher z-index, adjust as needed */
+}
+
+#timer-progress-container.timer-active {
+    display: flex; /* Use flex to manage left/right bars */
+    justify-content: center; /* Center the bars initially if they don't fill width */
+}
+
+.timer-progress-bar {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    /* >>> НАЧАЛО ИСПРАВЛЕНИЯ <<< */
+    background-color: var(--color-primary); /* Используем сплошной основной цвет темы */
+    /* >>> КОНЕЦ ИСПРАВЛЕНИЯ <<< */
+    box-shadow: 0 0 5px var(--color-primary), 0 0 10px var(--color-primary);
+    opacity: 0; /* Начальная прозрачность 0, будет управляться анимацией */
+    width: 0%;
+}
+
+.timer-progress-bar.left {
+    width: 0%; /* Starts at 0, animates to 50% */
+    animation-name: progress-center-out-left;
+    animation-timing-function: linear;
+    border-top-left-radius: 2px;
+    border-bottom-left-radius: 2px;
+    margin-right: 0.5px; /* Tiny gap if needed */
+}
+
+.timer-progress-bar.right {
+    width: 0%; /* Starts at 0, animates to 50% */
+    animation-name: progress-center-out-right;
+    animation-timing-function: linear;
+    border-top-right-radius: 2px;
+    border-bottom-right-radius: 2px;
+    margin-left: 0.5px; /* Tiny gap if needed */
+}
+
+@keyframes progress-center-out-left {
+    from { width: 0%; }
+    to { width: 50%; }
+}
+@keyframes progress-center-out-right {
+    from { width: 0%; }
+    to { width: 50%; }
+}
+
+
+/* Timer Progress Ring (Button) Styles */
+#chord-timer-toggle-btn .timer-progress-ring {
+    fill: none;
+    stroke: var(--color-primary); /* Use theme color */
+    stroke-width: 2; /* Adjust as needed, should match or be slightly less than the main ring's stroke */
+    stroke-linecap: round;
+    transform-origin: center;
+    transform: rotate(-90deg); /* Start from the top */
+    /* stroke-dasharray and stroke-dashoffset will be calculated by JS if needed, or set for a typical circle */
+    /* For a circle with r="10", circumference is 2 * PI * 10 approx 62.83 */
+    stroke-dasharray: 62.83;
+    stroke-dashoffset: 62.83; /* Initially hidden */
+}
+
+#chord-timer-toggle-btn.timer-active .timer-progress-ring {
+    animation-name: countdown-ring;
+    animation-timing-function: linear;
+    /* animation-duration will be set by JS */
+}
+
+@keyframes countdown-ring {
+    from {
+        stroke-dashoffset: 62.83; /* Start hidden (full offset) */
+    }
+    to {
+        stroke-dashoffset: 0; /* End visible (no offset) */
+    }
+}
+
+#vibration-intensity-controls.hidden {
+    display: none;
+}
+#vibration-intensity-controls .text-button {
+    flex-grow: 1;
+    margin: 0 4px;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+    border: 1px solid transparent;
+}
+#vibration-intensity-controls .text-button.active {
+    background-color: rgba(var(--color-primary-rgb), 0.15);
+    color: var(--color-primary-dark);
+    border-color: var(--color-primary);
+    font-weight: bold;
+}
+
+/* === ИСПРАВЛЕННЫЕ СТИЛИ для Анимации Таймера (Задача 4) === */
+
+/* 1. Контейнер и полоса прогресса */
+#timer-progress-container {
+    position: absolute;
+    /* Позиционируем под xy-labels */
+    top: var(--xy-label-height);
+    left: 0;
+    width: 100%;
+    height: 3px;
+    pointer-events: none;
+    display: none; /* Скрыт по умолчанию */
+    z-index: 22;
+}
+
+.timer-progress-bar {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    /* Более выраженный неоновый градиент */
+    background: linear-gradient(90deg, transparent, var(--color-primary));
+    box-shadow: 0 0 4px 1px var(--color-primary);
+    opacity: 0; /* Начальная прозрачность 0, будет управляться анимацией */
+    width: 0%;  /* Начальная ширина 0 */
+}
+
+/* Более надежный способ для расхождения от центра */
+.timer-progress-bar.left {
+    right: 50%; /* Привязываем к правому краю, который находится в центре */
+    transform-origin: right;
+}
+
+.timer-progress-bar.right {
+    left: 50%; /* Привязываем к левому краю, который находится в центре */
+    transform-origin: left;
+}
+
+/* Класс для запуска анимации */
+#timer-progress-container.timer-active .timer-progress-bar {
+    /* Имя анимации будет одно и то же, но transform-origin сделает свое дело */
+    animation-name: progress-bar-expand;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+    /* animation-duration устанавливается через JS */
+}
+
+@keyframes progress-bar-expand {
+    0% {
+        width: 0%;
+        opacity: 0.9; /* Начинаем с высокой непрозрачности */
+    }
+    99% {
+        width: 50%;
+        opacity: 0.9; /* Сохраняем непрозрачность почти до конца */
+    }
+    100% {
+        width: 50%;
+        opacity: 0; /* Резко исчезаем в самом конце, готовясь к новому циклу */
+    }
+}
+
+
+/* 2. Анимация круга на кнопке */
+#chord-timer-toggle-btn .timer-progress-ring {
+    fill: none;
+    stroke: var(--color-primary);
+    stroke-width: 4;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+    stroke-dasharray: 62.83; /* 2 * PI * 10 */
+    stroke-dashoffset: 62.83; /* Полностью скрыт в начале */
+    opacity: 0.8;
+}
+
+#chord-timer-toggle-btn.timer-active .timer-progress-ring {
+    animation-name: countdown-ring-fill; /* Новое имя анимации */
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+    /* animation-duration устанавливается через JS */
+}
+
+/* Исправленная анимация: от пустого к полному */
+@keyframes countdown-ring-fill {
+    from {
+        stroke-dashoffset: 62.83; /* Начинаем с полного смещения (пустой круг) */
+    }
+    to {
+        stroke-dashoffset: 0; /* Заканчиваем без смещения (полный круг) */
+    }
+}
+
+/* === ФИНАЛЬНЫЕ СТИЛИ для Анимации Таймера (Задача 4, Исправление) === */
+
+/* 1. Полоса прогресса под пэдом */
+#timer-progress-container {
+    position: absolute;
+    top: var(--xy-label-height); /* Сразу под метками нот */
+    left: 0;
+    width: 100%;
+    height: 3px; /* Высота самой неоновой линии */
+    pointer-events: none;
+    display: none; /* Скрыт по умолчанию */
+    z-index: 22;
+}
+
+#timer-progress-container.timer-active {
+    display: flex; /* Отображаем, когда таймер активен */
+    justify-content: center;
+}
+
+.timer-progress-bar {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    
+    /* >>> НАЧАЛО ИЗМЕНЕНИЙ <<< */
+    /* Убираем градиент, ставим сплошной цвет темы */
+    background-color: var(--color-primary);
+    
+    /* Усиливаем неоновый эффект */
+    box-shadow: 0 0 5px 1.5px var(--color-primary), 
+                0 0 12px 2px rgba(var(--color-primary-rgb), 0.7);
+    
+    /* Убираем opacity, полоса всегда полностью видима во время анимации */
+    opacity: 1; 
+    
+    width: 0%; /* Начальное состояние */
+    /* >>> КОНЕЦ ИЗМЕНЕНИЙ <<< */
+}
+
+/* Симметричная анимация от центра */
+.timer-progress-bar.left {
+    right: 50%;
+    transform-origin: right;
+}
+
+.timer-progress-bar.right {
+    left: 50%;
+    transform-origin: left;
+}
+
+#timer-progress-container.timer-active .timer-progress-bar {
+    /* Имя анимации остается прежним */
+    animation-name: progress-bar-expand;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+    /* animation-duration устанавливается через JS */
+}
+
+/* Исправленная анимация без прозрачности */
+@keyframes progress-bar-expand {
+    from {
+        width: 0%;
+    }
+    to {
+        width: 50%;
+    }
+}
+
+
+/* 2. Анимация круга на кнопке (остается без изменений, она работает корректно) */
+#chord-timer-toggle-btn .timer-progress-ring {
+    fill: none;
+    stroke: var(--color-primary);
+    stroke-width: 4;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+    stroke-dasharray: 62.83;
+    stroke-dashoffset: 62.83;
+    opacity: 0.8;
+}
+
+#chord-timer-toggle-btn.timer-active .timer-progress-ring {
+    animation-name: countdown-ring-fill;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+    /* animation-duration устанавливается через JS */
+}
+
+@keyframes countdown-ring-fill {
+    from {
+        stroke-dashoffset: 62.83; /* Начинаем пустым */
+    }
+    to {
+        stroke-dashoffset: 0;     /* Заканчиваем полным */
+    }
 }
 

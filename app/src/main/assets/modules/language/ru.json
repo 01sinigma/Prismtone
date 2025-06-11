@@ -618,7 +618,12 @@
       "delete_preset_modal_title": "Удалить Прогрессию",
 
       "cancel_button_label": "Отмена",
-      "add_button_label": "Добавить"
+      "add_button_label": "Добавить",
+      "enable_vibration": "Включить вибрацию",
+      "vibration_intensity_label": "Интенсивность",
+      "vibration_weak": "Слабая",
+      "vibration_medium": "Средняя",
+      "vibration_strong": "Сильная"
     }
   }
 }

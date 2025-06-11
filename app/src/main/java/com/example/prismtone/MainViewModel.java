@@ -15,26 +15,21 @@ public class MainViewModel extends ViewModel {
 
     // YAxisControls класс теперь определен в YAxisControls.java
 
-    private final MutableLiveData<String> currentTheme = new MutableLiveData<>("day");
+    private final MutableLiveData<String> currentTheme = new MutableLiveData<>("aurora");
     private final MutableLiveData<String> currentLanguage = new MutableLiveData<>("en");
     private final MutableLiveData<String> currentSoundPreset = new MutableLiveData<>("default_piano");
-    private final MutableLiveData<String> currentFxChain = new MutableLiveData<>("default_ambient");
-    private final MutableLiveData<String> currentVisualizer = new MutableLiveData<>("waves");
-    private final MutableLiveData<String> touchEffect = new MutableLiveData<>("glow");
+    private final MutableLiveData<String> currentFxChain = new MutableLiveData<>(null); // null по умолчанию
+    private final MutableLiveData<String> currentVisualizer = new MutableLiveData<>("nebula");
+    private final MutableLiveData<String> touchEffect = new MutableLiveData<>("ballLightningLink");
     private final MutableLiveData<String> currentScale = new MutableLiveData<>("major");
     private final MutableLiveData<Integer> octaveOffset = new MutableLiveData<>(0);
     private final MutableLiveData<Integer> zoneCount = new MutableLiveData<>(12);
-
-    // === НОВОЕ: Состояние для текущей тоники ===
     private final MutableLiveData<String> currentTonic = new MutableLiveData<>("C4");
-    // ==========================================
-
-    // Используем новый класс YAxisControls
     private final MutableLiveData<YAxisControls> yAxisControlsLiveData = new MutableLiveData<>(new YAxisControls());
-
     private final Map<String, Object> genericSettings = new HashMap<>();
 
     public MainViewModel() {
+        // Теперь genericSettings заполняются из значений LiveData
         genericSettings.put("theme", currentTheme.getValue());
         genericSettings.put("language", currentLanguage.getValue());
         genericSettings.put("soundPreset", currentSoundPreset.getValue());
@@ -44,15 +39,17 @@ public class MainViewModel extends ViewModel {
         genericSettings.put("scale", currentScale.getValue());
         genericSettings.put("octaveOffset", octaveOffset.getValue());
         genericSettings.put("zoneCount", zoneCount.getValue());
+        genericSettings.put("currentTonic", currentTonic.getValue());
+        
+        // >>> НАЧАЛО ИЗМЕНЕНИЙ: ОБНОВЛЕНИЕ БУЛЕВЫХ И ЧИСЛОВЫХ ЗНАЧЕНИЙ <<<
         genericSettings.put("showNoteNames", true);
-        genericSettings.put("showLines", true); // Изменил обратно на showLines для соответствия HTML
+        genericSettings.put("showLines", true);
         genericSettings.put("masterVolumeCeiling", 1.0);
         genericSettings.put("enablePolyphonyVolumeScaling", true);
-        // yAxisControlsLiveData уже инициализирован экземпляром YAxisControls с дефолтными значениями VolumeControl и EffectsControl
-        // === НОВОЕ: Настройки по умолчанию для тоники и стилизации ===
-        genericSettings.put("currentTonic", currentTonic.getValue());
-        genericSettings.put("highlightSharpsFlats", false);
-        // ===========================================================
+        genericSettings.put("highlightSharpsFlats", true); // Включено по умолчанию
+        genericSettings.put("vibrationEnabled", true);
+        genericSettings.put("vibrationIntensity", "weak");
+        // >>> КОНЕЦ ИЗМЕНЕНИЙ <<<
     }
 
     public LiveData<String> getCurrentTheme() { return currentTheme; }

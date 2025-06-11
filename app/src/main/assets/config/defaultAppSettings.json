@@ -1,17 +1,20 @@
 {
-  "theme": "day",
+  "theme": "aurora",
   "language": "en",
   "soundPreset": "default_piano",
   "fxChain": null,
-  "visualizer": "waves",
-  "touchEffect": "glow",
+  "visualizer": "nebula",
+  "touchEffect": "ballLightningLink",
   "scale": "major",
   "octaveOffset": 0,
   "zoneCount": 12,
   "showNoteNames": true,
   "showLines": true,
+  "highlightSharpsFlats": true,
   "masterVolumeCeiling": 1.0,
   "enablePolyphonyVolumeScaling": true,
+  "vibrationEnabled": true,
+  "vibrationIntensity": "weak",
   "yAxisControls": {
     "volume": {
       "minOutput": 0.0,
@@ -30,6 +33,7 @@
       "outputType": "db"
     }
   },
+  "padMode": "classic",
   "multiTouch": false,
   "midiEnabled": false,
   "midiChannel": 0,

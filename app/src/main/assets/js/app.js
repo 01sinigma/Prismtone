@@ -2,12 +2,12 @@
 
 const app = {
     state: {
-        theme: 'day',
+        theme: 'aurora',
         language: 'en',
-        soundPreset: '_test_single_preset',
+        soundPreset: 'default_piano', // Вы можете выбрать другой стартовый пресет
         fxChain: null,
-        visualizer: 'waves',
-        touchEffect: 'glow',
+        visualizer: 'nebula',
+        touchEffect: 'ballLightningLink',
         scale: 'major',
         octaveOffset: 0,
         zoneCount: 12,
@@ -16,38 +16,18 @@ const app = {
         isInitialized: false,
         hasUserInteracted: false,
         showNoteNames: true,
-        showLines: true, // Используем showLines, как было изначально в UI HTML
+        showLines: true,
         masterVolumeCeiling: 1.0,
         enablePolyphonyVolumeScaling: true,
-        // === ДОБАВЛЕНА currentTonic ===
-        currentTonic: "C4", // Дефолтная тоника
-        // === ДОБАВЛЕНА highlightSharpsFlats ===
-        highlightSharpsFlats: false, // Дефолтное состояние для подсветки диезов/бемолей
-        // === ОБНОВЛЕННАЯ СТРУКТУРА yAxisControls для Части 2 ===
+        currentTonic: "C4",
+        highlightSharpsFlats: true, // Включено по умолчанию
         yAxisControls: {
-            volume: {
-                minOutput: 0.0, // Изменено с 0.1 для полного диапазона, если yThreshold=0
-                maxOutput: 1.0,
-                yThreshold: 0.0,
-                curveType: 'linear',
-                curveFactor: 1.0, // Для exponential/log - степень, для sCurve - крутизна
-                outputType: 'gain' // 'gain' (0-1)
-            },
-            effects: {
-                minOutput: -60,    // Значение в dB
-                maxOutput: 0,      // Значение в dB
-                yThreshold: 0.1,
-                curveType: 'exponential',
-                curveFactor: 2.0,
-                outputType: 'db'   // 'db'
-            }
+            volume: { minOutput: 0.0, maxOutput: 1.0, yThreshold: 0.0, curveType: 'linear', curveFactor: 1.0, outputType: 'gain' },
+            effects: { minOutput: -60, maxOutput: 0, yThreshold: 0.1, curveType: 'exponential', curveFactor: 2.0, outputType: 'db' }
         },
-        // +++ НОВОЕ СВОЙСТВО +++
-        presetYAxisEffectsConfig: null, // Будет хранить yAxisEffectsSendConfig из активного пресета
-        // +++ КОНЕЦ НОВОГО СВОЙСТВА +++
-        // === НОВОЕ: Состояние для режима пэда ===
-        padMode: "classic", // Режим по умолчанию
-        currentChordName: null, // Для будущего ChordMode
+        presetYAxisEffectsConfig: null,
+        padMode: "classic",
+        currentChordName: null,
         rocketModeSettings: {
             highlightActiveNotes: true,
             showDirectionalMarkers: true,
@@ -59,25 +39,23 @@ const app = {
             autoPhases: true,
             phaseTransitionMode: 'activity',
             phaseDurations: { ignition: 30, liftOff: 60, burst: 90 },
-            // === Новые поля для Rocket Status Panel ===
-            chordBehavior: 'analyze', // 'analyze' | 'ignore' | 'fixed'
-            nextSuggestionType: 'chords', // 'chords' | 'notes' | 'cadences' | 'improv'
-            phaseHintMode: 'phaseAware', // 'phaseAware' | 'ignorePhase' | 'burstOnly'
-            energyAffectsHints: true, // true | false
-            keyBehavior: 'auto' // 'auto' | 'fixed' | 'ignore'
+            chordBehavior: 'analyze',
+            nextSuggestionType: 'chords',
+            phaseHintMode: 'phaseAware',
+            energyAffectsHints: true,
+            keyBehavior: 'auto'
         },
-        // === Rocket Mode Phase State ===
         rocketModePhase: 'ignition',
         rocketModeCurrentPhaseStartTime: 0,
         rocketModeCurrentPhaseActivityCounter: 0,
         rocketModeEnergy: 0,
-        // ==============================
-        yAxisDefinedByPreset: false, // true, если yAxisControls были установлены из текущего звукового пресета
+        yAxisDefinedByPreset: false,
         isChordPanelCollapsed: false,
         chordPanelWidth: 320,
-        // === ДОБАВЛЕНО ДЛЯ ТАЙМЕРА ===
-        transportBpm: 120, // BPM по умолчанию
-        isApplyingChange: false, // Глобальный флаг блокировки
+        transportBpm: 120,
+        isApplyingChange: false,
+        vibrationEnabled: true,
+        vibrationIntensity: 'weak',
     },
     elements: {
         loadingOverlay: null,
@@ -289,6 +267,20 @@ const app = {
                 this.elements.statusNextSuggestions = document.getElementById('status-next-suggestions');
                 this.elements.statusEnergyLevel = document.getElementById('status-energy-level');
                 this.elements.statusCurrentPhase = document.getElementById('status-current-phase');
+            }
+
+            // ... после инициализации i18n и moduleManager ...
+            if (typeof VibrationService !== 'undefined') {
+                VibrationService.init(this);
+                console.log('[App.init] VibrationService initialized.');
+                // >>> НАЧАЛО НОВОГО КОДА <<<
+                // Явно конфигурируем сервис на основе загруженного или дефолтного состояния
+                VibrationService.setEnabled(this.state.vibrationEnabled);
+                VibrationService.setIntensity(this.state.vibrationIntensity);
+                console.log(`[App.init] VibrationService configured with state: enabled=${this.state.vibrationEnabled}, intensity=${this.state.vibrationIntensity}`);
+                // >>> КОНЕЦ НОВОГО КОДА <<<
+            } else {
+                console.error('[App.init] VibrationService not found!');
             }
 
         } catch (error) {
@@ -658,7 +650,7 @@ const app = {
                 if (this.elements.loadingOverlay && !this.elements.loadingOverlay.classList.contains('hidden')) {
                      const currentTextKey = this.elements.loadingText?.dataset.i18nKey || 'loading';
                      // Предполагается, что updateLoadingText может использовать i18n для перевода ключа
-                     this.updateLoadingText(currentTextKey, currentTextKey); 
+                     this.updateLoadingText(currentTextKey, currentTextKey);
                 }
 
                 // Сохраняем в bridge ПОСЛЕ успешной загрузки языка
@@ -932,17 +924,11 @@ const app = {
         try {
             this.state.scale = scaleId;
 
-            // Сначала обновляем состояние, потом вызываем асинхронные операции
-            // PadModeManager.onScaleChanged, если существует, должен сам позаботиться об updateZoneLayout
-            if (PadModeManager && typeof PadModeManager.onScaleChanged === 'function') {
-                await PadModeManager.onScaleChanged(this.state.scale);
-            } else {
-                // Если PadModeManager или onScaleChanged нет, вызываем updateZoneLayout напрямую
-                console.warn("[App.setScale] PadModeManager.onScaleChanged not available, calling updateZoneLayout directly.");
-                if (typeof this.updateZoneLayout === 'function') {
-                    await this.updateZoneLayout();
-                }
-            }
+            // >>> НАЧАЛО ИСПРАВЛЕНИЯ <<<
+            // Прямой вызов правильной функции. Делегирование в PadModeManager больше не нужно.
+            await this.updateZoneLayout();
+            console.log(`[App.setScale] Zone layout update triggered for new scale: ${scaleId}`);
+            // >>> КОНЕЦ ИСПРАВЛЕНИЯ <<<
 
             // Обновляем UI панели тональности
             if (sidePanel?.updateTonalityControls) {
@@ -962,7 +948,6 @@ const app = {
             }
         }
     },
-
     async setOctaveOffset(offset) {
         const newOffset = Math.max(-7, Math.min(7, parseInt(offset, 10)));
         if (newOffset === this.state.octaveOffset || isNaN(newOffset)) return;
@@ -970,17 +955,17 @@ const app = {
         const previousOffset = this.state.octaveOffset;
 
         try {
-            this.state.octaveOffset = newOffset;
+        this.state.octaveOffset = newOffset;
 
             // Важно ДОЖДАТЬСЯ обновления раскладки перед другими действиями
             if (typeof this.updateZoneLayout === 'function') {
-                await this.updateZoneLayout();
+        await this.updateZoneLayout();
             }
 
             // Обновляем UI панели тональности
-            if (sidePanel?.updateTonalityControls) {
-                sidePanel.updateTonalityControls(this.state.octaveOffset, this.state.scale, this.state.zoneCount);
-            }
+        if (sidePanel?.updateTonalityControls) {
+            sidePanel.updateTonalityControls(this.state.octaveOffset, this.state.scale, this.state.zoneCount);
+        }
 
             // Сохраняем в bridge ПОСЛЕ всех успешных операций
             if (this.state.isBridgeReady) {
@@ -1011,17 +996,17 @@ const app = {
         const previousCount = this.state.zoneCount;
 
         try {
-            this.state.zoneCount = newCount;
+        this.state.zoneCount = newCount;
 
             // Важно ДОЖДАТЬСЯ обновления раскладки перед другими действиями
             if (typeof this.updateZoneLayout === 'function') {
-                await this.updateZoneLayout();
+        await this.updateZoneLayout();
             }
 
             // Обновляем UI панели тональности
-            if (sidePanel?.updateTonalityControls) {
-                sidePanel.updateTonalityControls(this.state.octaveOffset, this.state.scale, this.state.zoneCount);
-            }
+        if (sidePanel?.updateTonalityControls) {
+            sidePanel.updateTonalityControls(this.state.octaveOffset, this.state.scale, this.state.zoneCount);
+        }
 
             // Сохраняем в bridge ПОСЛЕ всех успешных операций
             if (this.state.isBridgeReady) {
@@ -1255,46 +1240,46 @@ const app = {
 
         try {
             // 1. Остановка всего играющего и очистка
-            if (typeof synth !== 'undefined' && typeof synth.stopAllNotes === 'function') {
-                synth.stopAllNotes();
-            }
-            if (typeof pad !== 'undefined' && typeof pad.emergencyCleanup === 'function') {
-                pad.emergencyCleanup();
-            }
+        if (typeof synth !== 'undefined' && typeof synth.stopAllNotes === 'function') {
+            synth.stopAllNotes();
+        }
+        if (typeof pad !== 'undefined' && typeof pad.emergencyCleanup === 'function') {
+            pad.emergencyCleanup();
+        }
 
             // 2. Освобождение ресурсов synth
-            console.log("[App.restartAudioEngine] Освобождаю ресурсы synth...");
-            if (typeof synth !== 'undefined') {
-                if (synth.voices && Array.isArray(synth.voices)) {
-                    synth.voices.forEach((voiceData, index) => {
-                        if (voiceData && voiceData.components) {
-                            voiceBuilder.disposeComponents(voiceData.components);
-                        }
-                        if (voiceData && voiceData.fxSend) {
-                            try { voiceData.fxSend.disconnect(); voiceData.fxSend.dispose(); } catch(e) { console.warn(`Ошибка dispose fxSend ${index}:`, e.message); }
-                        }
-                    });
-                }
-                synth.voices = [];
-                synth.voiceState = [];
-                if (synth.fxBus) { try { synth.fxBus.disconnect(); synth.fxBus.dispose(); } catch (e) { console.warn("Ошибка dispose fxBus:", e.message); } }
-                Object.values(synth.effects || {}).forEach((effect, i) => {
-                    const effectName = Object.keys(synth.effects)[i] || 'unknown_effect';
-                    if (effect) {
-                        if (typeof effect.disconnect === 'function') { try { effect.disconnect(); } catch (e) {} }
-                        if (typeof effect.dispose === 'function') { try { effect.dispose(); } catch (e) { console.warn(`Ошибка dispose эффекта ${effectName}:`, e.message); } }
+        console.log("[App.restartAudioEngine] Освобождаю ресурсы synth...");
+        if (typeof synth !== 'undefined') {
+            if (synth.voices && Array.isArray(synth.voices)) {
+                synth.voices.forEach((voiceData, index) => {
+                    if (voiceData && voiceData.components) {
+                        voiceBuilder.disposeComponents(voiceData.components);
+                    }
+                    if (voiceData && voiceData.fxSend) {
+                        try { voiceData.fxSend.disconnect(); voiceData.fxSend.dispose(); } catch(e) { console.warn(`Ошибка dispose fxSend ${index}:`, e.message); }
                     }
                 });
-                synth.effects = {};
-                if (synth.masterVolume) { try { synth.masterVolume.disconnect(); synth.masterVolume.dispose(); } catch (e) { console.warn("Ошибка dispose masterVolume:", e.message); } }
-                if (synth.limiter) { try { synth.limiter.disconnect(); synth.limiter.dispose(); } catch (e) { console.warn("Ошибка dispose limiter:", e.message); } }
-                if (synth.analyser) { try { synth.analyser.disconnect(); synth.analyser.dispose(); } catch (e) { console.warn("Ошибка dispose analyser:", e.message); } }
-                synth.isReady = false;
-                console.log("[App.restartAudioEngine] Ресурсы synth освобождены.");
             }
+            synth.voices = [];
+            synth.voiceState = [];
+            if (synth.fxBus) { try { synth.fxBus.disconnect(); synth.fxBus.dispose(); } catch (e) { console.warn("Ошибка dispose fxBus:", e.message); } }
+            Object.values(synth.effects || {}).forEach((effect, i) => {
+                const effectName = Object.keys(synth.effects)[i] || 'unknown_effect';
+                if (effect) {
+                    if (typeof effect.disconnect === 'function') { try { effect.disconnect(); } catch (e) {} }
+                    if (typeof effect.dispose === 'function') { try { effect.dispose(); } catch (e) { console.warn(`Ошибка dispose эффекта ${effectName}:`, e.message); } }
+                }
+            });
+            synth.effects = {};
+            if (synth.masterVolume) { try { synth.masterVolume.disconnect(); synth.masterVolume.dispose(); } catch (e) { console.warn("Ошибка dispose masterVolume:", e.message); } }
+            if (synth.limiter) { try { synth.limiter.disconnect(); synth.limiter.dispose(); } catch (e) { console.warn("Ошибка dispose limiter:", e.message); } }
+            if (synth.analyser) { try { synth.analyser.disconnect(); synth.analyser.dispose(); } catch (e) { console.warn("Ошибка dispose analyser:", e.message); } }
+            synth.isReady = false;
+            console.log("[App.restartAudioEngine] Ресурсы synth освобождены.");
+        }
 
             // 3. Работа с Tone.context и Tone.start()
-            console.log("[App.restartAudioEngine] Попытка запустить/возобновить аудиоконтекст Tone.js...");
+        console.log("[App.restartAudioEngine] Попытка запустить/возобновить аудиоконтекст Tone.js...");
             if (Tone && Tone.context && Tone.context.state === 'closed') {
                 console.warn("[App.restartAudioEngine] Контекст Tone.js был 'closed'. Устанавливаю новый.");
                 Tone.setContext(new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive', sampleRate: 48000 }));
@@ -1320,18 +1305,18 @@ const app = {
             }
         
             // 4. Переинициализация synth и visualizer
-            console.log("[App.restartAudioEngine] Переинициализирую synth и visualizer...");
+        console.log("[App.restartAudioEngine] Переинициализирую synth и visualizer...");
             if (typeof synth !== 'undefined' && typeof synth.init === 'function') {
                 synth.init(); // Предполагается, что synth.init() синхронный или внутренне управляет своей готовностью
                 if(synth.isReady) synth.applyMasterVolumeSettings();
             }
             if (typeof visualizer !== 'undefined' && typeof visualizer.init === 'function') {
                 // visualizer.init может быть асинхронным, если загружает что-то
-                await visualizer.init(document.getElementById('xy-visualizer')); 
-            }
+                await visualizer.init(document.getElementById('xy-visualizer'));
+        }
 
             // 5. Повторное применение настроек
-            console.log("[App.restartAudioEngine] Повторно применяю настройки...");
+        console.log("[App.restartAudioEngine] Повторно применяю настройки...");
             await this.applySoundPreset(this.state.soundPreset); // ВАЖНО: await
             await this.applyFxChain(this.state.fxChain);         // ВАЖНО: await
             await this.applyVisualizer(this.state.visualizer);   // ВАЖНО: await
@@ -1373,16 +1358,16 @@ const app = {
             // UI кнопки также будет обработан в finally
         } finally {
             // Задержка для анимации кнопки, если она была запущена
-            const animationDuration = (restartButton && icon) ? 2000 : 50;
-            setTimeout(() => {
-                if (restartButton) {
-                    restartButton.disabled = false;
-                    restartButton.classList.remove('restarting');
-                    if (icon) icon.style.animation = 'none';
-                }
-                this.isRestartingAudio = false;
+        const animationDuration = (restartButton && icon) ? 2000 : 50;
+        setTimeout(() => {
+            if (restartButton) {
+                restartButton.disabled = false;
+                restartButton.classList.remove('restarting');
+                if (icon) icon.style.animation = 'none';
+            }
+            this.isRestartingAudio = false;
                 console.log("[App.restartAudioEngine] Перезапуск аудио-движка (попытка) завершен. isAudioReady:", this.state.isAudioReady, "isRestartingAudio:", this.isRestartingAudio);
-            }, animationDuration);
+        }, animationDuration);
         }
     },
     async triggerFullReload() {
@@ -1431,11 +1416,11 @@ const app = {
             // Но он важен, если перезагрузка не удалась и управление вернулось.
             const animationDuration = (reloadButton && icon) ? 2000 : 50; // Даем время на анимацию
             setTimeout(() => {
-                if (reloadButton) {
-                    reloadButton.disabled = false;
-                    reloadButton.classList.remove('reloading');
-                    if (icon) icon.style.animation = 'none';
-                }
+            if (reloadButton) {
+                reloadButton.disabled = false;
+                reloadButton.classList.remove('reloading');
+                if (icon) icon.style.animation = 'none';
+            }
                 this.isReloadingApp = false;
                 console.log("[App.triggerFullReload] Процесс перезагрузки (попытка) завершен. isReloadingApp:", this.isReloadingApp);
             }, animationDuration);
@@ -1459,13 +1444,13 @@ const app = {
         const previousTonic = this.state.currentTonic; // Сохраняем для возможного отката
     
         try {
-            this.state.currentTonic = noteName;
+        this.state.currentTonic = noteName;
 
             // Сначала обновляем состояние, потом вызываем асинхронные операции
             // Важно ДОЖДАТЬСЯ, пока PadModeManager отреагирует и перерисует пэд
             if (PadModeManager && typeof PadModeManager.onTonicChanged === 'function') {
                 await PadModeManager.onTonicChanged(this.state.currentTonic); 
-            } else {
+        } else {
                 // Если PadModeManager вдруг нет, или у него нет onTonicChanged,
                 // вызываем перерисовку зон напрямую (если он есть).
                 // Предполагается, что onTonicChanged внутри себя вызовет updateZoneLayout или аналогичный метод.
@@ -1490,7 +1475,7 @@ const app = {
             }
 
             // Обновление подсветки тоники на пэде, если пэд существует и функция доступна
-            if (pad && typeof pad.highlightTonic === "function") {
+        if (pad && typeof pad.highlightTonic === "function") {
                 pad.highlightTonic(this.state.currentTonic);
             }
     
@@ -1500,7 +1485,7 @@ const app = {
             this.state.currentTonic = previousTonic;
             // Можно также попытаться обновить UI обратно
             if (sidePanel?.updateTonalityControls) {
-                sidePanel.updateTonalityControls(this.state.octaveOffset, this.state.scale, this.state.zoneCount);
+            sidePanel.updateTonalityControls(this.state.octaveOffset, this.state.scale, this.state.zoneCount);
             }
             // Возможно, стоит уведомить пользователя
             // uiService.showError(`Failed to set tonic: ${error.message}`);
@@ -1510,18 +1495,18 @@ const app = {
     // Добавьте или найдите существующий метод для переключения highlightSharpsFlats
     async toggleHighlightSharpsFlats(enabled) {
         try {
-            if (typeof enabled !== 'boolean') {
-                console.warn('[App] setHighlightSharpsFlats: invalid type for enabled -', typeof enabled);
-                return;
-            }
-            if (this.state.highlightSharpsFlats === enabled) {
-                console.log('[App] setHighlightSharpsFlats: no change, already', enabled);
-                return;
-            }
-            this.state.highlightSharpsFlats = enabled;
-            console.log('[App] highlightSharpsFlats state updated to:', this.state.highlightSharpsFlats);
-            await this.updateZoneLayout();
-            this._updateSidePanelSettingsUI();
+        if (typeof enabled !== 'boolean') {
+            console.warn('[App] setHighlightSharpsFlats: invalid type for enabled -', typeof enabled);
+            return;
+        }
+        if (this.state.highlightSharpsFlats === enabled) {
+            console.log('[App] setHighlightSharpsFlats: no change, already', enabled);
+            return;
+        }
+        this.state.highlightSharpsFlats = enabled;
+        console.log('[App] highlightSharpsFlats state updated to:', this.state.highlightSharpsFlats);
+        await this.updateZoneLayout();
+        this._updateSidePanelSettingsUI();
         } catch (error) {
             console.error('[App.toggleHighlightSharpsFlats] Error:', error, error.stack);
         }
@@ -1531,23 +1516,23 @@ const app = {
     async setCurrentChord(chordName) {
         try {
             const newChord = chordName || null;
-            if (this.state.currentChordName === newChord) {
-                if (PadModeManager && typeof this.updateZones === 'function') {
-                    console.log(`[App.setCurrentChord] Chord ${newChord} already active/null, but forcing zone update for current mode.`);
-                    await this.updateZones();
-                }
-                return;
+        if (this.state.currentChordName === newChord) {
+            if (PadModeManager && typeof this.updateZones === 'function') {
+                 console.log(`[App.setCurrentChord] Chord ${newChord} already active/null, but forcing zone update for current mode.`);
+                 await this.updateZones();
             }
-            console.log(`[App] Current chord will be set to: ${newChord}`);
-            this.state.currentChordName = newChord;
-            if (PadModeManager) {
-                await PadModeManager.onChordChanged(this.state.currentChordName);
-            } else {
-                console.warn("[App.setCurrentChord] PadModeManager not available, calling updateZones directly.");
-                await this.updateZones();
-            }
+            return;
+        }
+        console.log(`[App] Current chord will be set to: ${newChord}`);
+        this.state.currentChordName = newChord;
+        if (PadModeManager) {
+            await PadModeManager.onChordChanged(this.state.currentChordName);
+        } else {
+            console.warn("[App.setCurrentChord] PadModeManager not available, calling updateZones directly.");
+            await this.updateZones();
+        }
             bridgeFix.callBridge('setSetting', 'currentChord', this.state.currentChordName)
-                .catch(err => console.error("[App.setCurrentChord] Bridge setSetting currentChord failed:", err));
+             .catch(err => console.error("[App.setCurrentChord] Bridge setSetting currentChord failed:", err));
         } catch (error) {
             console.error('[App.setCurrentChord] Error:', error, error.stack);
         }
@@ -1577,47 +1562,47 @@ const app = {
         const previousModeId = this.state.padMode;
 
         try {
-            const success = await PadModeManager.setActiveMode(modeId);
+        const success = await PadModeManager.setActiveMode(modeId);
 
-            if (success) {
-                this.state.padMode = modeId;
+        if (success) {
+            this.state.padMode = modeId;
                 if (this.state.isBridgeReady) { // Сохраняем безопасную проверку
                     await bridgeFix.callBridge('setSetting', 'padMode', modeId);
                 }
-
+            
                 // Существующая логика обновления UI (панели Chord/Rocket и т.д.) сохраняется
-                const chordPanel = document.getElementById('chord-mode-panel');
-                const expandBtn = document.getElementById('chord-panel-expand-btn');
-                if (modeId === 'chord') {
+            const chordPanel = document.getElementById('chord-mode-panel');
+            const expandBtn = document.getElementById('chord-panel-expand-btn');
+            if (modeId === 'chord') {
                     if (sidePanel?.hideAllPanels) sidePanel.hideAllPanels();
-                    if (chordPanel) chordPanel.classList.add('show');
+                if (chordPanel) chordPanel.classList.add('show');
                     if (typeof this.toggleChordPanel === 'function') {
-                        this.toggleChordPanel(this.state.isChordPanelCollapsed);
+                this.toggleChordPanel(this.state.isChordPanelCollapsed);
                     }
-                    const strategy = PadModeManager.getCurrentStrategy();
+                const strategy = PadModeManager.getCurrentStrategy();
                     if (strategy && typeof strategy.getSelectedChordId === 'function' && !strategy.getSelectedChordId() && 
                         typeof strategy.getAvailableChords === 'function' && strategy.getAvailableChords().length > 0) {
                         if (typeof strategy.selectChord === 'function') {
-                             await strategy.selectChord(strategy.getAvailableChords()[0].id);
-                        } else {
+                    await strategy.selectChord(strategy.getAvailableChords()[0].id);
+                } else {
                             console.warn("[App.setPadMode] Chord strategy's selectChord method is not a function.");
                         }
                     } else {
                         if (typeof this.notifyProgressionChanged === 'function') {
-                            this.notifyProgressionChanged();
-                        }
-                    }
-                } else {
-                    if (chordPanel) chordPanel.classList.remove('show', 'collapsed');
-                    if (expandBtn) expandBtn.classList.remove('visible');
+                    this.notifyProgressionChanged();
                 }
+                    }
+            } else {
+                if (chordPanel) chordPanel.classList.remove('show', 'collapsed');
+                if (expandBtn) expandBtn.classList.remove('visible');
+            }
                 if (sidePanel?.populatePadModeSelectDisplay) sidePanel.populatePadModeSelectDisplay();
                 if (sidePanel?.displayModeSpecificControls) sidePanel.displayModeSpecificControls(modeId);
-                if (typeof topbar !== 'undefined') {
-                    if (modeId === 'chord') {
+        if (typeof topbar !== 'undefined') {
+            if (modeId === 'chord') {
                         if (topbar.showProgressionDisplay) topbar.showProgressionDisplay();
                          if (typeof this.notifyProgressionChanged === 'function') this.notifyProgressionChanged();
-                    } else {
+            } else {
                         if (topbar.hideProgressionDisplay) topbar.hideProgressionDisplay();
                     }
                 }
@@ -1663,13 +1648,19 @@ const app = {
     _updateSidePanelSettingsUI() {
         if (sidePanel && typeof sidePanel.updateSettingsControls === 'function') {
             sidePanel.updateSettingsControls(
-                this.state.language, this.state.theme, this.state.visualizer,
-                this.state.touchEffect, this.state.showNoteNames, this.state.showLines,
-                this.state.enablePolyphonyVolumeScaling, this.state.highlightSharpsFlats,
-                this.state.padMode, // Передаем текущий режим
-                this.state.rocketModeSettings
+                this.state.language,
+                this.state.theme,
+                this.state.visualizer,
+                this.state.touchEffect,
+                this.state.showNoteNames,
+                this.state.showLines,
+                this.state.enablePolyphonyVolumeScaling,
+                this.state.highlightSharpsFlats,
+                this.state.padMode,
+                this.state.rocketModeSettings,
+                this.state.vibrationEnabled,      // Убедитесь, что этот аргумент передается
+                this.state.vibrationIntensity   // И этот тоже
             );
-             // Убедимся, что текстовое поле режима пэда также обновлено
             if (sidePanel.populatePadModeSelectDisplay) {
                 sidePanel.populatePadModeSelectDisplay();
             }
@@ -2163,6 +2154,22 @@ const app = {
         }
         console.log(`[App] Global BPM set to: ${bpm}`);
         // TODO: Сохранить в localStorage или через Bridge, если нужно
+    },
+
+    setVibrationEnabled(enabled) {
+        if (typeof enabled !== 'boolean') return;
+        this.state.vibrationEnabled = enabled;
+        VibrationService.setEnabled(enabled);
+        this._updateSidePanelSettingsUI();
+        bridgeFix.callBridge('setSetting', 'vibrationEnabled', enabled.toString()).catch(err => console.error("[App] Bridge setSetting vibrationEnabled failed:", err));
+    },
+
+    setVibrationIntensity(level) {
+        if (!['weak', 'medium', 'strong'].includes(level)) return;
+        this.state.vibrationIntensity = level;
+        VibrationService.setIntensity(level);
+        this._updateSidePanelSettingsUI();
+        bridgeFix.callBridge('setSetting', 'vibrationIntensity', level).catch(err => console.error("[App] Bridge setSetting vibrationIntensity failed:", err));
     },
 };
 

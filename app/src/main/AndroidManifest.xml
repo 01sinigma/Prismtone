@@ -4,6 +4,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Разрешения для хранения нужны только если вы будете сохранять записи/пресеты во внешнее хранилище -->
     <!-- Для Android 10+ лучше использовать Scoped Storage или MediaStore -->
     <!-- <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"

@@ -36,6 +36,10 @@ const sidePanel = {
     rocketModeEnableToggle: null,
     // ...
 
+    vibrationToggle: null,
+    vibrationIntensityControls: null,
+    vibrationButtons: [],
+
     init() {
         console.log('[SidePanel.init PadModes] Initializing...');
         this.panels = {
@@ -118,6 +122,12 @@ const sidePanel = {
         // === Rocket Mode UI ===
         this.rocketModeEnableToggle = document.getElementById('rocket-mode-enable-toggle');
         // ...
+
+        this.vibrationToggle = document.getElementById('vibration-toggle');
+        this.vibrationIntensityControls = document.getElementById('vibration-intensity-controls');
+        if (this.vibrationIntensityControls) {
+            this.vibrationButtons = this.vibrationIntensityControls.querySelectorAll('button');
+        }
 
         if (this.sizeSlider) {
             this.sizeSlider.min = "8";
@@ -400,6 +410,19 @@ const sidePanel = {
         }
         // ...
 
+        if (this.vibrationToggle) {
+            this.vibrationToggle.addEventListener('change', (e) => {
+                app.setVibrationEnabled(e.target.checked);
+            });
+        }
+        if (this.vibrationButtons && this.vibrationButtons.forEach) {
+            this.vibrationButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    app.setVibrationIntensity(e.currentTarget.dataset.intensity);
+                });
+            });
+        }
+
         console.log('[SidePanel.addEventListeners PadModes] Listeners added.');
     },
 
@@ -594,7 +617,7 @@ const sidePanel = {
         });
     },
 
-    updateSettingsControls(langId, themeId, vizId, touchEffectId, showNames, showGrid, enablePolyScaling, highlightSharps, currentPadMode) {
+    updateSettingsControls(langId, themeId, vizId, touchEffectId, showNames, showGrid, enablePolyScaling, highlightSharps, currentPadMode, rocketSettings, enableVibration, vibrationIntensity) {
         if (this.languageSelect && this.languageSelect.options.length > 0) { if (this.languageSelect.querySelector(`option[value="${langId}"]`)) this.languageSelect.value = langId; else { this.languageSelect.selectedIndex = 0; } }
         if (this.themeSelect && this.themeSelect.options.length > 0) { if (this.themeSelect.querySelector(`option[value="${themeId}"]`)) this.themeSelect.value = themeId; else { this.themeSelect.selectedIndex = 0; } }
         if (this.visualizerSelect && this.visualizerSelect.options.length > 0) { if (this.visualizerSelect.querySelector(`option[value="${vizId}"]`)) this.visualizerSelect.value = vizId; else { this.visualizerSelect.selectedIndex = 0; } }
@@ -602,21 +625,29 @@ const sidePanel = {
             const targetVal = touchEffectId || 'none';
             if (this.touchEffectSelect.querySelector(`option[value="${targetVal}"]`)) {
                 this.touchEffectSelect.value = targetVal;
+            } else if (this.touchEffectSelect.querySelector(`option[value="none"]`)) {
+                this.touchEffectSelect.value = 'none';
             } else {
-                console.warn(`[SidePanel.updateSettingsControls v3] Touch Effect ID '${targetVal}' not found.`);
-                if (this.touchEffectSelect.querySelector(`option[value="none"]`)) {
-                    this.touchEffectSelect.value = 'none';
-                } else {
-                     this.touchEffectSelect.selectedIndex = 0;
-                }
+                 this.touchEffectSelect.selectedIndex = 0;
             }
         }
 
         if (this.noteNamesToggle) this.noteNamesToggle.checked = showNames;
         if (this.linesToggle) this.linesToggle.checked = showGrid;
         if (this.highlightSharpsFlatsToggle) this.highlightSharpsFlatsToggle.checked = highlightSharps;
-
         if (this.enablePolyphonyScalingToggle) this.enablePolyphonyScalingToggle.checked = enablePolyScaling;
+        
+        // >>> НАЧАЛО НОВОЙ ЛОГИКИ ОБНОВЛЕНИЯ UI ВИБРАЦИИ <<<
+        if (this.vibrationToggle) {
+            this.vibrationToggle.checked = enableVibration;
+        }
+        if (this.vibrationIntensityControls) {
+            this.vibrationIntensityControls.classList.toggle('hidden', !enableVibration);
+        }
+        this.vibrationButtons.forEach(button => {
+            button.classList.toggle('active', button.dataset.intensity === vibrationIntensity);
+        });
+        // >>> КОНЕЦ НОВОЙ ЛОГИКИ ОБНОВЛЕНИЯ UI ВИБРАЦИИ <<<
 
         if (this.padModeSelect && this.padModeSelect.options.length > 0) {
             if (currentPadMode && this.padModeSelect.querySelector(`option[value="${currentPadMode}"]`)) {
@@ -627,7 +658,7 @@ const sidePanel = {
         }
         this.populatePadModeSelectDisplay();
         this.displayModeSpecificControls(currentPadMode);
-        console.log(`[SidePanel.updateSettingsControls] Updated UI for Language: ${langId}, Theme: ${themeId}, Viz: ${vizId}, Effect: ${touchEffectId}, Names: ${showNames}, Lines: ${showGrid}, PolyScaling: ${enablePolyScaling}, SharpsFlats: ${highlightSharps}, PadMode: ${currentPadMode}`);
+        console.log(`[SidePanel.updateSettingsControls] Updated UI for ... Vibration: ${enableVibration}, Intensity: ${vibrationIntensity}`);
     },
 
     handleOctaveChange(value, finalChange = false) {

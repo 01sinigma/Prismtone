@@ -106,15 +106,7 @@ const PadModeManager = {
             await this.appRef.updateZones();
         }
     },
-    async onScaleChanged(newScale) {
-        console.log(`[PadModeManager] Notified of scale change: ${newScale}`);
-        if (this.currentStrategy && typeof this.currentStrategy.onScaleChanged === 'function') {
-            await this.currentStrategy.onScaleChanged(newScale, this.appRef.state, this._getServicesBundle());
-        }
-        if (this.appRef && typeof this.appRef.updateZones === 'function') {
-            await this.appRef.updateZones();
-        }
-    },
+
     async onChordChanged(newChord) {
         console.log(`[PadModeManager] Notified of chord change: ${newChord}`);
         if (this.currentStrategy && typeof this.currentStrategy.onChordChanged === 'function') {

@@ -2,8 +2,11 @@
 package com.example.prismtone;
 
 import android.content.Context;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
@@ -16,7 +19,8 @@ import com.google.gson.JsonSyntaxException;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonNull; // <<<--- ДОБАВЛЕН ИМПОРТ
-
+import com.google.gson.reflect.TypeToken;
+import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Objects;
 
@@ -28,6 +32,7 @@ public class PrismtoneBridge {
     private final ModuleManager moduleManager;
     private final Handler mainHandler;
     private final Gson gson;
+    private final Vibrator vibrator;
     private static final String TAG = "PrismtoneBridge";
 
     public PrismtoneBridge(Context context, WebView webView, MainViewModel viewModel, ModuleManager moduleManager) {
@@ -37,6 +42,7 @@ public class PrismtoneBridge {
         this.moduleManager = moduleManager;
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.gson = new GsonBuilder().serializeNulls().create();
+        this.vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
     }
 
     private void runJavaScript(final String script) {
@@ -405,16 +411,93 @@ public class PrismtoneBridge {
     @Keep
     public void reloadWebView() {
         Log.w(TAG, "JavaScript запросил полную перезагрузку WebView.");
-        mainHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (webView != null) {
-                    Log.i(TAG, "Выполняется webView.reload()...");
-                    webView.reload();
-                } else {
-                    Log.e(TAG, "Невозможно перезагрузить WebView: webView is null.");
-                }
+        mainHandler.post(() -> {
+            if (webView != null) {
+                Log.i(TAG, "Выполняется webView.reload()...");
+                webView.reload();
+            } else {
+                Log.e(TAG, "Невозможно перезагрузить WebView: webView is null.");
             }
         });
+    }
+
+    /**
+     * Вызывает ОДИНОЧНЫЙ импульс вибрации.
+     */
+    @JavascriptInterface
+    public void vibrate(int durationMs, int amplitude) {
+        if (vibrator == null || !vibrator.hasVibrator()) return;
+        
+        Log.d(TAG, ">>> VIBRATE (OneShot) <<< Received: duration=" + durationMs + ", amplitude=" + amplitude);
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (vibrator.hasAmplitudeControl()) {
+                int validAmplitude = Math.max(1, Math.min(255, amplitude));
+                vibrator.vibrate(VibrationEffect.createOneShot(durationMs, validAmplitude));
+            } else {
+                vibrator.vibrate(VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE));
+            }
+        } else {
+            vibrator.vibrate(durationMs);
+        }
+    }
+
+    /**
+     * НОВЫЙ МЕТОД: Вызывает НЕПРЕРЫВНУЮ вибрацию с заданным паттерном.
+     * @param timingsJson JSON-строка массива long[] для паттерна (пауза, вибрация, пауза, ...)
+     * @param amplitudesJson JSON-строка массива int[] для амплитуды каждого шага
+     * @param repeat Индекс, с которого начинать повторение (-1 для отсутствия повторения)
+     */
+    @JavascriptInterface
+    public void vibratePattern(String timingsJson, String amplitudesJson, int repeat) {
+        if (vibrator == null || !vibrator.hasVibrator()) return;
+        
+        Log.d(TAG, ">>> VIBRATE (Pattern) <<< Received: timings=" + timingsJson + ", amplitudes=" + amplitudesJson + ", repeat=" + repeat);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                Type longListType = new TypeToken<long[]>() {}.getType();
+                Type intListType = new TypeToken<int[]>() {}.getType();
+                long[] timings = gson.fromJson(timingsJson, longListType);
+                int[] amplitudes = gson.fromJson(amplitudesJson, intListType);
+
+                if (timings == null || amplitudes == null || timings.length != amplitudes.length) {
+                    Log.e(TAG, "Mismatched or null timings/amplitudes for pattern vibration.");
+                    return;
+                }
+                
+                if (vibrator.hasAmplitudeControl()) {
+                    vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, repeat));
+                } else {
+                    // Устройства без контроля амплитуды не могут использовать паттерн с амплитудами.
+                    // Создаем простой паттерн вкл/выкл.
+                    for (int i = 0; i < amplitudes.length; i++) {
+                        if(amplitudes[i] > 0) amplitudes[i] = VibrationEffect.DEFAULT_AMPLITUDE;
+                    }
+                     vibrator.vibrate(VibrationEffect.createWaveform(timings, repeat));
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error creating vibration pattern", e);
+            }
+        } else {
+            // Для старых API используем простой повторяющийся паттерн без амплитуды
+            try {
+                Type longListType = new TypeToken<long[]>() {}.getType();
+                long[] timings = gson.fromJson(timingsJson, longListType);
+                if (timings != null) {
+                    vibrator.vibrate(timings, repeat);
+                }
+            } catch (Exception e) {
+                 Log.e(TAG, "Error creating legacy vibration pattern", e);
+            }
+        }
+    }
+
+    @JavascriptInterface
+    public void cancelVibration() {
+        if (vibrator != null && vibrator.hasVibrator()) {
+            Log.d(TAG, ">>> CANCEL VIBRATION BRIDGE CALL <<<");
+            vibrator.cancel();
+        }
     }
 }

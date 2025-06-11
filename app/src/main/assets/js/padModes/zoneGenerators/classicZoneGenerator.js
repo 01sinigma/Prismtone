@@ -34,11 +34,13 @@ async function generateClassicZones(context) {
         return [];
     }
 
-    const { scaleId, tonicNameWithOctave: userSelectedTonic } = modeSpecificContext;
+    const { scaleId, tonicNameWithOctave: userSelectedTonic, octaveOffsetFromTonic } = modeSpecificContext;
     const zoneCount = appState.zoneCount;
 
-    // --- НАША ЦЕЛЕВАЯ ЦЕНТРАЛЬНАЯ НОТА ИЗМЕНЕНА НА F4 ---
-    const TARGET_CENTER_MIDI_NOTE = 65; // F4
+    // Новая логика: центральная якорная нота всегда G4 (MIDI 79) + octaveOffsetFromTonic*12
+    // Если octaveOffsetFromTonic не передан, берем из appState (для обратной совместимости)
+    const octaveShift = typeof octaveOffsetFromTonic === 'number' ? octaveOffsetFromTonic : (typeof appState.octaveOffset === 'number' ? appState.octaveOffset : 0);
+    const centralAnchorMidi = 65 + (octaveShift * 12); // G4 = 79
     // --------------------------------------------------
 
     if (!services.musicTheoryService.isTonalJsLoaded) {
@@ -66,19 +68,18 @@ async function generateClassicZones(context) {
     // const targetCenterNoteName = services.musicTheoryService.midiToNoteName(TARGET_CENTER_MIDI_NOTE); // Для лога
     // console.log(`[generateClassicZones] Scale notes pool (length ${scaleNotesPool.length}) for ${userSelectedTonic} ${scaleId}. Target MIDI for center: ${TARGET_CENTER_MIDI_NOTE} (${targetCenterNoteName})`);
 
-    // 2. Находим в этом пуле ноту, которая наиболее близка к нашей TARGET_CENTER_MIDI_NOTE (F4)
+    // 2. Находим в этом пуле ноту, которая наиболее близка к нашей centralAnchorMidi
     let closestNoteToTargetCenter = null;
     let minMidiDiffToTarget = Infinity;
 
     for (const note of scaleNotesPool) {
-        const diff = Math.abs(note.midi - TARGET_CENTER_MIDI_NOTE);
+        const diff = Math.abs(note.midi - centralAnchorMidi);
         if (diff < minMidiDiffToTarget) {
             minMidiDiffToTarget = diff;
             closestNoteToTargetCenter = note;
         } else if (diff === minMidiDiffToTarget) {
-            // Если разница одинаковая, предпочитаем ту, что ниже (или первую найденную, не так критично)
             if (closestNoteToTargetCenter && note.midi < closestNoteToTargetCenter.midi) {
-                 closestNoteToTargetCenter = note;
+                closestNoteToTargetCenter = note;
             }
         }
     }

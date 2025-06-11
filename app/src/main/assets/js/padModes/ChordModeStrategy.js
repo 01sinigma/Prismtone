@@ -718,6 +718,33 @@ const ChordModeStrategy = {
 
         // this.appRef.updateZones(); // Обновление зон, если оно не вызывается где-то еще после активации
         // console.log(`[${this.getName()}Strategy] Activated. Selected chord: ${this._selectedChordId}`); // Этот лог уже может быть в конце метода
+
+        // === ПОЛУЧЕНИЕ ССЫЛОК для UI ТАЙМЕРА ===
+        this._timerProgressContainer = document.getElementById('timer-progress-container');
+        if (this._timerProgressContainer) {
+            this._timerProgressBarLeft = this._timerProgressContainer.querySelector('.timer-progress-bar.left');
+            this._timerProgressBarRight = this._timerProgressContainer.querySelector('.timer-progress-bar.right');
+        } else {
+            console.warn('[ChordStrategy.onModeActivated] #timer-progress-container not found.');
+        }
+        if (this._timerToggleButton) {
+            this._timerProgressRing = this._timerToggleButton.querySelector('.timer-progress-ring');
+        } else {
+            console.warn('[ChordStrategy.onModeActivated] #chord-timer-toggle-btn not found, cannot get .timer-progress-ring.');
+        }
+        // --- КОНЕЦ НОВЫХ ССЫЛОК ---
+
+        if (this._timerModal) {
+            this._timerModeRadios = this._timerModal.querySelectorAll('input[name="timer-mode"]');
+            this._rhythmSettingsContainer = this._timerModal.querySelector('#timer-rhythm-settings');
+            this._secondsSettingsContainer = this._timerModal.querySelector('#timer-seconds-settings');
+            this._bpmInput = this._timerModal.querySelector('#timer-bpm-input');
+            this._intervalDisplay = this._timerModal.querySelector('#timer-interval-select-display');
+            this._secondsInput = this._timerModal.querySelector('#timer-seconds-input');
+            this._startTimerBtn = this._timerModal.querySelector('#start-chord-timer-btn');
+            this._cancelTimerBtn = this._timerModal.querySelector('#cancel-chord-timer-btn');
+            this._closeTimerModalBtn = this._timerModal.querySelector('#close-chord-timer-modal-btn');
+        }
     },
 
     onModeDeactivated(appState, services, uiModules) {
@@ -1546,9 +1573,9 @@ const ChordModeStrategy = {
 
             if (!chordData && chordId !== null) { // Если chordId есть, но данных нет - это ошибка
                 console.error(`[ChordStrategy] Chord data not found for ID: ${chordId}. Clearing selection.`);
-                this._selectedChordId = null;
-                this._selectedChordDisplayName = null;
-                this._selectedChordNotes = [];
+            this._selectedChordId = null;
+            this._selectedChordDisplayName = null;
+            this._selectedChordNotes = [];
                 // Возможно, стоит уведомить пользователя или вызвать appRef.updateZoneLayout для очистки пэда
             } else if (!chordData && chordId === null) { // Явный сброс аккорда
                  this._selectedChordId = null;
@@ -1556,8 +1583,8 @@ const ChordModeStrategy = {
                  this._selectedChordNotes = [];
                  console.log("[ChordStrategy] Chord selection cleared.");
             } else if (chordData) { // Аккорд найден
-                this._selectedChordId = chordData.id;
-                this._selectedChordDisplayName = chordData.displayName;
+            this._selectedChordId = chordData.id;
+            this._selectedChordDisplayName = chordData.displayName;
                 
                 if (!this.musicTheoryServiceRef || typeof this.musicTheoryServiceRef.getChordNotes !== 'function') {
                     console.error("[ChordStrategy] MusicTheoryService or getChordNotes is not available!");
@@ -1566,7 +1593,7 @@ const ChordModeStrategy = {
                     throw new Error("MusicTheoryService.getChordNotes is not available");
                 }
                 // ЖДЕМ получения нот нового аккорда
-                this._selectedChordNotes = await this.musicTheoryServiceRef.getChordNotes(chordData.nameForService);
+            this._selectedChordNotes = await this.musicTheoryServiceRef.getChordNotes(chordData.nameForService);
                 if (!this._selectedChordNotes || this._selectedChordNotes.length === 0) {
                      console.warn(`[ChordStrategy] No notes returned for chord ${chordData.nameForService}. Display will be empty.`);
                      this._selectedChordNotes = []; // Убедимся, что это массив
@@ -1713,6 +1740,20 @@ const ChordModeStrategy = {
     _stopTimer() {
         if (!this._timerState.isActive) return;
         
+        // --- ОСТАНОВКА И СКРЫТИЕ АНИМАЦИЙ ---
+        if (this._timerToggleButton) {
+            this._timerToggleButton.classList.remove('timer-active');
+        }
+        if (this._timerProgressContainer) {
+            this._timerProgressContainer.classList.remove('timer-active');
+            this._timerProgressContainer.style.display = 'none';
+        }
+        // Сброс анимаций, чтобы они не продолжались в фоне или не мешали следующему запуску
+        if (this._timerProgressBarLeft) this._timerProgressBarLeft.style.animation = 'none';
+        if (this._timerProgressBarRight) this._timerProgressBarRight.style.animation = 'none';
+        if (this._timerProgressRing) this._timerProgressRing.style.animation = 'none';
+        // --- КОНЕЦ ОСТАНОВКИ АНИМАЦИЙ ---
+        
         if (this._timerState.scheduleId !== null && typeof Tone !== 'undefined' && Tone.Transport) {
             Tone.Transport.clear(this._timerState.scheduleId);
         }
@@ -1720,87 +1761,86 @@ const ChordModeStrategy = {
         this._timerState.isActive = false;
         this._timerState.scheduleId = null;
 
-        // === НАЧАЛО ИЗМЕНЕНИЙ ДЛЯ ТЕКСТА КНОПКИ ===
         if (this._timerToggleButton) {
-            this._timerToggleButton.classList.remove('active');
+            this._timerToggleButton.classList.remove('active'); // Старый класс для состояния кнопки
             const span = this._timerToggleButton.querySelector('span');
-            // Используем i18n.translate с фолбэком
             const buttonText = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate('start_timer_label', 'Auto-Switch') : 'Auto-Switch';
             if (span) span.textContent = buttonText;
         }
-        // === КОНЕЦ ИЗМЕНЕНИЙ ДЛЯ ТЕКСТА КНОПКИ ===
         console.log('[ChordStrategy] Timer stopped.');
     },
 
     _startTimer() {
-        this._stopTimer(); 
+        this._stopTimer(); // Сначала останавливаем любой предыдущий таймер
 
-        if (!this._timerModal || !this._bpmInput || !this._secondsInput || !this.appRef) {
-            console.error("[ChordStrategy._startTimer] Timer modal or inputs not found, or appRef is missing.");
-            return;
-        }
+        if (!this._timerModal || !this._bpmInput || !this._secondsInput || !this.appRef) return;
 
         const selectedRadio = this._timerModal.querySelector('input[name="timer-mode"]:checked');
-        if (!selectedRadio) {
-             console.error("[ChordStrategy._startTimer] No timer mode selected.");
-             alert("Please select a timer mode."); 
-             return;
-        }
         this._timerState.mode = selectedRadio.value;
         this._timerState.bpm = parseInt(this._bpmInput.value, 10);
         this._timerState.seconds = parseFloat(this._secondsInput.value);
 
+        let intervalInSeconds;
         if (this._timerState.mode === 'rhythm') {
             if (isNaN(this._timerState.bpm) || this._timerState.bpm < 20 || this._timerState.bpm > 300) { 
-                alert('Invalid BPM value. Must be between 20 and 300.'); return; 
+                alert('Invalid BPM value.'); return;
             }
             this.appRef.setBpm(this._timerState.bpm); 
+            intervalInSeconds = Tone.Time(this._timerState.interval).toSeconds();
         } else { 
             if (isNaN(this._timerState.seconds) || this._timerState.seconds < 0.5) { 
-                alert('Invalid seconds value. Must be at least 0.5.'); return; 
+                alert('Invalid seconds value.'); return;
             }
+            intervalInSeconds = this._timerState.seconds;
         }
 
         this._timerState.isActive = true;
-        const interval = this._timerState.mode === 'rhythm' ? this._timerState.interval : this._timerState.seconds;
+        const intervalForTone = this._timerState.mode === 'rhythm' ? this._timerState.interval : this._timerState.seconds;
 
-        if (typeof Tone === 'undefined' || !Tone.Transport) {
-            console.error("[ChordStrategy._startTimer] Tone.js or Tone.Transport not available.");
-            alert("Audio scheduling system (Tone.Transport) is not available.");
-            this._timerState.isActive = false; 
-            return;
-        }
+        const animationDurationString = `${intervalInSeconds}s`;
+
+        // Функция для принудительного перезапуска анимации
+        const restartAnimation = (element, animationName) => {
+            if (element) {
+                element.style.animation = 'none';
+                void element.offsetWidth; // Магический трюк для вызова DOM reflow
+                element.style.animation = `${animationName} ${animationDurationString} linear forwards`;
+            }
+        };
+
+        // Применяем анимации к элементам
+        if (this._timerProgressContainer) this._timerProgressContainer.classList.add('timer-active');
+        if (this._timerToggleButton) this._timerToggleButton.classList.add('timer-active');
+
+        restartAnimation(this._timerProgressRing, 'countdown-ring-fill');
+        if (this._timerProgressBarLeft) restartAnimation(this._timerProgressBarLeft, 'progress-bar-expand');
+        if (this._timerProgressBarRight) restartAnimation(this._timerProgressBarRight, 'progress-bar-expand');
 
         try {
             this._timerState.scheduleId = Tone.Transport.scheduleRepeat(time => {
                 Tone.Draw.schedule(() => {
                     this._selectNextChord(); 
+                    // При каждой смене аккорда перезапускаем анимации для синхронизации
+                    restartAnimation(this._timerProgressRing, 'countdown-ring-fill');
+                    if (this._timerProgressBarLeft) restartAnimation(this._timerProgressBarLeft, 'progress-bar-expand');
+                    if (this._timerProgressBarRight) restartAnimation(this._timerProgressBarRight, 'progress-bar-expand');
                 }, time);
-            }, interval);
+            }, intervalForTone);
     
             if (Tone.Transport.state !== 'started') { 
                 Tone.Transport.start();
-                console.log('[ChordStrategy._startTimer] Tone.Transport was not started, starting now.');
             }
-
         } catch (e) {
-            console.error("[ChordStrategy._startTimer] Error scheduling with Tone.Transport:", e);
-            alert("Error starting timer: " + e.message);
+            console.error("[ChordStrategy] Error scheduling with Tone.Transport:", e);
             this._timerState.isActive = false;
             return;
         }
 
-        // === НАЧАЛО ИЗМЕНЕНИЙ ДЛЯ ТЕКСТА КНОПКИ ===
         if (this._timerToggleButton) {
-            this._timerToggleButton.classList.add('active');
             const span = this._timerToggleButton.querySelector('span');
-            // Используем i18n.translate с фолбэком
-            const buttonText = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate('stop_timer_label', 'Stop') : 'Stop';
-            if (span) span.textContent = buttonText;
+            if (span) span.textContent = i18n.translate('stop_timer_label', 'Stop');
         }
-        // === КОНЕЦ ИЗМЕНЕНИЙ ДЛЯ ТЕКСТА КНОПКИ ===
-
-        console.log(`[ChordStrategy] Timer started. Mode: ${this._timerState.mode}, Interval: ${interval}, BPM: ${this._timerState.bpm}`);
+        console.log(`[ChordStrategy] Timer started. Interval: ${intervalForTone} (${intervalInSeconds.toFixed(2)}s)`);
         this._hideTimerModal();
     },
 
