@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "Prismtone"
 include ':app'
+include ':CsoundAndroid'

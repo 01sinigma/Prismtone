@@ -4,12 +4,12 @@ plugins {
 
 android {
     namespace 'com.example.prismtone'
-    compileSdk 34  // Updated to 34 as required by androidx.activity:activity:1.8.0
+    compileSdk 34
 
     defaultConfig {
         applicationId "com.example.prismtone"
-        minSdk 31  // Android 12
-        targetSdk 34  // Updated to match compileSdk
+        minSdk 26 // <-- ВОЗВРАЩАЕМ 26 для максимальной совместимости
+        targetSdk 34
         versionCode 1
         versionName "1.0"
 
@@ -23,11 +23,13 @@ android {
         }
     }
 
+    // ВОЗВРАЩАЕМ JAVA 8 для совместимости с Csound
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 
+    // Этот блок оставляем, он полезен
     packaging {
         resources {
             excludes += ['META-INF/LICENSE.md', 'META-INF/LICENSE-notice.md']
@@ -39,17 +41,17 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-
-    // Add Gson dependency
+    implementation 'androidx.lifecycle:lifecycle-viewmodel:2.6.2'
+    implementation 'androidx.webkit:webkit:1.8.0' // Используем 1.8.0 для совместимости
     implementation 'com.google.code.gson:gson:2.10.1'
 
-    // For replacing deprecated AsyncTask - use older activity version that's compatible
+    // Эти зависимости можно пока оставить, они не мешают
     implementation 'androidx.concurrent:concurrent-futures:1.1.0'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
-    implementation 'androidx.activity:activity:1.7.2'  // Downgraded to avoid requiring compileSdk 34
+    implementation 'androidx.activity:activity:1.7.2'
+
+    implementation project(':CsoundAndroid') // Главная зависимость
 
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
-    implementation "androidx.webkit:webkit:1.11.0"
 }
