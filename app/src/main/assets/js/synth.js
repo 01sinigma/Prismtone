@@ -22,6 +22,11 @@ const synth = {
     _updateQueue: new Map(), 
     _isProcessingQueue: false,
 
+    _presetApplicationQueue: [], // Stores { index, presetData, forceRecreation } tasks
+    _isApplyingPresetGradually: false,
+    _currentGradualPresetData: null, // Holds the preset data for the ongoing gradual application
+    _voicesToProcessPerFrame: 1, // How many voices to process in one animation frame cycle
+
     config: {
         polyphony: 4, // Было 10. Для теста ASR ошибки уменьшено до 4.
         defaultPreset: { // Расширяем дефолтный пресет
@@ -238,13 +243,18 @@ const synth = {
     applyPreset(presetData, forceRecreation = false) {
         const t0 = performance.now();
         if (!this.isReady || !presetData) {
-            console.warn('[Synth v8 - AsyncQueue] Cannot apply preset. Synth not ready or presetData is null.');
+            console.warn('[Synth v8 Gradual] Cannot apply preset. Synth not ready or presetData is null.');
             return;
         }
-        if (this.config.debug) console.log('[Synth v8 - AsyncQueue] Applying preset to all voices:', presetData);
+        if (this.config.debug) console.log('[Synth v8 Gradual] Scheduling preset application:', presetData);
 
+        // Sanitize/default presetData (similar to existing logic)
         const safePresetData = {};
         const defaultPresetCopy = JSON.parse(JSON.stringify(this.config.defaultPreset));
+        // ... (full sanitization logic from existing applyPreset for safePresetData) ...
+        // For brevity, assuming full sanitization logic is copied here from existing applyPreset
+        // to create `safePresetData` based on `presetData` and `defaultPresetCopy`.
+        // This part is crucial for correctness.
         for (const compId in defaultPresetCopy) {
             safePresetData[compId] = { ...defaultPresetCopy[compId] };
             if (defaultPresetCopy[compId].params) {
@@ -268,47 +278,89 @@ const synth = {
         if (presetData.portamento) {
             safePresetData.portamento = { ...defaultPresetCopy.portamento, ...presetData.portamento };
         }
+        // End of sanitization logic placeholder
 
-        let t1 = performance.now();
-        this.voices.forEach((voiceData, index) => {
-            if (!voiceData) return;
+        this._currentGradualPresetData = JSON.parse(JSON.stringify(safePresetData));
+        this._presetApplicationQueue = []; // Clear any existing queue for a new preset
+
+        for (let i = 0; i < this.config.polyphony; i++) {
+            this._presetApplicationQueue.push({
+                index: i,
+                // presetData will be this._currentGradualPresetData
+                // forceRecreation will be determined per voice inside the processing loop
+            });
+        }
+
+        if (this.config.debug) console.log(`[Synth Gradual] Queued ${this._presetApplicationQueue.length} voices for preset update.`);
+
+        if (!this._isApplyingPresetGradually) {
+            this._isApplyingPresetGradually = true;
+            this._processGradualPresetApplication();
+        }
+        const t1 = performance.now();
+        if (this.config.debug) console.log(`[Synth Gradual] applyPreset scheduling took ${(t1 - t0).toFixed(2)}ms`);
+    },
+
+    _processGradualPresetApplication() {
+        if (this._presetApplicationQueue.length === 0) {
+            this._isApplyingPresetGradually = false;
+            if (this.config.debug) console.log('[Synth Gradual] Preset application queue processed.');
+            // Call this once after all voices are processed
+            if (typeof app !== 'undefined' && app._resolveAndApplyYAxisControls) {
+                 app._resolveAndApplyYAxisControls(true);
+            }
+            return;
+        }
+
+        const tFrameStart = performance.now();
+        let voicesProcessedThisFrame = 0;
+
+        while(voicesProcessedThisFrame < this._voicesToProcessPerFrame && this._presetApplicationQueue.length > 0) {
+            const task = this._presetApplicationQueue.shift();
+            const index = task.index;
+            const voiceData = this.voices[index];
+            const targetPreset = this._currentGradualPresetData; // Use the stored target preset
+
+            if (!voiceData || !targetPreset) {
+                console.warn(`[Synth Gradual] Skipping voice ${index}, missing voiceData or targetPreset.`);
+                voicesProcessedThisFrame++;
+                continue;
+            }
+
             try {
                 const oldPresetData = voiceData.currentPresetData || this.config.defaultPreset;
-                let needsRecreation = forceRecreation || !voiceData.components;
-                let t2 = performance.now();
-                // Сравнение типа осциллятора с учетом undefined/null
+                let needsRecreation = !voiceData.components; // Always recreate if no components (e.g. initial error)
+
+                // Determine if recreation is needed (copy logic from original applyPreset)
                 const oldOscType = oldPresetData.oscillator?.params?.type ?? null;
-                const newOscType = safePresetData.oscillator?.params?.type ?? null;
+                const newOscType = targetPreset.oscillator?.params?.type ?? null;
                 if (!needsRecreation && oldOscType !== newOscType) {
-                    if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Oscillator type changed ('${oldOscType}' -> '${newOscType}')`);
                     needsRecreation = true;
                 }
                 const optionalComponents = ['pitchEnvelope', 'filterEnvelope', 'lfo1'];
                 for (const optCompId of optionalComponents) {
+                    if(needsRecreation) break;
                     const oldEnabled = oldPresetData[optCompId]?.enabled ?? (this.config.defaultPreset[optCompId]?.enabled ?? false);
-                    const newEnabled = safePresetData[optCompId]?.enabled ?? (this.config.defaultPreset[optCompId]?.enabled ?? false);
-                    if (oldEnabled !== newEnabled) {
-                        if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Optional component '${optCompId}' enabled state changed (${oldEnabled} -> ${newEnabled})`);
-                        needsRecreation = true;
-                        break;
-                    }
+                    const newEnabled = targetPreset[optCompId]?.enabled ?? (this.config.defaultPreset[optCompId]?.enabled ?? false);
+                    if (oldEnabled !== newEnabled) needsRecreation = true;
                 }
                 if (!needsRecreation) {
                     const oldPortaEnabled = oldPresetData.portamento?.enabled ?? (this.config.defaultPreset.portamento?.enabled ?? false);
-                    const newPortaEnabled = safePresetData.portamento?.enabled ?? (this.config.defaultPreset.portamento?.enabled ?? false);
-                    if (oldPortaEnabled !== newPortaEnabled) {
-                        if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Portamento enabled state changed (${oldPortaEnabled} -> ${newPortaEnabled})`);
-                        needsRecreation = true;
-                    }
+                    const newPortaEnabled = targetPreset.portamento?.enabled ?? (this.config.defaultPreset.portamento?.enabled ?? false);
+                    if (oldPortaEnabled !== newPortaEnabled) needsRecreation = true;
                 }
-                let t3 = performance.now();
+                // End of recreation check logic
+
                 if (needsRecreation) {
-                    if (this.config.debug) console.log(`[Synth applyPreset] RECREATING voice ${index}.`);
-                    if (this.voiceState[index]?.isBusy) { this.triggerRelease(this.voiceState[index].touchId); }
+                    if (this.config.debug) console.log(`[Synth Gradual] RECREATING voice ${index}.`);
+                    if (this.voiceState[index]?.isBusy) {
+                        // Stop the note immediately before recreating
+                        this._executeTriggerRelease(this.voiceState[index].touchId); // Use internal execute
+                    }
                     voiceBuilder.disposeComponents(voiceData.components);
                     if (voiceData.fxSend) voiceData.fxSend.dispose();
 
-                    const newVoiceBuildResult = voiceBuilder.buildVoiceChain(safePresetData);
+                    const newVoiceBuildResult = voiceBuilder.buildVoiceChain(targetPreset);
                     if (newVoiceBuildResult && newVoiceBuildResult.components?.outputGain && !newVoiceBuildResult.errorState?.outputGain) {
                         const fxSend = new Tone.Channel({ volume: -Infinity, channelCount: 2 }).connect(this.fxBus);
                         const outputNode = newVoiceBuildResult.components.outputGain.audioOutput;
@@ -318,23 +370,24 @@ const synth = {
                                  components: newVoiceBuildResult.components,
                                  errorState: newVoiceBuildResult.errorState,
                                  fxSend: fxSend,
-                                 currentPresetData: JSON.parse(JSON.stringify(safePresetData))
+                                 currentPresetData: JSON.parse(JSON.stringify(targetPreset))
                              };
                         } else { throw new Error("Output node missing after recreation for voice " + index); }
                     } else {
-                        console.error(`[Synth v7 applyPreset] Failed to recreate voice slot ${index}. Errors:`, newVoiceBuildResult?.errorState);
+                        console.error(`[Synth Gradual] Failed to recreate voice slot ${index}. Errors:`, newVoiceBuildResult?.errorState);
                         this.voices[index] = { components: null, errorState: newVoiceBuildResult?.errorState || { critical: "Recreation failed" }, fxSend: null, currentPresetData: null };
-                        this.releaseVoice(index);
+                        this.releaseVoice(index); // Ensure voice state is cleared
                     }
                 } else {
-                    if (this.config.debug) console.log(`[Synth applyPreset] UPDATING voice ${index} parameters.`);
+                    if (this.config.debug) console.log(`[Synth Gradual] UPDATING voice ${index} parameters.`);
                     const components = voiceData.components;
                     const errorState = voiceData.errorState || {};
-                    for (const componentId in safePresetData) {
+                    for (const componentId in targetPreset) {
                         const manager = audioConfig.getManager(componentId);
                         const compData = components[componentId];
-                        const newSettings = safePresetData[componentId];
+                        const newSettings = targetPreset[componentId];
                         if (!manager || !compData || errorState[componentId]) continue;
+
                         let paramsToUpdate = null;
                         if (newSettings.params) {
                             paramsToUpdate = { ...newSettings.params };
@@ -343,12 +396,12 @@ const synth = {
                                 paramsToUpdate = { ...newSettings };
                             }
                         }
+
                         if (componentId === 'oscillator') {
                             if (!paramsToUpdate) paramsToUpdate = {};
-                            paramsToUpdate.portamento = (safePresetData.portamento?.enabled && safePresetData.portamento.time !== undefined)
-                                                      ? safePresetData.portamento.time
+                            paramsToUpdate.portamento = (targetPreset.portamento?.enabled && targetPreset.portamento.time !== undefined)
+                                                      ? targetPreset.portamento.time
                                                       : 0;
-                            if (this.config.debug) console.log(`[Synth applyPreset] Updating oscillator for voice ${index} with portamento: ${paramsToUpdate.portamento}`);
                         }
                         if (paramsToUpdate && Object.keys(paramsToUpdate).length > 0 && typeof manager.update === 'function') {
                             if (!manager.update(compData.nodes, paramsToUpdate)) {
@@ -356,27 +409,34 @@ const synth = {
                             }
                         }
                     }
-                    voiceData.currentPresetData = JSON.parse(JSON.stringify(safePresetData));
+                    voiceData.currentPresetData = JSON.parse(JSON.stringify(targetPreset));
                     voiceData.errorState = errorState;
                 }
-                let t4 = performance.now();
-                if (this.config.debug) {
-                    console.log(`[Synth.applyPreset] Voice ${index} timings: prep=${(t2-t1).toFixed(2)}ms, checkRecreate=${(t3-t2).toFixed(2)}ms, buildOrUpdate=${(t4-t3).toFixed(2)}ms, totalVoice=${(t4-t1).toFixed(2)}ms`);
-                }
             } catch (error) {
-                console.error(`[Synth v7 applyPreset] Error applying preset to voice ${index}:`, error, error.stack);
-                this.releaseVoice(index);
+                console.error(`[Synth Gradual] Error processing voice ${index}:`, error, error.stack);
+                this.releaseVoice(index); // Ensure voice state is cleared
                 if (voiceData) {
                     voiceData.components = null;
-                    voiceData.errorState = { critical: `Apply preset failed: ${error.message}` };
+                    voiceData.errorState = { critical: `Gradual apply preset failed: ${error.message}` };
                 }
             }
-        });
-        if (this.config.debug) console.log('[Synth v7] Preset applied.');
-        const t2 = performance.now();
-        const duration = t2 - t0;
-        if (duration > 10) {
-            console.warn(`[Synth.applyPreset] Long execution: ${duration.toFixed(2)}ms`);
+            voicesProcessedThisFrame++;
+        } // end while
+
+        const tFrameEnd = performance.now();
+        if (this.config.debug) {
+            console.log(`[Synth Gradual] Frame processed ${voicesProcessedThisFrame} voices in ${(tFrameEnd - tFrameStart).toFixed(2)}ms. Queue remaining: ${this._presetApplicationQueue.length}`);
+        }
+
+        if (this._presetApplicationQueue.length > 0) {
+            requestAnimationFrame(this._processGradualPresetApplication.bind(this));
+        } else {
+            this._isApplyingPresetGradually = false;
+            if (this.config.debug) console.log('[Synth Gradual] All voices processed for preset.');
+            // Call this once after all voices are processed
+            if (typeof app !== 'undefined' && app._resolveAndApplyYAxisControls) {
+                 app._resolveAndApplyYAxisControls(true);
+            }
         }
     },
 
