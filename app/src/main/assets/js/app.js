@@ -929,8 +929,6 @@ const app = {
 
     // Displays a non-intrusive loading indicator for operations like preset/FX changes.
     // Reuses parts of the main loading overlay but can be styled differently via '.busy-indicator'.
-    // Displays a non-intrusive loading indicator for operations like preset/FX changes.
-    // Reuses parts of the main loading overlay but can be styled differently via '.busy-indicator'.
     showLoadingIndicator(messageKey = 'loading_changes', fallbackMessage = 'Applying changes...') {
         if (!this.elements.loadingOverlay || !this.elements.loadingText) return;
 
@@ -954,7 +952,6 @@ const app = {
         console.log(`[App] Showing busy indicator: ${message}`);
     },
 
-    // Hides the busy/loading indicator.
     // Hides the busy/loading indicator.
     hideLoadingIndicator() {
         if (!this.elements.loadingOverlay) return;

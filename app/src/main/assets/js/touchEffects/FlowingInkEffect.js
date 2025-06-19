@@ -25,7 +25,7 @@ class FlowingInkEffect {
 
         // Store graphics quality setting from initialSettings
         this.quality = initialSettings.graphicsQuality || 'high';
-        // console.log(`[FlowingInkEffect] Graphics Quality: ${this.quality}`);
+        // console.log(`[FlowingInkEffect] Graphics Quality set to: ${this.quality}`); // Optional
 
         this.inkDrops = [];
         this.touches.clear();
@@ -52,7 +52,7 @@ class FlowingInkEffect {
 
     _createInkDrop(x, y, dx, dy, color) {
         const baseSpeed = Math.hypot(dx, dy);
-        // Adjust particle properties/limits based on graphics quality.
+        // Adjust particle properties (speed, size, decay) based on graphics quality.
         let speedMultiplier = this.settings.splatMultiplier || 15;
         let maxSpeed = this.settings.maxSpeed || 5;
         let minSize = this.settings.minSize || 10;
@@ -105,7 +105,7 @@ class FlowingInkEffect {
         this.touches.set(touchData.id, touch);
 
         // Создаем начальный всплеск
-        // Adjust particle properties/limits based on graphics quality.
+        // Reduce particle emission rate and maximum particle count for lower quality settings.
         let burstCount = this.settings.initialBurst || 40;
         if (this.quality === 'low') {
             burstCount = Math.floor(burstCount * 0.3);
@@ -133,7 +133,7 @@ class FlowingInkEffect {
             const dx = touch.x - touch.prevX;
             const dy = touch.y - touch.prevY;
 
-            // Adjust particle properties/limits based on graphics quality.
+            // Reduce particle emission rate and maximum particle count for lower quality settings.
             let emitCount = this.settings.emitRate || 5;
             let maxParticles = this.settings.maxParticles || 1500;
 
@@ -167,7 +167,7 @@ class FlowingInkEffect {
 
         // 1. Очистка с эффектом затухания
         this.ctx.globalCompositeOperation = 'source-over';
-        // Adjust particle properties/limits based on graphics quality.
+        // Increase dissipation (faster fade) for lower quality settings to reduce persistent particle load.
         let dissipation = this.settings.dissipation || 0.1;
         if (this.quality === 'low') {
             dissipation = Math.min(0.3, dissipation * 2); // Faster dissipation for low quality

@@ -55,7 +55,7 @@ class MatrixGlitchRenderer {
         this.analyserNodeRef = analyserNodeRef;
 
         this.quality = initialSettings.graphicsQuality || 'high';
-        console.log(`[MatrixGlitchRenderer] Graphics Quality: ${this.quality}`);
+        // console.log(`[MatrixGlitchRenderer] Graphics Quality set to: ${this.quality}`); // Optional: keep for debugging
 
         this.lastGlitchTime = performance.now();
         this.onThemeChange(this.themeColors);

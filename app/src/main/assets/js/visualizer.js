@@ -166,7 +166,8 @@ const visualizer = {
             const RendererClass = this._getRendererClassFromRegistry(rendererScriptName, this.renderersRegistry);
 
             if (RendererClass) {
-                // Merge global graphicsQuality setting for the renderer to use.
+                // Merge global graphicsQuality setting from app.state for the renderer to use.
+                // This allows renderers to adapt their complexity based on this setting.
                 if (!this.analyser) {
                     console.warn(`[Visualizer] Analyser is null before initializing ${RendererClass.name}. Attempting to fetch again or wait...`);
                     if (typeof synth !== 'undefined' && typeof synth.getAnalyser === 'function') {

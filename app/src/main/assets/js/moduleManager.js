@@ -153,7 +153,9 @@ const moduleManager = {
          }
      },
 
-    // Add this new method to the moduleManager object
+    // Fetches module data (using getModules) and returns a summarized version
+    // (id, name, displayName, etc.) suitable for list displays in the UI.
+    // This helps UI components work with lighter objects.
     async getModuleSummaries(moduleTypeInput, forceRefresh = false) {
         // console.log(`[ModuleManager.getModuleSummaries] Requesting summaries for type: ${moduleTypeInput}`);
         const fullModules = await this.getModules(moduleTypeInput, forceRefresh); // Uses existing getModules

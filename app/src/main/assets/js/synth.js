@@ -22,10 +22,11 @@ const synth = {
     _updateQueue: new Map(), 
     _isProcessingQueue: false,
 
-    _presetApplicationQueue: [], // Stores { index, presetData, forceRecreation } tasks
+    // Properties for managing gradual (asynchronous) application of presets.
+    _presetApplicationQueue: [],
     _isApplyingPresetGradually: false,
-    _currentGradualPresetData: null, // Holds the preset data for the ongoing gradual application
-    _voicesToProcessPerFrame: 1, // How many voices to process in one animation frame cycle
+    _currentGradualPresetData: null,
+    _voicesToProcessPerFrame: 1,
 
     config: {
         polyphony: 4, // Было 10. Для теста ASR ошибки уменьшено до 4.
@@ -240,6 +241,8 @@ const synth = {
         return Math.max(minOutput, Math.min(maxOutput, finalOutput));
     },
 
+    // Schedules preset changes to be applied gradually to voices over multiple animation frames,
+    // preventing UI freezes during complex preset loads.
     applyPreset(presetData, forceRecreation = false) {
         const t0 = performance.now();
         if (!this.isReady || !presetData) {
@@ -301,6 +304,8 @@ const synth = {
         if (this.config.debug) console.log(`[Synth Gradual] applyPreset scheduling took ${(t1 - t0).toFixed(2)}ms`);
     },
 
+    // Processes a batch of voice updates/recreations from the _presetApplicationQueue.
+    // Called via requestAnimationFrame to spread load over time.
     _processGradualPresetApplication() {
         if (this._presetApplicationQueue.length === 0) {
             this._isApplyingPresetGradually = false;

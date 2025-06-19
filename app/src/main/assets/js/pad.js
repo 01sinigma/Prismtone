@@ -13,10 +13,11 @@ const pad = {
         touchEndTolerance: 300,
         throttleMoveEventsMs: 16, // 16 ~ 60 FPS. 33 ~ 30 FPS. 0 - отключает троттлинг.
     },
+    // DOM element pools for zones, labels, and lines to optimize drawing by reusing elements.
     zoneElementPool: [],
     labelElementPool: [],
     lineElementPool: [],
-    maxPoolSize: 38, // Max 36 zones + a little buffer for lines/labels
+    maxPoolSize: 38,
     lastY: 0.5,
     lastInteractionTime: 0,
     cachedRect: null,
@@ -54,6 +55,7 @@ const pad = {
         this.labelElementPool = [];
         this.lineElementPool = [];
 
+        // Pre-populate DOM element pools for zones, labels, and lines.
         for (let i = 0; i < this.maxPoolSize; i++) {
             // Create Zone Element
             const zoneElement = document.createElement('div');
@@ -206,6 +208,8 @@ const pad = {
         }
     },
 
+    // Draws pad zones using pre-created DOM elements from pools to improve performance
+    // by avoiding repeated DOM creation and destruction.
     drawZones(zonesData, currentTonicNoteName) {
         // console.log(`[Pad.drawZones POOLING v10.2] Received zonesData (length: ${zonesData ? zonesData.length : 'null/undefined'}), currentTonic: ${currentTonicNoteName}`);
         if (!this.isReady || !this.zonesContainer || !this.labelsContainer) {
@@ -272,6 +276,8 @@ const pad = {
                 labelElement.style.left = `${labelX}%`;
                 labelElement.style.transform = 'translateX(-50%)';
                 labelElement.style.bottom = '5px';
+                // Add padding to lift text above its bottom border (the colored stripe).
+                labelElement.style.paddingBottom = '3px';
 
                 labelElement.style.borderBottomColor = 'transparent';
                 if (zoneData.midiNote !== undefined && noteColorsForLabels) {
