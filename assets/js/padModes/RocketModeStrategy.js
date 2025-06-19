@@ -1,3 +1,19 @@
+// Utility function to delay execution of a function until after a certain period of inactivity.
+// This helps to improve performance by reducing the number of times a computationally expensive function is called,
+// for example, in response to rapid events like pointer movements.
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const context = this; // Capture the context
+        const later = () => {
+            timeout = null;
+            func.apply(context, args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
 // Файл: assets/js/padModes/RocketModeStrategy.js
 const RocketModeStrategy = {
     appRef: null,
@@ -6,6 +22,7 @@ const RocketModeStrategy = {
     _isActive: false,
     _currentSuggestions: [],      // Кэш текущих предложений для getPadVisualHints
     _activeNotesMap: new Map(),   // { pointerId: { midiNote, name, frequency, x, y, startTime } }
+    _debouncedAnalyzeAndUpdateMarkers: null,
     __localSettings: {
         intensity: 0.5, visualTheme: 'Glow', autoPhases: true,
         phaseTransitionMode: 'activity', phaseDurations: { ignition: 30, liftOff: 60, burst: 90 },
@@ -30,19 +47,23 @@ const RocketModeStrategy = {
         this.musicTheoryServiceRef = musicTheoryServiceInstance;
         this.harmonicMarkerEngineRef = harmonicMarkerEngineInstance;
         if (this.appRef && this.appRef.state && this.appRef.state.rocketModeSettings) {
-            this._settings = { ...this._settings, ...this.appRef.state.rocketModeSettings };
+            // Ensure __localSettings is updated if appRef.state.rocketModeSettings is the source of truth
+            // This line might be redundant if the setter handles the update or if direct mutation of __localSettings is intended elsewhere.
+            // However, the original init logic was this._settings = { ...this._settings, ...this.appRef.state.rocketModeSettings };
+            // which implies merging into the current _settings (which would be __localSettings via the setter).
+            // For simplicity and to align with the new getter, we can directly assign or merge into __localSettings if needed,
+            // but the new getter prioritizes appRef.state.rocketModeSettings directly.
+            // The line below attempts to somewhat replicate the original intent of updating underlying settings.
+            this.__localSettings = { ...this.__localSettings, ...this.appRef.state.rocketModeSettings };
         }
-        console.log("[RocketModeStrategy.init] Initialized successfully. Current settings:", JSON.parse(JSON.stringify(this._settings)));
+        console.log("[RocketModeStrategy.init] Initialized successfully. Current settings:", this._settings);
         return true;
     },
     get _settings() {
         if (this.appRef && this.appRef.state && this.appRef.state.rocketModeSettings) {
-            if (JSON.stringify(this.__localSettings) !== JSON.stringify(this.appRef.state.rocketModeSettings)) {
-                this.__localSettings = { ...this.appRef.state.rocketModeSettings };
-            }
-            return this.appRef.state.rocketModeSettings;
+            return this.appRef.state.rocketModeSettings; // Prioritize appRef state
         }
-        return this.__localSettings;
+        return this.__localSettings; // Fallback to local cache/defaults
     },
     set _settings(val) {
         this.__localSettings = val;
@@ -111,6 +132,8 @@ const RocketModeStrategy = {
         if (!activeTouch) return null;
         activeTouch.x = x;
         activeTouch.y = y;
+        // Call the debounced version of marker analysis.
+        // This ensures that analysis only runs after pointer movement has paused for a short duration.
         let newFoundZone = null;
         if (currentZones && currentZones.length > 0) {
             for (let i = 0; i < currentZones.length; i++) {
@@ -129,7 +152,7 @@ const RocketModeStrategy = {
                 activeTouch.midiNote = newFoundZone.midiNote;
                 activeTouch.frequency = newFoundZone.frequency;
                 console.log(`[RocketModeStrategy] Note CHANGE: ${oldNoteDetails.name} -> ${activeTouch.name}. Active notes: ${this._activeNotesMap.size}`);
-                await this._analyzeAndUpdateMarkers();
+                if (this._debouncedAnalyzeAndUpdateMarkers) this._debouncedAnalyzeAndUpdateMarkers();
                 this._updateEnergyAndPhase({ type: 'pointermove', x, y, event: 'onPointerMove' });
                 return {
                     type: 'note_change',
@@ -137,13 +160,19 @@ const RocketModeStrategy = {
                     newNote: { name: activeTouch.name, midiNote: activeTouch.midiNote, frequency: activeTouch.frequency }
                 };
             } else {
+                // For simple note updates (no change in note, just position),
+                // we might not need to re-analyze markers immediately,
+                // or if we do, it should definitely be debounced.
+                // Consider if _updateEnergyAndPhase is enough or if visual feedback needs faster update.
+                // For now, let's assume marker analysis is desired but can be debounced.
+                 if (this._debouncedAnalyzeAndUpdateMarkers) this._debouncedAnalyzeAndUpdateMarkers();
                 return { type: 'note_update', note: { name: activeTouch.name, midiNote: activeTouch.midiNote, frequency: activeTouch.frequency } };
             }
         } else {
             const releasedNoteDetails = { name: activeTouch.name, midiNote: activeTouch.midiNote, frequency: activeTouch.frequency };
             this._activeNotesMap.delete(pointerId);
             console.log(`[RocketModeStrategy] Note OFF (move out): ${releasedNoteDetails.name}. Active notes: ${this._activeNotesMap.size}`);
-            await this._analyzeAndUpdateMarkers();
+            if (this._debouncedAnalyzeAndUpdateMarkers) this._debouncedAnalyzeAndUpdateMarkers();
             this._updateEnergyAndPhase({ type: 'pointermove', x, y, event: 'onPointerMove' });
             return { type: 'note_off', note: releasedNoteDetails };
         }
@@ -260,8 +289,14 @@ const RocketModeStrategy = {
         }
         this._activeNotesMap.clear();
         this._currentSuggestions = [];
+
+        // Initialize the debounced version of _analyzeAndUpdateMarkers.
+        // This is to prevent excessive calls to the potentially expensive marker analysis function
+        // during rapid pointer movements, thus improving UI responsiveness.
+        this._debouncedAnalyzeAndUpdateMarkers = debounce(this._analyzeAndUpdateMarkers.bind(this), 250); // 250ms delay
+
         await this._analyzeAndUpdateMarkers();
-        console.log("[RocketModeStrategy] Activated. Current settings:", JSON.parse(JSON.stringify(this._settings)));
+        console.log("[RocketModeStrategy] Activated. Current settings:", this._settings);
     },
     onModeDeactivated: async function(appState, services, uiModules) {
         this._isActive = false;
@@ -323,7 +358,7 @@ const RocketModeStrategy = {
         await this._analyzeAndUpdateMarkers();
     },
     getModeSpecificControlsConfig() {
-        console.log("[RocketModeStrategy] getModeSpecificControlsConfig called. Current _settings:", JSON.parse(JSON.stringify(this._settings)));
+        console.log("[RocketModeStrategy] getModeSpecificControlsConfig called. Current _settings:", this._settings);
         return [
             {
                 name: 'harmonicKeyDisplay',
