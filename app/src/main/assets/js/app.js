@@ -928,39 +928,56 @@ const app = {
     },
 
     // Displays a non-intrusive loading indicator for operations like preset/FX changes.
-    // Reuses parts of the main loading overlay but can be styled differently via '.busy-indicator'.
+    // Reuses parts of the main loading overlay but is styled differently via '.busy-indicator'.
+    // This indicator is designed to NOT interfere with the main initial loading screen's
+    // specific elements (like title, prompt, or full-screen animations like stars/prism),
+    // which are managed by the app's main init/triggerAppStart flow.
     showLoadingIndicator(messageKey = 'loading_changes', fallbackMessage = 'Applying changes...') {
         if (!this.elements.loadingOverlay || !this.elements.loadingText) return;
 
-        // Use a class to distinguish this type of loading from initial load
-        this.elements.loadingOverlay.classList.add('busy-indicator');
+        // Ensure the main overlay is visible if it was hidden, and add the busy-indicator class.
         this.elements.loadingOverlay.classList.remove('hidden', 'hiding');
+        this.elements.loadingOverlay.classList.add('busy-indicator');
 
-        // Hide elements specific to initial full load if they exist and are visible
-        if (this.elements.loadingTitle) this.elements.loadingTitle.classList.remove('show');
-        if (this.elements.loadingPrompt) this.elements.loadingPrompt.classList.remove('show');
-        if (this.starsAnimation && typeof this.starsAnimation.stop === 'function') this.starsAnimation.stop(); // Stop full screen animations
-        if (this.prismEffect && typeof this.prismEffect.stop === 'function') this.prismEffect.stop();
-        if (this.loadingAudio && typeof this.loadingAudio.stopMusicLoop === 'function') this.loadingAudio.stopMusicLoop();
-
-        // Update text for the busy indicator
+        // Set the specific message for the busy state.
         const message = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate(messageKey, fallbackMessage) : fallbackMessage;
         this.elements.loadingText.textContent = message;
         this.elements.loadingText.classList.remove('fade-out'); // Ensure text is visible
         this.elements.loadingText.style.color = 'var(--color-text-on-dark, #e0e0e0)'; // Reset color
 
+        // Make sure general loading text area is visible for the busy message.
+        this.elements.loadingText.style.display = '';
+
+        // Note: This method intentionally does NOT stop main intro animations (stars, prism, loadingAudio)
+        // nor does it hide the main intro title/prompt elements (loadingTitle, loadingPrompt).
+        // Those are controlled by the primary application loading sequence (init -> triggerAppStart -> startAudioAndShowApp).
+
         console.log(`[App] Showing busy indicator: ${message}`);
     },
 
     // Hides the busy/loading indicator.
+    // This method primarily reverses the visual state set by showLoadingIndicator for the 'busy' state.
+    // It does NOT hide the main loadingOverlay itself, as the overall visibility of
+    // loadingOverlay is managed by the app.init -> app.triggerAppStart -> app.hideLoading() flow.
     hideLoadingIndicator() {
-        if (!this.elements.loadingOverlay) return;
+        if (!this.elements.loadingOverlay || !this.elements.loadingText) return;
 
         this.elements.loadingOverlay.classList.remove('busy-indicator');
-        // Only hide it if it's not the main initial loading (which has its own hide logic)
-        // For busy indicator, we can just hide it directly or with a quick fade.
-        this.elements.loadingOverlay.classList.add('hidden');
-        console.log('[App] Hiding busy indicator.');
+
+        // Reset the loading text if it was showing a busy indicator message.
+        // A more robust approach might involve checking the specific messageKey if available,
+        // or restoring a previously cached main loading message if the intro is still active.
+        // For now, clearing it is a simple way to indicate the busy task is done.
+        const busyMessagePrefix = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate('loading_changes', 'Applying changes...').substring(0,10) : "Applying";
+        if (this.elements.loadingText.textContent.startsWith(busyMessagePrefix)) {
+             this.elements.loadingText.textContent = '';
+        }
+        // Consider if loadingText display should be reset if it was changed by showLoadingIndicator
+        // e.g., this.elements.loadingText.style.display = 'none';
+        // However, if the main loading text is still supposed to be there (e.g. "Tap to Start"),
+        // clearing our busy message and removing the busy-indicator class should suffice.
+
+        console.log('[App] Busy indicator state removed.');
     },
 
     async setScale(scaleId) {
@@ -1764,39 +1781,56 @@ const app = {
     },
 
     // Displays a non-intrusive loading indicator for operations like preset/FX changes.
-    // Reuses parts of the main loading overlay but can be styled differently via '.busy-indicator'.
+    // Reuses parts of the main loading overlay but is styled differently via '.busy-indicator'.
+    // This indicator is designed to NOT interfere with the main initial loading screen's
+    // specific elements (like title, prompt, or full-screen animations like stars/prism),
+    // which are managed by the app's main init/triggerAppStart flow.
     showLoadingIndicator(messageKey = 'loading_changes', fallbackMessage = 'Applying changes...') {
         if (!this.elements.loadingOverlay || !this.elements.loadingText) return;
 
-        // Use a class to distinguish this type of loading from initial load
-        this.elements.loadingOverlay.classList.add('busy-indicator');
+        // Ensure the main overlay is visible if it was hidden, and add the busy-indicator class.
         this.elements.loadingOverlay.classList.remove('hidden', 'hiding');
+        this.elements.loadingOverlay.classList.add('busy-indicator');
 
-        // Hide elements specific to initial full load if they exist and are visible
-        if (this.elements.loadingTitle) this.elements.loadingTitle.classList.remove('show');
-        if (this.elements.loadingPrompt) this.elements.loadingPrompt.classList.remove('show');
-        if (this.starsAnimation && typeof this.starsAnimation.stop === 'function') this.starsAnimation.stop(); // Stop full screen animations
-        if (this.prismEffect && typeof this.prismEffect.stop === 'function') this.prismEffect.stop();
-        if (this.loadingAudio && typeof this.loadingAudio.stopMusicLoop === 'function') this.loadingAudio.stopMusicLoop();
-
-        // Update text for the busy indicator
+        // Set the specific message for the busy state.
         const message = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate(messageKey, fallbackMessage) : fallbackMessage;
         this.elements.loadingText.textContent = message;
         this.elements.loadingText.classList.remove('fade-out'); // Ensure text is visible
         this.elements.loadingText.style.color = 'var(--color-text-on-dark, #e0e0e0)'; // Reset color
 
+        // Make sure general loading text area is visible for the busy message.
+        this.elements.loadingText.style.display = '';
+
+        // Note: This method intentionally does NOT stop main intro animations (stars, prism, loadingAudio)
+        // nor does it hide the main intro title/prompt elements (loadingTitle, loadingPrompt).
+        // Those are controlled by the primary application loading sequence (init -> triggerAppStart -> startAudioAndShowApp).
+
         console.log(`[App] Showing busy indicator: ${message}`);
     },
 
     // Hides the busy/loading indicator.
+    // This method primarily reverses the visual state set by showLoadingIndicator for the 'busy' state.
+    // It does NOT hide the main loadingOverlay itself, as the overall visibility of
+    // loadingOverlay is managed by the app.init -> app.triggerAppStart -> app.hideLoading() flow.
     hideLoadingIndicator() {
-        if (!this.elements.loadingOverlay) return;
+        if (!this.elements.loadingOverlay || !this.elements.loadingText) return;
 
         this.elements.loadingOverlay.classList.remove('busy-indicator');
-        // Only hide it if it's not the main initial loading (which has its own hide logic)
-        // For busy indicator, we can just hide it directly or with a quick fade.
-        this.elements.loadingOverlay.classList.add('hidden');
-        console.log('[App] Hiding busy indicator.');
+
+        // Reset the loading text if it was showing a busy indicator message.
+        // A more robust approach might involve checking the specific messageKey if available,
+        // or restoring a previously cached main loading message if the intro is still active.
+        // For now, clearing it is a simple way to indicate the busy task is done.
+        const busyMessagePrefix = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate('loading_changes', 'Applying changes...').substring(0,10) : "Applying";
+        if (this.elements.loadingText.textContent.startsWith(busyMessagePrefix)) {
+             this.elements.loadingText.textContent = '';
+        }
+        // Consider if loadingText display should be reset if it was changed by showLoadingIndicator
+        // e.g., this.elements.loadingText.style.display = 'none';
+        // However, if the main loading text is still supposed to be there (e.g. "Tap to Start"),
+        // clearing our busy message and removing the busy-indicator class should suffice.
+
+        console.log('[App] Busy indicator state removed.');
     },
 
     // Collects all application settings that should be persisted.
