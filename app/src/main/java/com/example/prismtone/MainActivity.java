@@ -1,7 +1,9 @@
 package com.example.prismtone;
 
+import com.example.prismtone.BuildConfig;
 import android.annotation.SuppressLint;
 import android.net.Uri;
+import java.util.concurrent.Executors;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -56,7 +58,7 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setAllowFileAccessFromFileURLs(false); // Безопасность: обычно false
         webSettings.setAllowUniversalAccessFromFileURLs(false); // Безопасность: обычно false
         webSettings.setMediaPlaybackRequiresUserGesture(false);
-        WebView.setWebContentsDebuggingEnabled(true); // Для разработки
+        if (BuildConfig.DEBUG) { WebView.setWebContentsDebuggingEnabled(true); } // Для разработки
 
         moduleManager = new ModuleManager(this, viewModel);
         bridge = new PrismtoneBridge(this, webView, viewModel, moduleManager);
@@ -64,7 +66,21 @@ public class MainActivity extends AppCompatActivity {
 
         webView.loadUrl("https://appassets.androidplatform.net/assets/index.html");
 
-        moduleManager.scanModules();
+        Executors.newSingleThreadExecutor().execute(new Runnable() {
+            @Override
+            public void run() {
+                long startTime = System.currentTimeMillis();
+                Log.d("PerformanceLog", "ModuleManager.scanModules() starting.");
+
+                moduleManager.scanModules();
+
+                long endTime = System.currentTimeMillis();
+                Log.d("PerformanceLog", "ModuleManager.scanModules() finished in " + (endTime - startTime) + " ms.");
+
+                // If there's any UI update needed after scanning,
+                // it should be posted back to the main thread, e.g., using runOnUiThread.
+            }
+        });
     }
 
     private static class LocalContentWebViewClient extends WebViewClient {

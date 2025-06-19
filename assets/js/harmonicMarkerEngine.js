@@ -16,22 +16,22 @@ const harmonicMarkerEngine = {
     },
 
     init(musicTheoryServiceInstance) {
-        console.log("[HarmonicMarkerEngine] Initializing...");
+        // console.log("[HarmonicMarkerEngine] Initializing...");
         if (!musicTheoryServiceInstance || typeof musicTheoryServiceInstance.getNoteDetails !== 'function') {
-            console.error("[HarmonicMarkerEngine.init] Invalid MusicTheoryService instance provided.");
+            // console.error("[HarmonicMarkerEngine.init] Invalid MusicTheoryService instance provided.");
             this.isInitialized = false;
             return;
         }
         this.musicTheoryServiceRef = musicTheoryServiceInstance;
         this.isInitialized = true;
-        console.log("[HarmonicMarkerEngine] Initialized successfully.");
+        // console.log("[HarmonicMarkerEngine] Initialized successfully.");
     },
 
     async analyzeAndSuggest(activeNotes, context) {
         const { tonic, scaleId, previousChordSymbol, currentPhase, selectedMarkerStyle, subMode, displaySettings } = context;
-        console.log(`[HME.analyzeAndSuggest] Current SubMode: ${subMode}`);
+        // console.log(`[HME.analyzeAndSuggest] Current SubMode: ${subMode}`);
         if (!this.isInitialized || !activeNotes || activeNotes.length === 0 || !context || !context.tonic || !context.scaleId) {
-            console.warn("[HarmonicMarkerEngine.analyzeAndSuggest] Not initialized or invalid input.");
+            // console.warn("[HarmonicMarkerEngine.analyzeAndSuggest] Not initialized or invalid input.");
             return [];
         }
         this._lastDetectedChordSymbol = null;
@@ -47,7 +47,7 @@ const harmonicMarkerEngine = {
             try {
                 detectedChordSymbols = Tonal.Chord.detect(activeNotePitchClasses);
             } catch (e) {
-                console.warn("[HME] Tonal.Chord.detect error:", e);
+                // console.warn("[HME] Tonal.Chord.detect error:", e);
                 detectedChordSymbols = [];
             }
         }
@@ -84,7 +84,7 @@ const harmonicMarkerEngine = {
                 }
             }
         }
-        console.log(`[HME] Element Type: ${elementType}, Element:`, currentHarmonicElement ? (currentHarmonicElement.symbol || currentHarmonicElement.name) : 'None');
+        // console.log(`[HME] Element Type: ${elementType}, Element:`, currentHarmonicElement ? (currentHarmonicElement.symbol || currentHarmonicElement.name) : 'None');
 
         let suggestions = [];
         switch (subMode) {
@@ -107,7 +107,7 @@ const harmonicMarkerEngine = {
                 suggestions = await this._suggestNext_RandomDirected(activeNotes, currentHarmonicElement, elementType, context, selectedMarkerStyle);
                 break;
             default:
-                console.warn(`[HME] Unknown subMode: ${subMode}. Falling back to tonalBinding.`);
+                // console.warn(`[HME] Unknown subMode: ${subMode}. Falling back to tonalBinding.`);
                 if (elementType === 'chord' && currentHarmonicElement) {
                     currentHarmonicElement.function = this._getChordFunction(currentHarmonicElement.symbol, tonic, scaleId);
                     suggestions = await this._suggestNext_TonalBinding_Chord(currentHarmonicElement, context, selectedMarkerStyle);
@@ -142,7 +142,7 @@ const harmonicMarkerEngine = {
             });
         }
 
-        console.log("[HarmonicMarkerEngine.analyzeAndSuggest] Final suggestions:", JSON.parse(JSON.stringify(suggestions)));
+        // console.log("[HarmonicMarkerEngine.analyzeAndSuggest] Final suggestions:", JSON.parse(JSON.stringify(suggestions)));
         return suggestions;
     },
 
@@ -179,7 +179,7 @@ const harmonicMarkerEngine = {
             }
             return `Deg.${degreeNumber}`;
         } catch (e) {
-            console.warn(`[HME._getChordFunction] Error for ${chordSymbol}, ${scaleTonic} ${scaleId}:", e);
+            // console.warn(`[HME._getChordFunction] Error for ${chordSymbol}, ${scaleTonic} ${scaleId}:", e);
             return "unknown";
         }
     },
@@ -203,7 +203,7 @@ const harmonicMarkerEngine = {
             if (degreeNumber === 4) return "Subdominant Note (IV)";
             return `Scale Degree ${degreeNumber}`;
         } catch (e) {
-            console.warn(`[HME._getNoteFunction] Error for ${notePitchClass}, ${scaleTonic} ${scaleId}:", e);
+            // console.warn(`[HME._getNoteFunction] Error for ${notePitchClass}, ${scaleTonic} ${scaleId}:", e);
             return "unknown_note";
         }
     },
@@ -241,7 +241,7 @@ const harmonicMarkerEngine = {
                         targetChordSymbol: chordSymbol
                     });
                 }
-            } catch (e) { console.warn(`[HME] Error creating suggestion for ${targetRootPc}${chordTypeName}:", e); }
+            } catch (e) { /* console.warn(`[HME] Error creating suggestion for ${targetRootPc}${chordTypeName}:", e); */ }
         };
 
         if (currentHarmonicElement.function.includes("D (V)")) {
@@ -278,7 +278,7 @@ const harmonicMarkerEngine = {
                         type: 'harmonic_suggestion'
                     });
                 }
-            } catch (e) { console.warn(`[HME] Error creating single note suggestion for ${targetNotePc}:", e); }
+            } catch (e) { /* console.warn(`[HME] Error creating single note suggestion for ${targetNotePc}:", e); */ }
         };
 
         if (noteFunction.includes("Dominant Note (V)")) {
@@ -413,9 +413,9 @@ const harmonicMarkerEngine = {
                     targetChordSymbol: chordSymbol
                 });
             } else {
-                console.warn(`[HME._createChordSuggestion] Could not get valid chord for ${chordSymbol}`);
+                // console.warn(`[HME._createChordSuggestion] Could not get valid chord for ${chordSymbol}`);
             }
-        } catch (e) { console.warn(`[HME._createChordSuggestion] Error:`, e); }
+        } catch (e) { /* console.warn(`[HME._createChordSuggestion] Error:`, e); */ }
     },
 
     _createSingleNoteSuggestion(suggestionsArray, targetMidi, funcLabel, color, context, style) {
@@ -434,7 +434,7 @@ const harmonicMarkerEngine = {
                     type: 'harmonic_suggestion'
                 });
             }
-        } catch (e) { console.warn(`[HME._createSingleNoteSuggestion] Error:`, e); }
+        } catch (e) { /* console.warn(`[HME._createSingleNoteSuggestion] Error:`, e); */ }
     },
 
     _selectBestChord(detectedChordSymbols, activeNotePitchClasses, tonic, scaleId) {
@@ -472,7 +472,7 @@ const harmonicMarkerEngine = {
                 }
             } catch (e) { /* игнорируем ошибки парсинга */ }
         }
-        console.log(`[HME._selectBestChord] Best match: ${bestMatch} with score ${highestScore} from`, detectedChordSymbols);
+        // console.log(`[HME._selectBestChord] Best match: ${bestMatch} with score ${highestScore} from`, detectedChordSymbols);
         return bestMatch;
     }
 }; 
