@@ -957,27 +957,24 @@ const app = {
 
     // Hides the busy/loading indicator.
     // This method primarily reverses the visual state set by showLoadingIndicator for the 'busy' state.
-    // It does NOT hide the main loadingOverlay itself, as the overall visibility of
-    // loadingOverlay is managed by the app.init -> app.triggerAppStart -> app.hideLoading() flow.
+    // It's called after operations like preset/FX changes (when the app is already running).
     hideLoadingIndicator() {
         if (!this.elements.loadingOverlay || !this.elements.loadingText) return;
 
         this.elements.loadingOverlay.classList.remove('busy-indicator');
 
-        // Reset the loading text if it was showing a busy indicator message.
-        // A more robust approach might involve checking the specific messageKey if available,
-        // or restoring a previously cached main loading message if the intro is still active.
-        // For now, clearing it is a simple way to indicate the busy task is done.
         const busyMessagePrefix = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate('loading_changes', 'Applying changes...').substring(0,10) : "Applying";
         if (this.elements.loadingText.textContent.startsWith(busyMessagePrefix)) {
              this.elements.loadingText.textContent = '';
         }
-        // Consider if loadingText display should be reset if it was changed by showLoadingIndicator
-        // e.g., this.elements.loadingText.style.display = 'none';
-        // However, if the main loading text is still supposed to be there (e.g. "Tap to Start"),
-        // clearing our busy message and removing the busy-indicator class should suffice.
 
-        console.log('[App] Busy indicator state removed.');
+        // Add 'hidden' back to the overlay.
+        // This is safe because this hideLoadingIndicator is only called for busy states
+        // *after* the initial app load (due to the isInitialLoad flag in applySoundPreset/applyFxChain).
+        // The main app UI should be visible underneath.
+        this.elements.loadingOverlay.classList.add('hidden');
+
+        console.log('[App] Busy indicator hidden and overlay reset.');
     },
 
     async setScale(scaleId) {
@@ -1810,27 +1807,24 @@ const app = {
 
     // Hides the busy/loading indicator.
     // This method primarily reverses the visual state set by showLoadingIndicator for the 'busy' state.
-    // It does NOT hide the main loadingOverlay itself, as the overall visibility of
-    // loadingOverlay is managed by the app.init -> app.triggerAppStart -> app.hideLoading() flow.
+    // It's called after operations like preset/FX changes (when the app is already running).
     hideLoadingIndicator() {
         if (!this.elements.loadingOverlay || !this.elements.loadingText) return;
 
         this.elements.loadingOverlay.classList.remove('busy-indicator');
 
-        // Reset the loading text if it was showing a busy indicator message.
-        // A more robust approach might involve checking the specific messageKey if available,
-        // or restoring a previously cached main loading message if the intro is still active.
-        // For now, clearing it is a simple way to indicate the busy task is done.
         const busyMessagePrefix = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate('loading_changes', 'Applying changes...').substring(0,10) : "Applying";
         if (this.elements.loadingText.textContent.startsWith(busyMessagePrefix)) {
              this.elements.loadingText.textContent = '';
         }
-        // Consider if loadingText display should be reset if it was changed by showLoadingIndicator
-        // e.g., this.elements.loadingText.style.display = 'none';
-        // However, if the main loading text is still supposed to be there (e.g. "Tap to Start"),
-        // clearing our busy message and removing the busy-indicator class should suffice.
 
-        console.log('[App] Busy indicator state removed.');
+        // Add 'hidden' back to the overlay.
+        // This is safe because this hideLoadingIndicator is only called for busy states
+        // *after* the initial app load (due to the isInitialLoad flag in applySoundPreset/applyFxChain).
+        // The main app UI should be visible underneath.
+        this.elements.loadingOverlay.classList.add('hidden');
+
+        console.log('[App] Busy indicator hidden and overlay reset.');
     },
 
     // Collects all application settings that should be persisted.
