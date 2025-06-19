@@ -1,0 +1,24 @@
+{
+  "id": "flowingInk",
+  "type": "touchEffect",
+  "name": "Flowing Ink",
+  "version": "1.0.0",
+  "description": "A 2D particle simulation that mimics flowing ink, inspired by WebGL fluid dynamics.",
+  "active": false,
+  "data": {
+    "rendererScript": "FlowingInkEffect",
+    "settings": {
+      "dissipation": 0.03,
+      "friction": 0.98,
+      "initialBurst": 60,
+      "emitRate": 8,
+      "maxParticles": 1000,
+      "maxSpeed": 7,
+      "minSize": 15,
+      "sizeRange": 20,
+      "minDecay": 0.01,
+      "decayRange": 0.015,
+      "spread": 0.6
+    }
+  }
+}

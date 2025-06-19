@@ -1,0 +1,21 @@
+{
+  "id": "fluid_2d",
+  "type": "touchEffect",
+  "name": "Fluid (2D)",
+  "version": "1.0.0",
+  "description": "A 2D canvas simulation of fluid-like particles reacting to touch.",
+  "active": false,
+  "data": {
+    "rendererScript": "Fluid2DEffect",
+    "settings": {
+      "initialBurstCount": 50,
+      "moveEmitCount": 5,
+      "maxSpeed": 3,
+      "minLife": 500,
+      "lifeRange": 1000,
+      "minSize": 2,
+      "sizeRange": 4,
+      "friction": 0.96
+    }
+  }
+}
