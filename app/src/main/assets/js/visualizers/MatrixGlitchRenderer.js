@@ -54,6 +54,9 @@ class MatrixGlitchRenderer {
         this.globalVisualizerRef = globalVisualizerRef;
         this.analyserNodeRef = analyserNodeRef;
 
+        this.quality = initialSettings.graphicsQuality || 'high';
+        // console.log(`[MatrixGlitchRenderer] Graphics Quality set to: ${this.quality}`); // Optional: keep for debugging
+
         this.lastGlitchTime = performance.now();
         this.onThemeChange(this.themeColors);
         this.onResize();
@@ -72,12 +75,25 @@ class MatrixGlitchRenderer {
     onResize() {
         if (!this.canvas) return;
         const { width, height } = this.canvas;
-        const columns = Math.ceil(width / this.charWidth);
-        const rows = Math.ceil(height / this.charHeight);
+
+        // Adjust grid density based on graphics quality to optimize performance.
+        let columnFactor = 1;
+        if (this.quality === 'low') {
+            columnFactor = 1.8; // Fewer columns for low quality (larger cells)
+        } else if (this.quality === 'medium') {
+            columnFactor = 1.3;
+        }
+
+        // Ensure charWidth and charHeight are positive before division
+        const effectiveCharWidth = this.charWidth > 0 ? this.charWidth * columnFactor : 10 * columnFactor;
+        const effectiveCharHeight = this.charHeight > 0 ? this.charHeight * columnFactor : 20 * columnFactor;
+
+        const columns = Math.max(1, Math.ceil(width / effectiveCharWidth));
+        const rows = Math.max(1, Math.ceil(height / effectiveCharHeight));
 
         if (this.grid.columns !== columns || this.grid.rows !== rows) {
             this.grid = { columns, rows };
-            this._initializeLetters();
+            this._initializeLetters(); // This will create fewer letters for lower quality
         }
     }
 
@@ -143,13 +159,27 @@ class MatrixGlitchRenderer {
     _updateAndDrawRain(highestY) {
         if(!this.ctx || !this.canvas) return;
 
-        const rainChance = (this.settings.rainMaxChance || 0.5) * highestY;
-        if (Math.random() < rainChance) {
+        // Scale down rain effect complexity for lower quality settings.
+        let rainChance = (this.settings.rainMaxChance || 0.5) * highestY;
+        let rainStreamLength = this.settings.rainStreamLength || 20;
+        let rainBaseSpeed = this.settings.rainBaseSpeed || 1.5;
+
+        if (this.quality === 'low') {
+            rainChance *= 0.5;
+            rainStreamLength = Math.max(5, Math.floor(rainStreamLength * 0.5));
+            rainBaseSpeed *= 0.7;
+        } else if (this.quality === 'medium') {
+            rainChance *= 0.75;
+            rainStreamLength = Math.max(10, Math.floor(rainStreamLength * 0.75));
+            rainBaseSpeed *= 0.85;
+        }
+
+        if (Math.random() < rainChance && this.rainStreams.length < (this.quality === 'low' ? 30 : (this.quality === 'medium' ? 60 : 100))) { // Limit total streams
             const stream = this.rainStreamPool.pop() || {};
             stream.col = Math.floor(Math.random() * this.grid.columns);
-            stream.y = -this.charHeight;
-            stream.speed = (this.settings.rainBaseSpeed || 1.5) + highestY * (this.settings.rainSpeedYFactor || 4);
-            stream.length = Math.floor(this.settings.rainStreamLength || 20);
+            stream.y = -this.charHeight; // Use actual charHeight
+            stream.speed = rainBaseSpeed + highestY * (this.settings.rainSpeedYFactor || 4);
+            stream.length = Math.floor(rainStreamLength); // Use adjusted length
             stream.characters = Array.from({ length: stream.length }, () => this._getRandomChar());
             stream.headColor = this.settings.rainGlowColor || '#FFFFFF';
             this.rainStreams.push(stream);
@@ -157,6 +187,12 @@ class MatrixGlitchRenderer {
 
         this.ctx.font = `${this.fontSize}px monospace`;
         this.ctx.textBaseline = 'top';
+
+        // Consider disabling shadowBlur for rain on low quality
+        const originalShadowBlur = this.ctx.shadowBlur;
+        if (this.quality === 'low') {
+            this.ctx.shadowBlur = 0;
+        }
 
         for (let i = this.rainStreams.length - 1; i >= 0; i--) {
             const stream = this.rainStreams[i];
@@ -171,12 +207,14 @@ class MatrixGlitchRenderer {
 
                 if (j === 0) {
                     this.ctx.fillStyle = stream.headColor;
-                    this.ctx.shadowColor = stream.headColor;
-                    this.ctx.shadowBlur = 15;
+                    if (this.quality !== 'low') { // Keep shadow for head unless low quality
+                        this.ctx.shadowColor = stream.headColor;
+                        this.ctx.shadowBlur = 15;
+                    }
                 } else {
                     const progress = j / stream.length;
                     this.ctx.fillStyle = this.globalVisualizerRef.getColorWithAlpha(this.dynamicColorPalette[0], 1.0 - progress);
-                    this.ctx.shadowBlur = 0;
+                    if (this.quality !== 'low') this.ctx.shadowBlur = 0; // No shadow for tail unless it was set for head
                 }
                 this.ctx.fillText(char, charX, charY);
             }
@@ -186,11 +224,13 @@ class MatrixGlitchRenderer {
                 this.rainStreamPool.push(stream);
             }
         }
-        this.ctx.shadowBlur = 0;
+        this.ctx.shadowBlur = originalShadowBlur; // Restore shadowBlur
     }
 
     _drawTouchHighlights(activeTouchStates) {
         if (!this.settings.touchHighlight || activeTouchStates.length === 0) return;
+        // Disable touch highlights on low
+        if (this.quality === 'low') return;
 
         this.ctx.globalCompositeOperation = 'lighter';
         activeTouchStates.forEach(touch => {
@@ -201,6 +241,9 @@ class MatrixGlitchRenderer {
             const gradient = this.ctx.createRadialGradient(x, y, 0, x, y, radius);
             const color = this.globalVisualizerRef.noteColors[touch.noteInfo.midiNote % 12] || this.themeColors.primary;
 
+            this.ctx.shadowColor = color; // This is from globalVisualizerRef.noteColors
+            this.ctx.shadowBlur = (this.quality === 'medium' ? 5 : 10); // Reduce/disable blur
+
             gradient.addColorStop(0, this.globalVisualizerRef.getColorWithAlpha(color, opacity));
             gradient.addColorStop(1, 'rgba(0,0,0,0)');
 
@@ -210,10 +253,13 @@ class MatrixGlitchRenderer {
             this.ctx.fill();
         });
         this.ctx.globalCompositeOperation = 'source-over';
+        this.ctx.shadowBlur = 0; // Reset shadowBlur after highlights
     }
 
     _drawVignette() {
         if (!this.settings.outerVignette) return;
+        // Disable vignette on low
+        if (this.quality === 'low') return;
         const { width, height } = this.canvas;
         const outerGradient = this.ctx.createRadialGradient(width/2, height/2, width * 0.3, width/2, height/2, width * 0.7);
         outerGradient.addColorStop(0, 'rgba(0,0,0,0)');
@@ -234,13 +280,22 @@ class MatrixGlitchRenderer {
         });
 
         if (!this.settings.displacementEnabled || activeTouchStates.length === 0) return;
+        // Completely disable displacement for low quality
+        if (this.quality === 'low') return;
+
+        let dispRadius = this.settings.displacementRadius || 120;
+        let dispStrength = this.settings.displacementStrength || 25;
+
+        if (this.quality === 'medium') {
+            dispRadius *= 0.7;
+            dispStrength *= 0.7;
+        }
 
         activeTouchStates.forEach(touch => {
             const touchX = touch.x * this.canvas.width;
             const touchY = (1 - touch.y) * this.canvas.height;
-            const dispRadius = this.settings.displacementRadius || 120;
+            // Use adjusted dispRadius and dispStrength from above
             const dispRadiusSq = dispRadius * dispRadius;
-            const dispStrength = this.settings.displacementStrength || 25;
 
             const startCol = Math.floor((touchX - dispRadius) / this.charWidth);
             const endCol = Math.ceil((touchX + dispRadius) / this.charWidth);

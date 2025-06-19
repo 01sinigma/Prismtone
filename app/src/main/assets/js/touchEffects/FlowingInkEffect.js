@@ -23,6 +23,10 @@ class FlowingInkEffect {
         this.themeColors = themeColors || {};
         this.globalVisualizerRef = globalVisualizerRef;
 
+        // Store graphics quality setting from initialSettings
+        this.quality = initialSettings.graphicsQuality || 'high';
+        // console.log(`[FlowingInkEffect] Graphics Quality set to: ${this.quality}`); // Optional
+
         this.inkDrops = [];
         this.touches.clear();
         console.log("[FlowingInkEffect] Initialized.");
@@ -48,9 +52,31 @@ class FlowingInkEffect {
 
     _createInkDrop(x, y, dx, dy, color) {
         const baseSpeed = Math.hypot(dx, dy);
-        const speedMultiplier = this.settings.splatMultiplier || 15;
+        // Adjust particle properties (speed, size, decay) based on graphics quality.
+        let speedMultiplier = this.settings.splatMultiplier || 15;
+        let maxSpeed = this.settings.maxSpeed || 5;
+        let minSize = this.settings.minSize || 10;
+        let sizeRange = this.settings.sizeRange || 25;
+        let minDecay = this.settings.minDecay || 0.005;
+        let decayRange = this.settings.decayRange || 0.01;
+
+        if (this.quality === 'low') {
+            speedMultiplier *= 0.5;
+            maxSpeed *= 0.7;
+            minSize *= 0.6;
+            sizeRange *= 0.5;
+            minDecay *= 1.5; // Faster decay
+            decayRange *= 0.8;
+        } else if (this.quality === 'medium') {
+            speedMultiplier *= 0.75;
+            maxSpeed *= 0.85;
+            minSize *= 0.8;
+            sizeRange *= 0.75;
+            minDecay *= 1.2;
+        }
+
         const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * (this.settings.spread || 0.8);
-        const speed = Math.min(this.settings.maxSpeed || 5, 1 + baseSpeed * speedMultiplier * (0.5 + Math.random()));
+        const speed = Math.min(maxSpeed, 1 + baseSpeed * speedMultiplier * (0.5 + Math.random()));
 
         return {
             x: x,
@@ -58,8 +84,8 @@ class FlowingInkEffect {
             vx: Math.cos(angle) * speed,
             vy: Math.sin(angle) * speed,
             life: 1.0,
-            size: (this.settings.minSize || 10) + Math.random() * (this.settings.sizeRange || 25),
-            decay: (this.settings.minDecay || 0.005) + Math.random() * (this.settings.decayRange || 0.01),
+            size: minSize + Math.random() * sizeRange,
+            decay: minDecay + Math.random() * decayRange,
             color: color
         };
     }
@@ -79,7 +105,13 @@ class FlowingInkEffect {
         this.touches.set(touchData.id, touch);
 
         // Создаем начальный всплеск
-        const burstCount = this.settings.initialBurst || 40;
+        // Reduce particle emission rate and maximum particle count for lower quality settings.
+        let burstCount = this.settings.initialBurst || 40;
+        if (this.quality === 'low') {
+            burstCount = Math.floor(burstCount * 0.3);
+        } else if (this.quality === 'medium') {
+            burstCount = Math.floor(burstCount * 0.6);
+        }
         for (let i = 0; i < burstCount; i++) {
             this.inkDrops.push(this._createInkDrop(x, y, (Math.random() - 0.5), (Math.random() - 0.5), touch.color));
         }
@@ -101,9 +133,20 @@ class FlowingInkEffect {
             const dx = touch.x - touch.prevX;
             const dy = touch.y - touch.prevY;
 
-            const emitCount = this.settings.emitRate || 5;
+            // Reduce particle emission rate and maximum particle count for lower quality settings.
+            let emitCount = this.settings.emitRate || 5;
+            let maxParticles = this.settings.maxParticles || 1500;
+
+            if (this.quality === 'low') {
+                emitCount = Math.floor(emitCount * 0.3);
+                maxParticles = 500;
+            } else if (this.quality === 'medium') {
+                emitCount = Math.floor(emitCount * 0.6);
+                maxParticles = 1000;
+            }
+
             for (let i = 0; i < emitCount; i++) {
-                if (this.inkDrops.length < (this.settings.maxParticles || 1500)) {
+                if (this.inkDrops.length < maxParticles) { // Use adjusted maxParticles
                     this.inkDrops.push(this._createInkDrop(touch.x, touch.y, dx, dy, touch.color));
                 }
             }
@@ -124,7 +167,14 @@ class FlowingInkEffect {
 
         // 1. Очистка с эффектом затухания
         this.ctx.globalCompositeOperation = 'source-over';
-        this.ctx.fillStyle = `rgba(0, 0, 0, ${this.settings.dissipation || 0.1})`;
+        // Increase dissipation (faster fade) for lower quality settings to reduce persistent particle load.
+        let dissipation = this.settings.dissipation || 0.1;
+        if (this.quality === 'low') {
+            dissipation = Math.min(0.3, dissipation * 2); // Faster dissipation for low quality
+        } else if (this.quality === 'medium') {
+            dissipation = Math.min(0.2, dissipation * 1.5);
+        }
+        this.ctx.fillStyle = `rgba(0, 0, 0, ${dissipation})`;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
         // 2. Обновление и отрисовка частиц

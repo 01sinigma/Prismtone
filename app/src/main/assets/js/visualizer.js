@@ -166,6 +166,8 @@ const visualizer = {
             const RendererClass = this._getRendererClassFromRegistry(rendererScriptName, this.renderersRegistry);
 
             if (RendererClass) {
+                // Merge global graphicsQuality setting from app.state for the renderer to use.
+                // This allows renderers to adapt their complexity based on this setting.
                 if (!this.analyser) {
                     console.warn(`[Visualizer] Analyser is null before initializing ${RendererClass.name}. Attempting to fetch again or wait...`);
                     if (typeof synth !== 'undefined' && typeof synth.getAnalyser === 'function') {
@@ -195,7 +197,11 @@ const visualizer = {
                 }
 
                 this.activeRenderer = new RendererClass();
-                this.activeRenderer.init(this.ctx, this.canvas, this.vizModuleSettings, this.themeColors, this, this.analyser);
+                const finalVizSettings = {
+                    ...this.vizModuleSettings,
+                    graphicsQuality: (typeof app !== 'undefined' && app.state && app.state.graphicsQuality) ? app.state.graphicsQuality : 'high'
+                };
+                this.activeRenderer.init(this.ctx, this.canvas, finalVizSettings, this.themeColors, this, this.analyser);
                 if (typeof this.activeRenderer.onThemeChange === 'function') {
                     this.activeRenderer.onThemeChange(this.themeColors);
                 }
@@ -254,7 +260,11 @@ const visualizer = {
             if (EffectRendererClass) {
                 console.log(`[Visualizer v4.0] Creating new instance of ${EffectRendererClass.name}...`);
                 this.activeTouchEffectRenderer = new EffectRendererClass();
-                this.activeTouchEffectRenderer.init(this.ctx, this.canvas, this.touchEffectModuleSettings, this.themeColors, this);
+                const finalTouchEffectSettings = {
+                    ...this.touchEffectModuleSettings,
+                    graphicsQuality: (typeof app !== 'undefined' && app.state && app.state.graphicsQuality) ? app.state.graphicsQuality : 'high'
+                };
+                this.activeTouchEffectRenderer.init(this.ctx, this.canvas, finalTouchEffectSettings, this.themeColors, this);
                 if (typeof this.activeTouchEffectRenderer.onThemeChange === 'function') {
                     this.activeTouchEffectRenderer.onThemeChange(this.themeColors);
                 }

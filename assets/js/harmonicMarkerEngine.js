@@ -1,8 +1,30 @@
+// Utility function to cache the results of a function call.
+// If the function is called again with the same arguments, the cached result is returned,
+// avoiding redundant computation for expensive functions.
+function memoize(fn) {
+    const cache = {};
+    return function(...args) {
+        const key = JSON.stringify(args); // Using JSON.stringify for simplicity
+        if (cache.hasOwnProperty(key)) { // More robust check
+            return cache[key];
+        }
+        const result = fn.apply(this, args);
+        cache[key] = result;
+        return result;
+    };
+}
+
 // Файл: assets/js/harmonicMarkerEngine.js
 const harmonicMarkerEngine = {
     musicTheoryServiceRef: null,
     isInitialized: false,
     _lastDetectedChordSymbol: null, // Для отладки или отображения
+
+    // Memoized function references
+    _memoizedGetScaleNotes: null,
+    _memoizedTonalChordGet: null,
+    _memoizedTonalScaleGet: null,
+
     // Цветовая палитра для маркеров (может быть вынесена в настройки темы или Rocket Mode)
     markerColors: {
         tonic: "gold",           // Золотой (Тоника, I)
@@ -24,10 +46,46 @@ const harmonicMarkerEngine = {
         }
         this.musicTheoryServiceRef = musicTheoryServiceInstance;
         this.isInitialized = true;
-        // console.log("[HarmonicMarkerEngine] Initialized successfully.");
+
+        // Initialize memoized functions
+        // Memoized version of Tonal.Scale.get().notes.
+        // Caches the notes of a scale to avoid recomputing them if the tonic and scaleId haven't changed.
+        this._memoizedGetScaleNotes = memoize((tonicPc, scaleId) => {
+            if (!Tonal || !Tonal.Scale || typeof Tonal.Scale.get !== 'function' || !tonicPc || !scaleId) {
+                // console.warn('[HME._memoizedGetScaleNotes] Tonal.Scale.get not available or invalid input.');
+                return [];
+            }
+            const scaleName = `${tonicPc} ${scaleId}`;
+            const scaleData = Tonal.Scale.get(scaleName);
+            return scaleData.empty ? [] : scaleData.notes;
+        });
+
+        // Memoized version of Tonal.Chord.get().
+        // Caches the details of a chord to avoid redundant parsing and computation.
+        this._memoizedTonalChordGet = memoize((chordSymbol) => {
+            if (!Tonal || !Tonal.Chord || typeof Tonal.Chord.get !== 'function' || !chordSymbol) {
+                // console.warn('[HME._memoizedTonalChordGet] Tonal.Chord.get not available or invalid input.');
+                return { empty: true }; // Return Tonal.js like empty object
+            }
+            return Tonal.Chord.get(chordSymbol);
+        });
+
+        // Memoized version of Tonal.Scale.get().
+        // Caches the full scale object (including notes, intervals, chords) to avoid re-fetching.
+        this._memoizedTonalScaleGet = memoize((scaleName) => {
+            if (!Tonal || !Tonal.Scale || typeof Tonal.Scale.get !== 'function' || !scaleName) {
+                 // console.warn('[HME._memoizedTonalScaleGet] Tonal.Scale.get not available or invalid input.');
+                return { empty: true, notes: [], intervals: [], chords: [] }; // Return Tonal.js like empty object
+            }
+            return Tonal.Scale.get(scaleName);
+        });
+        // console.log("[HarmonicMarkerEngine] Initialized successfully with memoized functions.");
     },
 
-    async analyzeAndSuggest(activeNotes, context) {
+    // Note: This function and its subordinate suggestion methods were refactored to be synchronous
+    // after optimizations (e.g., memoization of Tonal.js calls), removing previous async/await usage
+    // where operations are purely computational.
+    analyzeAndSuggest(activeNotes, context) {
         const { tonic, scaleId, previousChordSymbol, currentPhase, selectedMarkerStyle, subMode, displaySettings } = context;
         // console.log(`[HME.analyzeAndSuggest] Current SubMode: ${subMode}`);
         if (!this.isInitialized || !activeNotes || activeNotes.length === 0 || !context || !context.tonic || !context.scaleId) {
@@ -91,29 +149,29 @@ const harmonicMarkerEngine = {
             case 'tonalBinding':
                 if (elementType === 'chord' && currentHarmonicElement) {
                     currentHarmonicElement.function = this._getChordFunction(currentHarmonicElement.symbol, tonic, scaleId);
-                    suggestions = await this._suggestNext_TonalBinding_Chord(currentHarmonicElement, context, selectedMarkerStyle);
+                    suggestions = this._suggestNext_TonalBinding_Chord(currentHarmonicElement, context, selectedMarkerStyle);
                 } else if (elementType === 'singleNote' && currentHarmonicElement) {
                     const noteFunction = this._getNoteFunction(currentHarmonicElement.pc, tonic, scaleId);
-                    suggestions = await this._suggestNext_TonalBinding_Single(currentHarmonicElement, noteFunction, context, selectedMarkerStyle);
+                    suggestions = this._suggestNext_TonalBinding_Single(currentHarmonicElement, noteFunction, context, selectedMarkerStyle);
                 }
                 break;
             case 'adaptiveAnalysis':
-                suggestions = await this._suggestNext_AdaptiveAnalysis(activeNotes, currentHarmonicElement, elementType, context, selectedMarkerStyle);
+                suggestions = this._suggestNext_AdaptiveAnalysis(activeNotes, currentHarmonicElement, elementType, context, selectedMarkerStyle);
                 break;
             case 'semiFree':
-                suggestions = await this._suggestNext_SemiFree(activeNotes, currentHarmonicElement, elementType, context, selectedMarkerStyle);
+                suggestions = this._suggestNext_SemiFree(activeNotes, currentHarmonicElement, elementType, context, selectedMarkerStyle);
                 break;
             case 'randomDirected':
-                suggestions = await this._suggestNext_RandomDirected(activeNotes, currentHarmonicElement, elementType, context, selectedMarkerStyle);
+                suggestions = this._suggestNext_RandomDirected(activeNotes, currentHarmonicElement, elementType, context, selectedMarkerStyle);
                 break;
             default:
                 // console.warn(`[HME] Unknown subMode: ${subMode}. Falling back to tonalBinding.`);
                 if (elementType === 'chord' && currentHarmonicElement) {
                     currentHarmonicElement.function = this._getChordFunction(currentHarmonicElement.symbol, tonic, scaleId);
-                    suggestions = await this._suggestNext_TonalBinding_Chord(currentHarmonicElement, context, selectedMarkerStyle);
+                    suggestions = this._suggestNext_TonalBinding_Chord(currentHarmonicElement, context, selectedMarkerStyle);
                 } else if (elementType === 'singleNote' && currentHarmonicElement) {
                     const noteFunction = this._getNoteFunction(currentHarmonicElement.pc, tonic, scaleId);
-                    suggestions = await this._suggestNext_TonalBinding_Single(currentHarmonicElement, noteFunction, context, selectedMarkerStyle);
+                    suggestions = this._suggestNext_TonalBinding_Single(currentHarmonicElement, noteFunction, context, selectedMarkerStyle);
                 }
         }
 
@@ -149,12 +207,15 @@ const harmonicMarkerEngine = {
     _getChordFunction(chordSymbol, scaleTonic, scaleId) {
         if (!this.musicTheoryServiceRef.isTonalJsLoaded) return "unknown";
         try {
-            const chordDetails = Tonal.Chord.get(chordSymbol);
+            // Use memoized Tonal.Chord.get
+            const chordDetails = this._memoizedTonalChordGet(chordSymbol);
             if (chordDetails.empty) return "unknown";
 
             const rootPc = chordDetails.tonic;
-            const scaleTonicPc = Tonal.Note.pitchClass(scaleTonic);
-            const scaleNotes = Tonal.Scale.get(`${scaleTonicPc} ${scaleId}`).notes;
+            const scaleTonicPc = Tonal.Note.pitchClass(scaleTonic); // Tonal.Note.pitchClass is usually fast
+
+            // Use memoized function for scale notes
+            const scaleNotes = this._memoizedGetScaleNotes(scaleTonicPc, scaleId);
 
             if (!rootPc || !scaleNotes || scaleNotes.length === 0) return "unknown";
 
@@ -182,13 +243,16 @@ const harmonicMarkerEngine = {
             // console.warn(`[HME._getChordFunction] Error for ${chordSymbol}, ${scaleTonic} ${scaleId}:", e);
             return "unknown";
         }
+         // Add a default return if no path is taken:
+        return "unknown"; // Or an appropriate default
     },
 
     _getNoteFunction(notePitchClass, scaleTonic, scaleId) {
         if (!this.musicTheoryServiceRef.isTonalJsLoaded) return "unknown_note";
         try {
             const scaleTonicPc = Tonal.Note.pitchClass(scaleTonic);
-            const scaleNotes = Tonal.Scale.get(`${scaleTonicPc} ${scaleId}`).notes;
+            // Use memoized function for scale notes
+            const scaleNotes = this._memoizedGetScaleNotes(scaleTonicPc, scaleId);
             if (!scaleNotes || scaleNotes.length === 0) return "unknown_note";
 
             const simplifiedNotePc = Tonal.Note.simplify(notePitchClass);
@@ -206,18 +270,22 @@ const harmonicMarkerEngine = {
             // console.warn(`[HME._getNoteFunction] Error for ${notePitchClass}, ${scaleTonic} ${scaleId}:", e);
             return "unknown_note";
         }
+        // Add a default return if no path is taken:
+        return "unknown_note"; // Or an appropriate default
     },
 
-    async _suggestNext_TonalBinding_Chord(currentHarmonicElement, context, selectedMarkerStyle) {
+    _suggestNext_TonalBinding_Chord(currentHarmonicElement, context, selectedMarkerStyle) {
         const suggestions = [];
         const tonicPc = Tonal.Note.pitchClass(context.tonic);
-        const scaleNotes = Tonal.Scale.get(`${tonicPc} ${context.scaleId}`).notes;
+        // Use memoized function for scale notes
+        const scaleNotes = this._memoizedGetScaleNotes(tonicPc, context.scaleId);
         const currentOctave = Tonal.Note.octave(context.tonic);
 
         const createSuggestion = (targetRootPc, chordTypeName, funcLabel, color) => {
             try {
                 const chordSymbol = targetRootPc + chordTypeName;
-                const chord = Tonal.Chord.get(chordSymbol);
+                // Use memoized Tonal.Chord.get
+                const chord = this._memoizedTonalChordGet(chordSymbol);
                 if (!chord.empty) {
                     const targetNotes = chord.notes.map(notePc => {
                         let targetNoteFullName = notePc + currentOctave;
@@ -257,10 +325,11 @@ const harmonicMarkerEngine = {
         return suggestions.slice(0, 3);
     },
 
-    async _suggestNext_TonalBinding_Single(currentHarmonicElement, noteFunction, context, selectedMarkerStyle) {
+    _suggestNext_TonalBinding_Single(currentHarmonicElement, noteFunction, context, selectedMarkerStyle) {
         const suggestions = [];
         const tonicPc = Tonal.Note.pitchClass(context.tonic);
-        const scaleNotes = Tonal.Scale.get(`${tonicPc} ${context.scaleId}`).notes;
+        // Use memoized function for scale notes
+        const scaleNotes = this._memoizedGetScaleNotes(tonicPc, context.scaleId);
         const currentNoteOctave = Tonal.Note.octave(currentHarmonicElement.name);
 
         const createSuggestion = (targetNotePc, funcLabel, color) => {
@@ -305,7 +374,7 @@ const harmonicMarkerEngine = {
         return suggestions.slice(0, 2);
     },
 
-    async _suggestNext_AdaptiveAnalysis(activeNotes, currentHarmonicElement, elementType, context, selectedMarkerStyle) {
+    _suggestNext_AdaptiveAnalysis(activeNotes, currentHarmonicElement, elementType, context, selectedMarkerStyle) {
         let suggestions = [];
         const globalTonic = context.tonic;
         const globalScaleId = context.scaleId;
@@ -320,10 +389,10 @@ const harmonicMarkerEngine = {
         }
         if (suggestions.length === 0) {
             if (elementType === 'chord' && currentHarmonicElement) {
-                suggestions = await this._suggestNext_TonalBinding_Chord(currentHarmonicElement, context, selectedMarkerStyle);
+                suggestions = this._suggestNext_TonalBinding_Chord(currentHarmonicElement, context, selectedMarkerStyle);
             } else if (elementType === 'singleNote' && currentHarmonicElement) {
                 const noteFunction = this._getNoteFunction(currentHarmonicElement.pc, globalTonic, globalScaleId);
-                suggestions = await this._suggestNext_TonalBinding_Single(currentHarmonicElement, noteFunction, context, selectedMarkerStyle);
+                suggestions = this._suggestNext_TonalBinding_Single(currentHarmonicElement, noteFunction, context, selectedMarkerStyle);
             }
         }
         if(activeNotes.length > 0) {
@@ -334,14 +403,14 @@ const harmonicMarkerEngine = {
         return suggestions.slice(0,3);
     },
 
-    async _suggestNext_SemiFree(activeNotes, currentHarmonicElement, elementType, context, selectedMarkerStyle) {
+    _suggestNext_SemiFree(activeNotes, currentHarmonicElement, elementType, context, selectedMarkerStyle) {
         let suggestions = [];
         if (elementType === 'chord' && currentHarmonicElement) {
             currentHarmonicElement.function = this._getChordFunction(currentHarmonicElement.symbol, context.tonic, context.scaleId);
-            suggestions = await this._suggestNext_TonalBinding_Chord(currentHarmonicElement, context, selectedMarkerStyle);
+            suggestions = this._suggestNext_TonalBinding_Chord(currentHarmonicElement, context, selectedMarkerStyle);
         } else if (elementType === 'singleNote' && currentHarmonicElement) {
             const noteFunction = this._getNoteFunction(currentHarmonicElement.pc, context.tonic, context.scaleId);
-            suggestions = await this._suggestNext_TonalBinding_Single(currentHarmonicElement, noteFunction, context, selectedMarkerStyle);
+            suggestions = this._suggestNext_TonalBinding_Single(currentHarmonicElement, noteFunction, context, selectedMarkerStyle);
         }
         const tonicPc = Tonal.Note.pitchClass(context.tonic);
         if (suggestions.length < 3) {
@@ -361,11 +430,13 @@ const harmonicMarkerEngine = {
         return suggestions.slice(0,3);
     },
 
-    async _suggestNext_RandomDirected(activeNotes, currentHarmonicElement, elementType, context, selectedMarkerStyle) {
+    _suggestNext_RandomDirected(activeNotes, currentHarmonicElement, elementType, context, selectedMarkerStyle) {
         const suggestions = [];
         const tonicPc = Tonal.Note.pitchClass(context.tonic);
-        const scaleInfo = Tonal.Scale.get(`${tonicPc} ${context.scaleId}`);
-        if (scaleInfo.empty) return [];
+        // Use memoized function for scale data
+        const scaleInfo = this._memoizedTonalScaleGet ? this._memoizedTonalScaleGet(`${tonicPc} ${context.scaleId}`) : Tonal.Scale.get(`${tonicPc} ${context.scaleId}`);
+
+        if (!scaleInfo || scaleInfo.empty) return [];
         const diatonicChordNames = scaleInfo.chords;
         const potentialRoots = scaleInfo.notes;
         const numSuggestions = 2 + Math.floor(Math.random() * 2);
@@ -386,7 +457,8 @@ const harmonicMarkerEngine = {
     _createChordSuggestion(suggestionsArray, rootPc, chordTypeSymbol, funcLabel, color, context, style) {
         try {
             const chordSymbol = rootPc + chordTypeSymbol;
-            const chord = Tonal.Chord.get(chordSymbol);
+            // Use memoized Tonal.Chord.get
+            const chord = this._memoizedTonalChordGet(chordSymbol);
             if (!chord.empty) {
                 const currentOctave = Tonal.Note.octave(context.tonic) || 4;
                 const targetNotes = chord.notes.map(notePc => {
@@ -441,15 +513,16 @@ const harmonicMarkerEngine = {
         if (!detectedChordSymbols || detectedChordSymbols.length === 0) return null;
 
         const tonicPc = Tonal.Note.pitchClass(tonic);
-        const scaleData = Tonal.Scale.get(`${tonicPc} ${scaleId}`);
-        const scaleNotesPc = scaleData.empty ? [] : scaleData.notes;
+        // Use memoized function for scale notes
+        const scaleNotesPc = this._memoizedGetScaleNotes(tonicPc, scaleId);
 
         let bestMatch = null;
         let highestScore = -1;
 
         for (const symbol of detectedChordSymbols) {
             try {
-                const chord = Tonal.Chord.get(symbol);
+                // Use memoized Tonal.Chord.get
+                const chord = this._memoizedTonalChordGet(symbol);
                 if (chord.empty) continue;
 
                 let score = 0;

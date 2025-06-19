@@ -13,6 +13,11 @@ const pad = {
         touchEndTolerance: 300,
         throttleMoveEventsMs: 16, // 16 ~ 60 FPS. 33 ~ 30 FPS. 0 - отключает троттлинг.
     },
+    // DOM element pools for zones, labels, and lines to optimize drawing by reusing elements.
+    zoneElementPool: [],
+    labelElementPool: [],
+    lineElementPool: [],
+    maxPoolSize: 38,
     lastY: 0.5,
     lastInteractionTime: 0,
     cachedRect: null,
@@ -45,6 +50,42 @@ const pad = {
         this.addGlobalSafetyHandlers();
         this.updateCachedRect();
         window.addEventListener('resize', this.updateCachedRect.bind(this));
+
+        this.zoneElementPool = [];
+        this.labelElementPool = [];
+        this.lineElementPool = [];
+
+        // Pre-populate DOM element pools for zones, labels, and lines.
+        for (let i = 0; i < this.maxPoolSize; i++) {
+            // Create Zone Element
+            const zoneElement = document.createElement('div');
+            zoneElement.className = 'xy-pad-zone-area'; // Base class
+            zoneElement.style.position = 'absolute';
+            zoneElement.style.top = '0';
+            zoneElement.style.bottom = '0';
+            zoneElement.style.display = 'none'; // Initially hidden
+            this.zonesContainer.appendChild(zoneElement);
+            this.zoneElementPool.push(zoneElement);
+
+            // Create Line Element (for dividers)
+            const lineElement = document.createElement('div');
+            lineElement.className = 'xy-zone-divider';
+            lineElement.style.position = 'absolute';
+            lineElement.style.top = '0';
+            lineElement.style.bottom = '0';
+            lineElement.style.display = 'none'; // Initially hidden
+            this.zonesContainer.appendChild(lineElement);
+            this.lineElementPool.push(lineElement);
+
+            // Create Label Element
+            const labelElement = document.createElement('div');
+            labelElement.className = 'xy-label';
+            labelElement.style.position = 'absolute';
+            labelElement.style.display = 'none'; // Initially hidden
+            this.labelsContainer.appendChild(labelElement);
+            this.labelElementPool.push(labelElement);
+        }
+        console.log(`[Pad v10.2] DOM pools created with size ${this.maxPoolSize}.`);
         this.isReady = true;
         console.log('[Pad v10.2] Initialized successfully.');
     },
@@ -167,21 +208,17 @@ const pad = {
         }
     },
 
+    // Draws pad zones using pre-created DOM elements from pools to improve performance
+    // by avoiding repeated DOM creation and destruction.
     drawZones(zonesData, currentTonicNoteName) {
-        console.log(`[Pad.drawZones ENTRY v10.1] Received zonesData (length: ${zonesData ? zonesData.length : 'null/undefined'}), currentTonic: ${currentTonicNoteName}`);
-        if (!this.isReady || !this.zonesContainer || !this.labelsContainer) return;
-        if (zonesData && zonesData.length > 0) console.log("[Pad.drawZones] First zone example:", JSON.stringify(zonesData[0]));
-
-        console.log(`[Pad.drawZones v10] Drawing ${zonesData.length} zones. Current tonic: ${currentTonicNoteName}`);
-        this._currentDisplayedZones = Array.isArray(zonesData) ? zonesData : [];
-
-        this.zonesContainer.innerHTML = '';
-        this.labelsContainer.innerHTML = '';
-
-        if (this._currentDisplayedZones.length === 0) {
-            console.warn("[Pad.drawZones v10] No zonesData to draw.");
+        // console.log(`[Pad.drawZones POOLING v10.2] Received zonesData (length: ${zonesData ? zonesData.length : 'null/undefined'}), currentTonic: ${currentTonicNoteName}`);
+        if (!this.isReady || !this.zonesContainer || !this.labelsContainer) {
+            console.warn('[Pad.drawZones POOLING] Aborting: Not ready or containers missing.');
             return;
         }
+
+        this._currentDisplayedZones = Array.isArray(zonesData) ? zonesData : [];
+        const numZonesToDisplay = this._currentDisplayedZones.length;
 
         let borderColorRgb = '224, 224, 224';
         let textColor = '#757575';
@@ -191,63 +228,103 @@ const pad = {
             const computedStyle = getComputedStyle(document.body);
             borderColorRgb = computedStyle.getPropertyValue('--color-border-rgb').trim() || borderColorRgb;
             textColor = computedStyle.getPropertyValue('--color-text-secondary').trim() || textColor;
-            if (typeof visualizer !== 'undefined' && visualizer.themeColors) {
-                 noteColorsForLabels = visualizer.noteColors ||
-                                       { 0: '#FF0000', 1: '#FF4500', 2: '#FFA500', 3: '#FFD700', 4: '#FFFF00', 5: '#9ACD32', 6: '#32CD32', 7: '#00BFFF', 8: '#0000FF', 9: '#8A2BE2', 10: '#FF00FF', 11: '#FF1493' };
+
+            if (typeof app !== 'undefined' && app.state && app.state.noteColors) {
+                 noteColorsForLabels = app.state.noteColors;
+            } else if (typeof visualizer !== 'undefined' && visualizer.noteColors) {
+                 noteColorsForLabels = visualizer.noteColors;
             } else {
                 noteColorsForLabels = { 0: '#FF0000', 1: '#FF4500', 2: '#FFA500', 3: '#FFD700', 4: '#FFFF00', 5: '#9ACD32', 6: '#32CD32', 7: '#00BFFF', 8: '#0000FF', 9: '#8A2BE2', 10: '#FF00FF', 11: '#FF1493' };
             }
-        } catch (e) { console.warn("[Pad v10 drawZones] Error getting styles/colors:", e); }
+        } catch (e) { console.warn("[Pad v10 drawZones POOLING] Error getting styles/colors:", e); }
 
         const zoneLineColor = `rgba(${borderColorRgb}, ${this.config.linesVisibility ? 0.4 : 0})`;
 
-        this._currentDisplayedZones.forEach((zone, index) => {
-            console.log(`[Pad.drawZones] Drawing zone ${index}:`, zone.noteName,`startX: ${zone.startX}, width: ${(zone.endX - zone.startX) * 100}%`);
-            zone.index = index;
+        for (let i = 0; i < numZonesToDisplay; i++) {
+            if (i >= this.maxPoolSize) {
+                console.warn(`[Pad.drawZones POOLING] Attempting to draw more zones (${i}) than available in pool (${this.maxPoolSize}). Stopping.`);
+                break;
+            }
+            const zoneData = this._currentDisplayedZones[i];
+            zoneData.index = i;
 
-            const zoneElement = document.createElement('div');
+            const zoneElement = this.zoneElementPool[i];
+            zoneElement.style.left = `${zoneData.startX * 100}%`;
+            zoneElement.style.width = `${(zoneData.endX - zoneData.startX) * 100}%`;
+
             zoneElement.className = 'xy-pad-zone-area';
-            zoneElement.style.left = `${zone.startX * 100}%`;
-            zoneElement.style.width = `${(zone.endX - zone.startX) * 100}%`;
-
-            if (app.state.highlightSharpsFlats && zone.isSharpFlat) {
+            if (app.state.highlightSharpsFlats && zoneData.isSharpFlat) {
                 zoneElement.classList.add('sharp-flat-zone');
             }
-            if (zone.noteName === currentTonicNoteName) {
+            if (zoneData.noteName === currentTonicNoteName) {
                 zoneElement.classList.add('tonic-zone');
             }
+            zoneElement.style.display = 'block';
 
-            this.zonesContainer.appendChild(zoneElement);
-
-            if (this.config.linesVisibility && index > 0) {
-                const lineElement = document.createElement('div');
-                lineElement.className = 'xy-zone-divider';
-                lineElement.style.left = `${zone.startX * 100}%`;
+            if (i > 0) {
+                const lineElement = this.lineElementPool[i - 1];
+                lineElement.style.left = `${zoneData.startX * 100}%`;
                 lineElement.style.borderLeftColor = zoneLineColor;
-                this.zonesContainer.appendChild(lineElement);
+                lineElement.style.display = this.config.linesVisibility ? 'block' : 'none';
             }
 
-            if (this.config.labelVisibility && zone.startX !== undefined && zone.endX !== undefined) {
-                const label = document.createElement('div');
-                label.className = 'xy-label';
-                label.textContent = zone.labelOverride || zone.noteName || '?';
-                label.style.color = textColor;
-                const labelX = ((zone.startX + zone.endX) / 2) * 100;
-                label.style.left = `${labelX}%`;
-                if (zone.midiNote !== undefined && noteColorsForLabels) {
-                    const noteIndex = zone.midiNote % 12;
-                    label.style.borderBottomColor = noteColorsForLabels[noteIndex] || 'transparent';
+            const labelElement = this.labelElementPool[i];
+            if (this.config.labelVisibility) {
+                labelElement.textContent = zoneData.labelOverride || zoneData.noteName || '?';
+                labelElement.style.color = textColor;
+                const labelX = ((zoneData.startX + zoneData.endX) / 2) * 100;
+                labelElement.style.left = `${labelX}%`;
+                labelElement.style.transform = 'translateX(-50%)';
+                labelElement.style.bottom = '5px';
+                // Add padding to lift text above its bottom border (the colored stripe).
+                labelElement.style.paddingBottom = '3px';
+
+                labelElement.style.borderBottomColor = 'transparent';
+                if (zoneData.midiNote !== undefined && noteColorsForLabels) {
+                    const noteIndex = zoneData.midiNote % 12;
+                    labelElement.style.borderBottomColor = noteColorsForLabels[noteIndex] || 'transparent';
                 }
-                this.labelsContainer.appendChild(label);
+                labelElement.style.display = 'block';
+            } else {
+                labelElement.style.display = 'none';
             }
-        });
-        if (this.config.linesVisibility && this._currentDisplayedZones.length > 0) {
-            const lastLine = document.createElement('div');
-            lastLine.className = 'xy-zone-divider'; lastLine.style.left = `100%`;
-            lastLine.style.borderLeftColor = zoneLineColor;
-            this.zonesContainer.appendChild(lastLine);
         }
-        // this.applyVisualHints(this._currentVisualHints); // Раскомментируйте, если нужно
+
+        if (this.config.linesVisibility && numZonesToDisplay > 0 && numZonesToDisplay <= this.maxPoolSize) {
+            const lastLineElement = this.lineElementPool[numZonesToDisplay -1];
+            lastLineElement.style.left = `100%`;
+            lastLineElement.style.borderLeftColor = zoneLineColor;
+            lastLineElement.style.display = 'block';
+        } else if (numZonesToDisplay > 0 && numZonesToDisplay <= this.maxPoolSize) {
+            if (this.lineElementPool[numZonesToDisplay - 1]) { // Check if element exists
+               this.lineElementPool[numZonesToDisplay - 1].style.display = 'none';
+            }
+        }
+
+        for (let i = numZonesToDisplay; i < this.maxPoolSize; i++) {
+            if(this.zoneElementPool[i]) this.zoneElementPool[i].style.display = 'none';
+            if(this.labelElementPool[i]) this.labelElementPool[i].style.display = 'none';
+        }
+
+        for (let i = Math.max(0, numZonesToDisplay -1); i < this.maxPoolSize; i++) {
+            // Hide lines that are for zones not being displayed.
+            // If numZonesToDisplay is 5, lines used are 0,1,2,3,4. So hide from index 5.
+            // If numZonesToDisplay is 0, this loop should correctly start from 0.
+            // If numZonesToDisplay is 1, lines used is 0. Hide from 1.
+            // The lines used are indexed from 0 to numZonesToDisplay-1 for the last line.
+            if (numZonesToDisplay === 0) { // if no zones, hide all lines
+                 if(this.lineElementPool[i]) this.lineElementPool[i].style.display = 'none';
+            } else if (i >= numZonesToDisplay) { // For lines beyond the count of zones
+                 if(this.lineElementPool[i]) this.lineElementPool[i].style.display = 'none';
+            }
+        }
+        if (numZonesToDisplay === 0) { // Special case: if no zones, ensure all lines from pool are hidden
+            for(let k=0; k < this.maxPoolSize; k++) {
+                if(this.lineElementPool[k]) this.lineElementPool[k].style.display = 'none';
+            }
+        }
+
+        // console.log(`[Pad.drawZones POOLING v10.2] Finished drawing ${numZonesToDisplay} zones.`);
     },
 
     _getPadContext() {

@@ -42,6 +42,10 @@ const moduleManager = {
 
         console.log(`[ModuleManager.getModules] Fetching modules via bridge for type: ${moduleType} (Force refresh: ${forceRefresh})`);
         try {
+            // TODO: Future Optimization: Implement a native bridge method (e.g., getModuleListSummary(moduleType))
+            // that returns only essential fields (id, name, displayName, icon, etc.) for list displays.
+            // This would reduce data transfer size from native to JS.
+            // The current getModules call fetches full data for all modules of the type.
             const modulesJson = await bridgeFix.callBridge('getModules', moduleType);
             if (modulesJson) {
                 const parsedModules = JSON.parse(modulesJson);
@@ -147,5 +151,41 @@ const moduleManager = {
              }
              console.log("[ModuleManager.refreshCache] All known types refreshed.");
          }
-     }
+     },
+
+    // Fetches module data (using getModules) and returns a summarized version
+    // (id, name, displayName, etc.) suitable for list displays in the UI.
+    // This helps UI components work with lighter objects.
+    async getModuleSummaries(moduleTypeInput, forceRefresh = false) {
+        // console.log(`[ModuleManager.getModuleSummaries] Requesting summaries for type: ${moduleTypeInput}`);
+        const fullModules = await this.getModules(moduleTypeInput, forceRefresh); // Uses existing getModules
+
+        if (Array.isArray(fullModules)) {
+            const summaries = fullModules.map(mod => {
+                if (mod && mod.id) { // Ensure basic structure
+                    return {
+                        id: mod.id,
+                        name: mod.name || mod.id, // Fallback name to id if name is missing
+                        // Attempt to find a displayable name. Common patterns:
+                        // 1. A dedicated 'displayName' field.
+                        // 2. 'name' field is already displayable.
+                        // 3. 'name' is an i18n key, and we'd ideally translate it here if i18n was easily accessible.
+                        //    For now, we'll assume 'name' or a 'displayName' property in the module data is sufficient.
+                        displayName: mod.displayName || mod.name || mod.id,
+                        // Include other minimal fields if consistently needed by UIs, e.g., 'icon', 'color'
+                        // For now, keeping it minimal to id and name/displayName.
+                        ...(mod.icon && { icon: mod.icon }), // Conditionally add icon if it exists
+                        ...(mod.color && { color: mod.color }), // Conditionally add color
+                    };
+                }
+                return null; // Or some default error object for invalid module structures
+            }).filter(summary => summary !== null); // Filter out any nulls from invalid structures
+
+            // console.log(`[ModuleManager.getModuleSummaries] Returning ${summaries.length} summaries for type: ${moduleTypeInput}`);
+            return summaries;
+        } else {
+            console.warn(`[ModuleManager.getModuleSummaries] getModules did not return an array for type: ${moduleTypeInput}. Returning empty array.`);
+            return [];
+        }
+    },
 };

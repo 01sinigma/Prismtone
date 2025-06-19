@@ -56,6 +56,7 @@ const app = {
         isApplyingChange: false,
         vibrationEnabled: true,
         vibrationIntensity: 'weak',
+        graphicsQuality: 'high', // Default graphics quality. Options: 'low', 'medium', 'high'. Affects visualizer performance.
     },
     elements: {
         loadingOverlay: null,
@@ -405,6 +406,7 @@ const app = {
             isChordPanelCollapsed: localStorage.getItem('isChordPanelCollapsed') === 'true',
             chordPanelWidth: parseInt(localStorage.getItem('chordPanelWidth'), 10) || 320,
             // === ЗАГРУЗКА rocketModeSettings ===
+            graphicsQuality: localStorage.getItem('graphicsQuality') || 'high',
             rocketModeSettings: {
                 highlightActiveNotes: localStorage.getItem('rocketModeSettings.highlightActiveNotes') === 'true',
                 showDirectionalMarkers: localStorage.getItem('rocketModeSettings.showDirectionalMarkers') === 'true',
@@ -449,6 +451,7 @@ const app = {
                 this.state.zoneCount = settings.zoneCount || this.state.zoneCount;
                 this.state.showNoteNames = settings.showNoteNames ?? this.state.showNoteNames;
                 this.state.showLines = settings.showLines ?? this.state.showLines; // Было showGrid
+                this.state.graphicsQuality = settings.graphicsQuality || this.state.graphicsQuality;
 
                 this.state.masterVolumeCeiling = settings.masterVolumeCeiling ?? this.state.masterVolumeCeiling;
                 this.state.enablePolyphonyVolumeScaling = settings.enablePolyphonyVolumeScaling ?? this.state.enablePolyphonyVolumeScaling;
@@ -771,7 +774,9 @@ const app = {
             return;
         }
         this.state.isApplyingChange = true;
-        // this.showLoadingIndicator(true);
+        // this.showLoadingIndicator(true); // Original comment
+        // Show busy indicator while applying changes
+        this.showLoadingIndicator('loading_preset', 'Applying preset...'); // New indicator call
 
         const previousPresetId = this.state.soundPreset; 
 
@@ -832,8 +837,10 @@ const app = {
                 soundPresets.updateActivePresetCube(previousPresetId);
             }
         } finally {
+            // Hide busy indicator once done or on error
+            this.hideLoadingIndicator(); // New indicator call
             this.state.isApplyingChange = false;
-            // this.hideLoadingIndicator();
+            // this.hideLoadingIndicator(); // Original comment
         }
     },
 
@@ -848,7 +855,9 @@ const app = {
         }
         this.state.isApplyingChange = true;
         // Показать индикатор загрузки
-        // this.showLoadingIndicator(true);
+        // this.showLoadingIndicator(true); // Original comment
+        // Show busy indicator while applying changes
+        this.showLoadingIndicator('loading_fxchain', 'Applying FX chain...'); // New indicator call
 
         const previousChainId = this.state.fxChain; // Для отката
 
@@ -911,8 +920,69 @@ const app = {
             }
             // Можно добавить уведомление пользователя об ошибке
         } finally {
+            // Hide busy indicator once done or on error
+            this.hideLoadingIndicator(); // New indicator call
             this.state.isApplyingChange = false;
-            // this.hideLoadingIndicator();
+            // this.hideLoadingIndicator(); // Original comment
+        }
+    },
+
+    // Displays a non-intrusive loading indicator for operations like preset/FX changes.
+    // Reuses parts of the main loading overlay but is styled differently via '.busy-indicator'.
+    // This indicator is designed to NOT interfere with the main initial loading screen's
+    // specific elements (like title, prompt, or full-screen animations like stars/prism),
+    // which are managed by the app's main init/triggerAppStart flow.
+    showLoadingIndicator(messageKey = 'loading_changes', fallbackMessage = 'Applying changes...') {
+        if (!this.elements.loadingOverlay || !this.elements.loadingText) return;
+
+        // Ensure the main overlay is visible if it was hidden, and add the busy-indicator class.
+        this.elements.loadingOverlay.classList.remove('hidden', 'hiding');
+        this.elements.loadingOverlay.classList.add('busy-indicator');
+
+        // Set the specific message for the busy state.
+        const message = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate(messageKey, fallbackMessage) : fallbackMessage;
+        this.elements.loadingText.textContent = message;
+        this.elements.loadingText.classList.remove('fade-out'); // Ensure text is visible
+        this.elements.loadingText.style.color = 'var(--color-text-on-dark, #e0e0e0)'; // Reset color
+
+        // Make sure general loading text area is visible for the busy message.
+        this.elements.loadingText.style.display = '';
+
+        // Note: This method intentionally does NOT stop main intro animations (stars, prism, loadingAudio)
+        // nor does it hide the main intro title/prompt elements (loadingTitle, loadingPrompt).
+        // Those are controlled by the primary application loading sequence (init -> triggerAppStart -> startAudioAndShowApp).
+
+        console.log(`[App] Showing busy indicator: ${message}`);
+    },
+
+    // Hides the busy/loading indicator.
+    // This method primarily reverses the visual state set by showLoadingIndicator for the 'busy' state.
+    hideLoadingIndicator() {
+        if (!this.elements.loadingOverlay || !this.elements.loadingText) return;
+
+        this.elements.loadingOverlay.classList.remove('busy-indicator');
+
+        const busyMessagePrefix = (typeof i18n !== 'undefined' && i18n.translate) ?
+                                  i18n.translate('loading_changes', 'Applying changes...').substring(0,10) :
+                                  "Applying";
+        if (this.elements.loadingText.textContent.startsWith(busyMessagePrefix)) {
+             this.elements.loadingText.textContent = '';
+        }
+
+        // Only hide the entire overlay if the main app startup sequence has passed the point
+        // where this overlay is used for the initial skippable intro.
+        // app.isStartingApp becomes true when triggerAppStart() is called.
+        if (this.isStartingApp) {
+            this.elements.loadingOverlay.classList.add('hidden');
+            console.log('[App] Busy indicator hidden and overlay reset for active app.');
+        } else {
+            // If the initial intro is still potentially active (e.g. title/prompt visible),
+            // just removing the busy-indicator class and clearing its text is enough.
+            // The main intro flow (triggerAppStart -> hideLoading) will handle hiding the overlay.
+            // We might want to restore the original loading text if we cleared it.
+            // For now, clearing is fine, or use updateLoadingText with a generic key if needed.
+            // Example: this.updateLoadingText('loading_continue_prompt', 'Tap to Start');
+            console.log('[App] Busy indicator state removed; main intro overlay remains managed by init sequence.');
         }
     },
 
@@ -1131,8 +1201,7 @@ const app = {
         if (synth && synth.isReady) {
             synth.applyMasterVolumeSettings();
         }
-        bridgeFix.callBridge('setSetting', 'masterVolumeCeiling', this.state.masterVolumeCeiling.toString())
-           .catch(err => console.error("[App] Bridge setSetting masterVolumeCeiling failed:", err));
+        this.saveAppSettingsDebounced(); // Centralized debounced save
         if (fxChains && typeof fxChains.updateMasterOutputControlsUI === 'function') {
             fxChains.updateMasterOutputControlsUI(this.state.masterVolumeCeiling);
         }
@@ -1213,6 +1282,7 @@ const app = {
         // === КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ===
         this.state.yAxisDefinedByPreset = false; // Ручное изменение отменяет приоритет пресета/цепочки
         this._applyYAxisChangesToUIAndSynth();
+        this.saveAppSettingsDebounced(); // Centralized debounced save
         // ==========================
         console.log(`[App.setYAxisControl] ${group}.${controlName} set to ${value}. yAxisDefinedByPreset is now false.`);
     },
@@ -1716,17 +1786,129 @@ const app = {
         }
     },
 
+    // Displays a non-intrusive loading indicator for operations like preset/FX changes.
+    // Reuses parts of the main loading overlay but is styled differently via '.busy-indicator'.
+    // This indicator is designed to NOT interfere with the main initial loading screen's
+    // specific elements (like title, prompt, or full-screen animations like stars/prism),
+    // which are managed by the app's main init/triggerAppStart flow.
+    showLoadingIndicator(messageKey = 'loading_changes', fallbackMessage = 'Applying changes...') {
+        if (!this.elements.loadingOverlay || !this.elements.loadingText) return;
+
+        // Ensure the main overlay is visible if it was hidden, and add the busy-indicator class.
+        this.elements.loadingOverlay.classList.remove('hidden', 'hiding');
+        this.elements.loadingOverlay.classList.add('busy-indicator');
+
+        // Set the specific message for the busy state.
+        const message = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate(messageKey, fallbackMessage) : fallbackMessage;
+        this.elements.loadingText.textContent = message;
+        this.elements.loadingText.classList.remove('fade-out'); // Ensure text is visible
+        this.elements.loadingText.style.color = 'var(--color-text-on-dark, #e0e0e0)'; // Reset color
+
+        // Make sure general loading text area is visible for the busy message.
+        this.elements.loadingText.style.display = '';
+
+        // Note: This method intentionally does NOT stop main intro animations (stars, prism, loadingAudio)
+        // nor does it hide the main intro title/prompt elements (loadingTitle, loadingPrompt).
+        // Those are controlled by the primary application loading sequence (init -> triggerAppStart -> startAudioAndShowApp).
+
+        console.log(`[App] Showing busy indicator: ${message}`);
+    },
+
+    // Hides the busy/loading indicator.
+    // This method primarily reverses the visual state set by showLoadingIndicator for the 'busy' state.
+    hideLoadingIndicator() {
+        if (!this.elements.loadingOverlay || !this.elements.loadingText) return;
+
+        this.elements.loadingOverlay.classList.remove('busy-indicator');
+
+        const busyMessagePrefix = (typeof i18n !== 'undefined' && i18n.translate) ?
+                                  i18n.translate('loading_changes', 'Applying changes...').substring(0,10) :
+                                  "Applying";
+        if (this.elements.loadingText.textContent.startsWith(busyMessagePrefix)) {
+             this.elements.loadingText.textContent = '';
+        }
+
+        // Only hide the entire overlay if the main app startup sequence has passed the point
+        // where this overlay is used for the initial skippable intro.
+        // app.isStartingApp becomes true when triggerAppStart() is called.
+        if (this.isStartingApp) {
+            this.elements.loadingOverlay.classList.add('hidden');
+            console.log('[App] Busy indicator hidden and overlay reset for active app.');
+        } else {
+            // If the initial intro is still potentially active (e.g. title/prompt visible),
+            // just removing the busy-indicator class and clearing its text is enough.
+            // The main intro flow (triggerAppStart -> hideLoading) will handle hiding the overlay.
+            // We might want to restore the original loading text if we cleared it.
+            // For now, clearing is fine, or use updateLoadingText with a generic key if needed.
+            // Example: this.updateLoadingText('loading_continue_prompt', 'Tap to Start');
+            console.log('[App] Busy indicator state removed; main intro overlay remains managed by init sequence.');
+        }
+    },
+
+    // Collects all application settings that should be persisted.
+    // Used by the debounced saving mechanism.
+    _getPersistentSettings() {
+        return {
+            theme: this.state.theme,
+            language: this.state.language,
+            soundPreset: this.state.soundPreset,
+            fxChain: this.state.fxChain,
+            visualizer: this.state.visualizer,
+            touchEffect: this.state.touchEffect,
+            scale: this.state.scale,
+            octaveOffset: this.state.octaveOffset,
+            zoneCount: this.state.zoneCount,
+            showNoteNames: this.state.showNoteNames,
+            showLines: this.state.showLines,
+            masterVolumeCeiling: this.state.masterVolumeCeiling,
+            enablePolyphonyVolumeScaling: this.state.enablePolyphonyVolumeScaling,
+            currentTonic: this.state.currentTonic,
+            highlightSharpsFlats: this.state.highlightSharpsFlats,
+            yAxisControls: JSON.parse(JSON.stringify(this.state.yAxisControls)), // Deep copy
+            rocketModeSettings: JSON.parse(JSON.stringify(this.state.rocketModeSettings)), // Deep copy
+            graphicsQuality: this.state.graphicsQuality,
+            isChordPanelCollapsed: this.state.isChordPanelCollapsed,
+            chordPanelWidth: this.state.chordPanelWidth,
+            transportBpm: this.state.transportBpm,
+            vibrationEnabled: this.state.vibrationEnabled,
+            vibrationIntensity: this.state.vibrationIntensity
+            // Ensure all other settings that are loaded in loadInitialSettings are included here.
+        };
+    },
+
+    // Debounces saving of application settings to localStorage and the native bridge.
+    // This bundles multiple rapid changes into a single save operation.
+    // Assumes a bridge method like 'saveSettingsBundle' exists for efficient batch saving.
     saveAppSettingsDebounced: (() => {
         let timeout = null;
         return function() {
             clearTimeout(timeout);
-            timeout = setTimeout(() => {
+            timeout = setTimeout(async () => {
+                if (!this.state.isInitialized) {
+                    console.warn('[App.saveAppSettingsDebounced] Attempted to save before app is fully initialized. Skipping.');
+                    return;
+                }
                 try {
-                    localStorage.setItem('rocketModeSettings', JSON.stringify(this.state.rocketModeSettings));
-                    // bridgeFix.callBridge('setSetting', 'rocketModeSettings', JSON.stringify(this.state.rocketModeSettings));
-                    console.log('[App] Saved rocketModeSettings:', this.state.rocketModeSettings);
-                } catch(e) { console.error('[App] Failed to save rocketModeSettings:', e); }
-            }, 300);
+                    const settingsToSave = this._getPersistentSettings();
+
+                    // Save to localStorage (as a single object)
+                    localStorage.setItem('prismtoneAppSettings_js', JSON.stringify(settingsToSave));
+                    console.log('[App] All settings bundle saved to localStorage via debouncer.');
+
+                    // Save to Native Bridge
+                    if (this.state.isBridgeReady && bridgeFix && typeof bridgeFix.callBridge === 'function') {
+                        // Assuming the bridge has a method to save a bundle of settings.
+                        // If not, this would need to iterate and save individually, but that defeats some of the purpose.
+                        // For now, we'll design for a 'saveMultipleSettings' or 'saveSettingsBundle' type of call.
+                        // If this method doesn't exist, the user will need to implement it on the native side
+                        // or we'll have to fall back to multiple individual calls, but still debounced as a batch.
+                        await bridgeFix.callBridge('saveSettingsBundle', JSON.stringify(settingsToSave));
+                        console.log('[App] All settings bundle passed to bridgeFix.saveSettingsBundle.');
+                    }
+                } catch(e) {
+                    console.error('[App] Error in saveAppSettingsDebounced:', e);
+                }
+            }, 1500); // 1.5 second delay
         };
     })(),
 
@@ -2033,12 +2215,8 @@ const app = {
             if (synth.updateAllActiveVoiceMainLevels) synth.updateAllActiveVoiceMainLevels();
             if (synth.updateAllActiveVoiceSendLevels) synth.updateAllActiveVoiceSendLevels();
         }
-        if (this.state.isBridgeReady) {
-            bridgeFix.callBridge('setYAxisControlGroup', 'volume', JSON.stringify(this.state.yAxisControls.volume))
-                .catch(err => console.error("[App] Bridge setYAxis (volume) failed:", err));
-            bridgeFix.callBridge('setYAxisControlGroup', 'effects', JSON.stringify(this.state.yAxisControls.effects))
-                .catch(err => console.error("[App] Bridge setYAxis (effects) failed:", err));
-        }
+        // Bridge calls for yAxisControls removed from here, will be handled by saveAppSettingsDebounced
+        this.saveAppSettingsDebounced();
     },
 
     /**
@@ -2081,8 +2259,9 @@ const app = {
         // Сохраняем ширину с задержкой, чтобы не перегружать bridge
         clearTimeout(this._chordPanelResizeTimeout);
         this._chordPanelResizeTimeout = setTimeout(() => {
-            bridge.saveSetting('chordPanelWidth', currentWidth);
-        }, 500);
+            // Call the main debounced saver, which includes chordPanelWidth
+            this.saveAppSettingsDebounced();
+        }, 500); // Its own small debounce before triggering the main app settings debounce.
     },
 
     // Добавляем новые функции для работы с прогрессией аккордов
