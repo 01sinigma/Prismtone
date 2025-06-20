@@ -1,0 +1,24 @@
+{
+  "id": "eventHorizon",
+  "type": "visualizer",
+  "name": "Event Horizon",
+  "version": "2.0.0",
+  "description": "Pulls matter into a central singularity, reacting to touch and motion.",
+  "active": false,
+  "data": {
+    "rendererScript": "EventHorizonRenderer",
+    "settings": {
+      "fadeSpeed": 0.2,
+      "starCount": 150,
+      "maxMatter": 250,
+      "emitRateYFactor": 8,
+      "initialSpeed": 2,
+      "particleDecay": 0.004,
+      "minMatterSize": 2,
+      "matterSizeYFactor": 8,
+      "gravity": 5000,
+      "horizonGlowSize": 15,
+      "tiltParallax": 25
+    }
+  }
+}

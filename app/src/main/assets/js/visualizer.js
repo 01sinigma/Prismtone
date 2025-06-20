@@ -26,7 +26,7 @@ const visualizer = {
     _padHintsToDraw: [], // --- НОВОЕ СВОЙСТВО ДЛЯ ПОДСКАЗОК ПЭДА ---
     _prevPadHintsToDraw: null,
     _fadingPadHints: [],
-     debugMode: false, // Set to true for verbose logging
+     debugMode: true, // Set to true for verbose logging
     fpsManager: null,
 
     async init(canvasElement, analyserInstance = null) {
@@ -424,13 +424,14 @@ const visualizer = {
         const audioData = (this.analyser && (this.activeRenderer || (this.analyser.type === 'fft' && typeof this.analyser.getValue === 'function'))) ? this.analyser.getValue() : null;
         const activeTouchStates = (typeof pad !== 'undefined' && pad.getActiveTouchStates) ? pad.getActiveTouchStates() : [];
 
+        if (this.debugMode) console.log('[Visualizer] draw() using deviceTilt:', JSON.stringify(app.state.deviceTilt));
         this.ctx.save();
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         // 1. Основной визуализатор
         if (this.activeRenderer && typeof this.activeRenderer.draw === 'function') {
             try {
-                this.activeRenderer.draw(audioData, activeTouchStates);
+                this.activeRenderer.draw(audioData, activeTouchStates, app.state.deviceTilt);
             } catch (e) {
                 if (this.debugMode) console.error(`[Visualizer v4.1] Error in activeRenderer.draw for ${this.currentVizType}:`, e);
             }

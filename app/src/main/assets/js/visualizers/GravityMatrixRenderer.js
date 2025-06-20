@@ -73,33 +73,36 @@ class GravityMatrixRenderer {
         this.ctx.fillStyle = `rgba(0, 0, 0, ${this.settings.fadeSpeed || 0.25})`;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        const gravityX = (deviceTilt.roll / 90) * (this.settings.gravityStrength || 0.2);
-        const gravityY = (deviceTilt.pitch / 90) * (this.settings.gravityStrength || 0.2);
+        // --- ИСПРАВЛЕНИЕ ОСЕЙ (v4 - Финальная версия) ---
+        const gravityStrength = this.settings.gravityStrength || 0.2;
+        // Горизонтальная гравитация (X) -> от наклона ВПЕРЕД/НАЗАД (pitch)
+        const gravityX = (deviceTilt.pitch / 90) * gravityStrength * -1;
+        // Вертикальная гравитация (Y) -> от наклона ВЛЕВО/ВПРАВО (roll)
+        const gravityY = (deviceTilt.roll / 90) * gravityStrength * -1;
+        // ---------------------------------------------
+
         const friction = this.settings.friction || 0.98;
 
         this.letters.forEach(letter => {
-            // Применяем гравитацию
             letter.vx += gravityX;
             letter.vy += gravityY;
 
-            // Применяем отталкивание от касаний
             activeTouchStates.forEach(touch => {
                 const touchX = touch.x * this.canvas.width;
                 const touchY = (1 - touch.y) * this.canvas.height;
                 const dx = letter.x - touchX;
                 const dy = letter.y - touchY;
                 const distSq = dx * dx + dy * dy;
-                const pushRadius = this.settings.touchPushRadius || 150;
+                const pushRadiusSq = Math.pow(this.settings.touchPushRadius || 150, 2);
 
-                if (distSq < pushRadius * pushRadius) {
+                if (distSq < pushRadiusSq) {
                     const dist = Math.sqrt(distSq) || 1;
-                    const force = (1 - dist / pushRadius) * (this.settings.touchPushStrength || 1);
+                    const force = (1 - dist / Math.sqrt(pushRadiusSq)) * (this.settings.touchPushStrength || 1);
                     letter.vx += (dx / dist) * force;
                     letter.vy += (dy / dist) * force;
                 }
             });
 
-            // Применяем трение и обновляем позицию
             letter.vx *= friction;
             letter.vy *= friction;
             letter.x += letter.vx;
@@ -111,13 +114,11 @@ class GravityMatrixRenderer {
             if (letter.y < 0) { letter.y = 0; letter.vy *= -0.5; }
             if (letter.y > this.canvas.height) { letter.y = this.canvas.height; letter.vy *= -0.5; }
 
-            // Меняем символ при сильном столкновении
-            if(Math.abs(letter.vx) > 2 || Math.abs(letter.vy) > 2) {
+            if (Math.hypot(letter.vx, letter.vy) > 2) {
                 letter.char = this._getRandomChar();
             }
         });
 
-        // Отрисовка
         this.ctx.font = `${this.fontSize}px monospace`;
         this.ctx.textBaseline = 'middle';
         this.ctx.textAlign = 'center';

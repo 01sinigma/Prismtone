@@ -1,0 +1,19 @@
+{
+  "id": "livingLandscape",
+  "type": "visualizer",
+  "name": "Living Landscape",
+  "version": "1.1.0",
+  "description": "A procedural landscape that breathes with your music and reacts to touch.",
+  "active": false,
+  "data": {
+    "rendererScript": "LivingLandscapeRenderer",
+    "settings": {
+      "analyserType": "fft",
+      "touchStrength": 4.5,
+      "cloudCount": 25,
+      "cloudMinSize": 20,
+      "cloudSizeRange": 70,
+      "cloudBaseSpeed": 0.15
+    }
+  }
+}

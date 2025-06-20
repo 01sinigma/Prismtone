@@ -2176,6 +2176,7 @@ const app = {
     },
 
     onDeviceTilt(tiltData) {
+    console.log('[App] onDeviceTilt received:', JSON.stringify(tiltData));
         // Этот метод будет вызываться из PrismtoneBridge
         if (tiltData && typeof tiltData.pitch === 'number' && typeof tiltData.roll === 'number') {
             this.state.deviceTilt.pitch = tiltData.pitch;

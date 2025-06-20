@@ -1,0 +1,26 @@
+{
+  "id": "auraStrings",
+  "type": "visualizer",
+  "name": "Aura Strings",
+  "version": "2.0.0",
+  "description": "Energy strings that dance to your touch, sound, and motion.",
+  "active": false,
+  "data": {
+    "rendererScript": "AuraStringsRenderer",
+    "settings": {
+      "analyserType": "fft",
+      "stringCount": 9,
+      "nodesPerString": 25,
+      "fadeSpeed": 0.15,
+      "energyDecay": 0.96,
+      "stiffness": 0.1,
+      "damping": 0.92,
+      "touchAttractionForce": 0.8,
+      "touchRadius": 180,
+      "tiltWindForce": 0.2,
+      "minWidth": 1.5,
+      "widthAgitationFactor": 25,
+      "glowAgitationFactor": 40
+    }
+  }
+}

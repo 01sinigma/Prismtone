@@ -185,19 +185,16 @@ const pad = {
 
         let borderColorRgb = '224, 224, 224';
         let textColor = '#757575';
-        let noteColorsForLabels = {};
+        let noteColorsForLabels;
+        if (typeof visualizer !== 'undefined' && visualizer.noteColors && visualizer.noteColors.length === 12) {
+            noteColorsForLabels = visualizer.noteColors;
+        }
 
         try {
             const computedStyle = getComputedStyle(document.body);
             borderColorRgb = computedStyle.getPropertyValue('--color-border-rgb').trim() || borderColorRgb;
             textColor = computedStyle.getPropertyValue('--color-text-secondary').trim() || textColor;
-            if (typeof visualizer !== 'undefined' && visualizer.themeColors) {
-                 noteColorsForLabels = visualizer.noteColors ||
-                                       { 0: '#FF0000', 1: '#FF4500', 2: '#FFA500', 3: '#FFD700', 4: '#FFFF00', 5: '#9ACD32', 6: '#32CD32', 7: '#00BFFF', 8: '#0000FF', 9: '#8A2BE2', 10: '#FF00FF', 11: '#FF1493' };
-            } else {
-                noteColorsForLabels = { 0: '#FF0000', 1: '#FF4500', 2: '#FFA500', 3: '#FFD700', 4: '#FFFF00', 5: '#9ACD32', 6: '#32CD32', 7: '#00BFFF', 8: '#0000FF', 9: '#8A2BE2', 10: '#FF00FF', 11: '#FF1493' };
-            }
-        } catch (e) { console.warn("[Pad v10 drawZones] Error getting styles/colors:", e); }
+        } catch (e) { console.warn("[Pad v10 drawZones] Error getting styles:", e); }
 
         const zoneLineColor = `rgba(${borderColorRgb}, ${this.config.linesVisibility ? 0.4 : 0})`;
 
@@ -227,17 +224,19 @@ const pad = {
                 this.zonesContainer.appendChild(lineElement);
             }
 
-            if (this.config.labelVisibility && zone.startX !== undefined && zone.endX !== undefined) {
+            if (this.config.labelVisibility) {
                 const label = document.createElement('div');
                 label.className = 'xy-label';
                 label.textContent = zone.labelOverride || zone.noteName || '?';
                 label.style.color = textColor;
                 const labelX = ((zone.startX + zone.endX) / 2) * 100;
                 label.style.left = `${labelX}%`;
+
                 if (zone.midiNote !== undefined && noteColorsForLabels) {
                     const noteIndex = zone.midiNote % 12;
                     label.style.borderBottomColor = noteColorsForLabels[noteIndex] || 'transparent';
                 }
+
                 this.labelsContainer.appendChild(label);
             }
         });
