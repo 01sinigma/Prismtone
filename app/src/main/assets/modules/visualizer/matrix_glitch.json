@@ -1,0 +1,41 @@
+{
+  "id": "matrixGlitch",
+  "type": "visualizer",
+  "name": "Matrix Glitch",
+  "version": "2.1.0",
+  "description": "Interactive digital rain with touch displacement and audio reactivity.",
+  "active": false,
+  "data": {
+    "rendererScript": "MatrixGlitchRenderer",
+    "settings": {
+      "glitchSpeed": 80,
+      "audioReactivity": 15,
+      "smooth": true,
+      "glitchColors": [
+        "#61dca3",
+        "#61b3dc",
+        "#2b4539"
+      ],
+
+      "rainMaxChance": 0.5,
+      "rainBaseSpeed": 1.5,
+      "rainSpeedYFactor": 4,
+      "rainStreamLength": 20,
+      "rainGlowColor": "#FFFFFF",
+
+      "touchHighlight": true,
+      "touchHighlightRadius": 100,
+      "touchHighlightOpacity": 0.1,
+
+      "centerVignette": false,
+      "outerVignette": true,
+
+      "backgroundBlur": "3px",
+
+      "displacementEnabled": true,
+      "displacementRadius": 80,
+      "displacementStrength": 10,
+      "displacementReturnSpeed": 0.08
+    }
+  }
+}

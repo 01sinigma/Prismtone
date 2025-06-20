@@ -385,11 +385,11 @@ const synth = {
     // ====================================================================
 
     startNote(frequency, velocity, yPosition, touchId) {
-        this._updateQueue.set(touchId, { 
-            action: 'start', 
-            frequency, 
-            velocity, 
-            yPosition, 
+        this._updateQueue.set(touchId, {
+            action: 'start',
+            frequency,
+            velocity,
+            yPosition,
             noteId: `${touchId}-${performance.now()}` // Уникальный ID для ноты
         });
         this._processUpdateQueue();
@@ -399,7 +399,7 @@ const synth = {
         const task = this._updateQueue.get(touchId) || { action: 'update', noteId: this.activeVoices.get(touchId)?.noteId };
         if (task.action === 'release') {
             if (this.config.debug) console.warn(`[Synth] Ignoring update for touchId ${touchId} because a release is already queued.`);
-            return; 
+            return;
         }
         task.frequency = frequency;
         task.velocity = velocity;
@@ -454,7 +454,7 @@ const synth = {
                 this.applyMasterVolumeSettings();
                 this._activeVoiceCountChanged = false;
             }
-            
+
             this._isProcessingQueue = false;
 
             if (this._updateQueue.size > 0) {
@@ -763,7 +763,7 @@ const synth = {
                     const components = this.voices[voiceInfo.voiceIndex]?.components;
                     if (components?.amplitudeEnv?.node) {
                         // Проверяем, действительно ли огибающая достигла 0 или очень близкого значения
-                        const currentEnvValue = components.amplitudeEnv.node.value; 
+                        const currentEnvValue = components.amplitudeEnv.node.value;
                         if (currentEnvValue < 0.001) { // Пороговое значение для "тишины"
                              console.warn(`[Synth SilentCheck] Voice ${voiceInfo.voiceIndex} (touch ${touchId}, note ${voiceInfo.noteId}) detected as silent by envelope. Forcing release.`);
                              this.triggerRelease(touchId); // Используем новую triggerRelease, которая поставит в очередь

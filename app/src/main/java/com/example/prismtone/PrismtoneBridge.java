@@ -500,4 +500,15 @@ public class PrismtoneBridge {
             vibrator.cancel();
         }
     }
+
+    // --- ДОБАВИТЬ НОВЫЙ МЕТОД ---
+    // Этот метод НЕ имеет аннотации @JavascriptInterface, так как он вызывается из Java, а не из JS
+    public void sendDeviceTiltToJs(float pitch, float roll) {
+        // Мы используем String.format с Locale.US, чтобы гарантировать,
+        // что десятичный разделитель будет точка, а не запятая,
+        // что критично для парсинга в JavaScript.
+        String script = String.format(java.util.Locale.US, "if(window.app && typeof window.app.onDeviceTilt === 'function') { window.app.onDeviceTilt({ pitch: %.2f, roll: %.2f }); }", pitch, roll);
+        runJavaScript(script);
+    }
+    // ----------------------------
 }

@@ -29,6 +29,7 @@ public class MainActivity extends AppCompatActivity {
     private MainViewModel viewModel;
     private ModuleManager moduleManager;
     private WebViewAssetLoader assetLoader;
+    private SensorController sensorController;
 
     @SuppressLint({"SetJavaScriptEnabled", "WrongConstant"})
     @Override
@@ -61,6 +62,8 @@ public class MainActivity extends AppCompatActivity {
         moduleManager = new ModuleManager(this, viewModel);
         bridge = new PrismtoneBridge(this, webView, viewModel, moduleManager);
         webView.addJavascriptInterface(bridge, "PrismtoneBridge");
+
+        sensorController = new SensorController(this, bridge);
 
         webView.loadUrl("https://appassets.androidplatform.net/assets/index.html");
 
@@ -105,15 +108,16 @@ public class MainActivity extends AppCompatActivity {
             webView.onResume();
             webView.evaluateJavascript("if(window.app && typeof window.app.resumeAudio === 'function') app.resumeAudio(); else console.warn('app.resumeAudio not found');", null);
         }
+        if (sensorController != null) sensorController.start();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        if (sensorController != null) sensorController.stop();
         if (webView != null) {
             webView.onPause();
             webView.evaluateJavascript("if(window.app && typeof window.app.suspendAudio === 'function') app.suspendAudio(); else console.warn('app.suspendAudio not found');", null);
-            // Вызов сохранения настроек при сворачивании
             webView.evaluateJavascript("if(window.triggerSaveSettingsOnPause) window.triggerSaveSettingsOnPause(); else console.warn('window.triggerSaveSettingsOnPause not found');", null);
         }
     }

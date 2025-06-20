@@ -1,0 +1,22 @@
+{
+  "id": "stellarNursery",
+  "type": "visualizer",
+  "name": "Stellar Nursery",
+  "version": "1.0.0",
+  "description": "Form stars from cosmic dust using touch and motion.",
+  "active": false,
+  "data": {
+    "rendererScript": "StellarNurseryRenderer",
+    "settings": {
+      "fadeSpeed": 0.15,
+      "particleCount": 1500,
+      "maxParticles": 500,
+      "windStrength": 0.3,
+      "friction": 0.97,
+      "attraction": 60,
+      "energyGain": 0.01,
+      "coreMaxSize": 40,
+      "tiltParallax": 20
+    }
+  }
+}

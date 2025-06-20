@@ -56,6 +56,7 @@ const app = {
         isApplyingChange: false,
         vibrationEnabled: true,
         vibrationIntensity: 'weak',
+        deviceTilt: { pitch: 0, roll: 0 } // Начальное состояние
     },
     elements: {
         loadingOverlay: null,
@@ -2172,6 +2173,15 @@ const app = {
         VibrationService.setIntensity(level);
         this._updateSidePanelSettingsUI();
         bridgeFix.callBridge('setSetting', 'vibrationIntensity', level).catch(err => console.error("[App] Bridge setSetting vibrationIntensity failed:", err));
+    },
+
+    onDeviceTilt(tiltData) {
+        // Этот метод будет вызываться из PrismtoneBridge
+        if (tiltData && typeof tiltData.pitch === 'number' && typeof tiltData.roll === 'number') {
+            this.state.deviceTilt.pitch = tiltData.pitch;
+            this.state.deviceTilt.roll = tiltData.roll;
+            // console.log(`Tilt updated: Pitch=${tiltData.pitch.toFixed(1)}, Roll=${tiltData.roll.toFixed(1)}`); // Раскомментировать для отладки
+        }
     },
 };
 
