@@ -1,0 +1,23 @@
+{
+  "id": "dataStream",
+  "type": "touchEffect",
+  "name": "Data Stream",
+  "version": "2.0.0",
+  "description": "A beam of light with particles flowing in opposite directions.",
+  "active": false,
+  "data": {
+    "rendererScript": "DataStreamEffect",
+    "settings": {
+      "colorSource": "note",
+      "beamWidth": 100,
+      "beamOpacity": 0.1,
+      "maxParticles": 250,
+      "emitRate": 40,
+      "particlesPerEmit": 3,
+      "particleMinSize": 1,
+      "particleSizeRange": 3,
+      "particleBaseSpeed": 0.5,
+      "particleSpeedRange": 1.2
+    }
+  }
+}

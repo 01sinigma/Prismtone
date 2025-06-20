@@ -8,6 +8,7 @@ const harmonicMarkerEngine = {
     musicTheoryServiceRef: null,
     isInitialized: false,
     _debug: true, // Флаг для подробного логирования внутри движка
+    _scaleCache: new Map(), // Кэш для результатов getNotesForScale (pitch classes)
 
     /**
      * Initializes the Harmonic Marker Engine.
@@ -21,7 +22,49 @@ const harmonicMarkerEngine = {
         }
         this.musicTheoryServiceRef = musicTheoryServiceInstance;
         this.isInitialized = true;
-        console.log(`[HME.init] Initialized. MusicTheoryService Ready: ${this.musicTheoryServiceRef.isTonalJsLoaded}`);
+        this._scaleCache.clear(); // Очищаем кэш при инициализации
+        console.log(`[HME.init] Initialized. MusicTheoryService Ready: ${this.musicTheoryServiceRef.isTonalJsLoaded}. Scale cache cleared.`);
+    },
+
+    /**
+     * Internal method to get scale notes (pitch classes) with caching.
+     * @param {string} tonicName - Name of the tonic (e.g., "C4").
+     * @param {string} scaleId - ID of the scale (e.g., "major").
+     * @returns {Promise<Array<string>|null>} Array of pitch classes or null if error.
+     */
+    async _getCachedScaleNotes(tonicName, scaleId) {
+        if (!this.isInitialized || !this.musicTheoryServiceRef) {
+            console.warn("[HME._getCachedScaleNotes] Not initialized or no musicTheoryServiceRef.");
+            return null;
+        }
+        const cacheKey = `${tonicName}_${scaleId}`;
+        if (this._scaleCache.has(cacheKey)) {
+            if (this._debug) console.log(`[HME._getCachedScaleNotes] Cache HIT for ${cacheKey}`);
+            return this._scaleCache.get(cacheKey);
+        }
+
+        if (this._debug) console.log(`[HME._getCachedScaleNotes] Cache MISS for ${cacheKey}. Fetching from service.`);
+        try {
+            const scaleNotesDetails = await this.musicTheoryServiceRef.getNotesForScale(
+                tonicName,
+                scaleId,
+                0, // octavesToScanBefore
+                0  // octavesToScanAfter
+            );
+            if (scaleNotesDetails && scaleNotesDetails.length > 0) {
+                const pitchClasses = scaleNotesDetails.map(n => n.pc);
+                this._scaleCache.set(cacheKey, pitchClasses);
+                return pitchClasses;
+            } else {
+                console.warn(`[HME._getCachedScaleNotes] No scale notes returned from service for ${tonicName} ${scaleId}.`);
+                this._scaleCache.set(cacheKey, null); // Cache null to prevent repeated failed calls for same key
+                return null;
+            }
+        } catch (error) {
+            console.error(`[HME._getCachedScaleNotes] Error fetching scale notes for ${tonicName} ${scaleId}:`, error);
+            this._scaleCache.set(cacheKey, null); // Cache null on error
+            return null;
+        }
     },
 
     /**
@@ -74,7 +117,6 @@ const harmonicMarkerEngine = {
 
         if (activeNoteDetails.length === 0 && activeNotes.length > 0) {
             console.warn("[HME.analyzeContext] No valid note details could be derived from activeNotes.");
-            // Возвращаем дефолтный результат, если не удалось получить детали ни для одной ноты
             return result;
         }
 
@@ -82,15 +124,13 @@ const harmonicMarkerEngine = {
         if (this._debug) console.log("[HME.analyzeContext] Active Pitch Classes:", result.activeNotePitchClasses);
 
         // 2. Определяем аккорд, если нот достаточно
-        if (result.activeNotePitchClasses.length >= 2) { // Минимум 2 ноты для попытки определения аккорда
+        if (result.activeNotePitchClasses.length >= 2) {
             if (this.musicTheoryServiceRef._TonalChord && typeof this.musicTheoryServiceRef._TonalChord.detect === 'function') {
                 const possibleChords = this.musicTheoryServiceRef._TonalChord.detect(result.activeNotePitchClasses);
                 if (this._debug) console.log("[HME.analyzeContext] Tonal.Chord.detect found:", possibleChords);
 
                 if (possibleChords && possibleChords.length > 0) {
-                    // Выбираем "лучший" аккорд (самый простой или первый из списка)
                     result.detectedChordSymbol = possibleChords.sort((a, b) => a.length - b.length)[0];
-
                     if (result.detectedChordSymbol) {
                         try {
                             result.detectedChordDetails = this.musicTheoryServiceRef._TonalChord.get(result.detectedChordSymbol);
@@ -108,7 +148,7 @@ const harmonicMarkerEngine = {
                 console.warn("[HME.analyzeContext] Tonal.Chord or Tonal.Chord.detect is not available.");
             }
         } else if (result.activeNotePitchClasses.length === 1) {
-            result.isPlayingChord = false; // Одна нота - не аккорд
+            result.isPlayingChord = false;
             if (this._debug) console.log("[HME.analyzeContext] Single active note. Not a chord.");
         }
 
@@ -117,40 +157,27 @@ const harmonicMarkerEngine = {
         if (tonicNoteDetails) {
             result.scaleTonicPc = tonicNoteDetails.pc;
             if (result.scaleTonicPc && analysisContext.scaleId) {
-                try {
-                    // Используем MusicTheoryService для получения нот лада ОТНОСИТЕЛЬНО ТОНИКИ ЛАДА
-                    // scaleId здесь - это тип лада, например, "major", "blues"
-                    // tonicNoteDetails.name - это полная нота тоники с октавой, например "C4"
-                    const scaleNotesDetails = await this.musicTheoryServiceRef.getNotesForScale(
-                        tonicNoteDetails.name, // Передаем имя тоники с октавой
-                        analysisContext.scaleId,
-                        0, // octavesToScanBefore - достаточно 0 для получения базового набора pc
-                        0  // octavesToScanAfter - достаточно 0 для получения базового набора pc
-                    );
-                    if (scaleNotesDetails && scaleNotesDetails.length > 0) {
-                        result.scaleNotesPitchClasses = scaleNotesDetails.map(n => n.pc);
-                        if (this._debug) console.log(`[HME.analyzeContext] Scale Notes PCs from MTS for ${tonicNoteDetails.name} ${analysisContext.scaleId}:`, result.scaleNotesPitchClasses);
-                        // Теперь логика isDiatonic и currentHarmonicFunction должна работать с этим
-                        if (result.activeNotePitchClasses.length > 0) {
-                            result.isDiatonic = result.activeNotePitchClasses.every(pc => result.scaleNotesPitchClasses.includes(pc));
-                        } else {
-                            result.isDiatonic = true;
-                        }
-                        if (result.isPlayingChord && result.detectedChordDetails?.tonic) {
-                            result.currentHarmonicFunction = this._getChordHarmonicFunction(result.detectedChordDetails, result.scaleTonicPc, result.scaleNotesPitchClasses, analysisContext);
-                        } else if (result.activeNotePitchClasses.length === 1) {
-                            result.currentHarmonicFunction = this._getNoteHarmonicFunction(result.activeNotePitchClasses[0], result.scaleTonicPc, result.scaleNotesPitchClasses);
-                        }
-                        if (this._debug) console.log("[HME.analyzeContext] Current Harmonic Function (after fix):", result.currentHarmonicFunction);
+                // Используем кэширующий метод для получения pitch classes нот лада
+                result.scaleNotesPitchClasses = await this._getCachedScaleNotes(tonicNoteDetails.name, analysisContext.scaleId);
+
+                if (result.scaleNotesPitchClasses && result.scaleNotesPitchClasses.length > 0) {
+                    if (this._debug) console.log(`[HME.analyzeContext] Scale Notes PCs from _getCachedScaleNotes for ${tonicNoteDetails.name} ${analysisContext.scaleId}:`, result.scaleNotesPitchClasses);
+
+                    if (result.activeNotePitchClasses.length > 0) {
+                        result.isDiatonic = result.activeNotePitchClasses.every(pc => result.scaleNotesPitchClasses.includes(pc));
                     } else {
-                        console.warn(`[HME.analyzeContext] Could not get scale notes from MTS for ${tonicNoteDetails.name} ${analysisContext.scaleId}. Analysis will be limited.`);
-                        result.scaleNotesPitchClasses = null; // Явно указываем, что ноты лада неизвестны
-                        result.isDiatonic = false;
-                        result.currentHarmonicFunction = null;
+                        result.isDiatonic = true; // No active notes are considered diatonic by default
                     }
-                } catch (e) {
-                    console.warn(`[HME.analyzeContext] Error in getNotesForScale:`, e);
-                    result.scaleNotesPitchClasses = null;
+
+                    if (result.isPlayingChord && result.detectedChordDetails?.tonic) {
+                        result.currentHarmonicFunction = this._getChordHarmonicFunction(result.detectedChordDetails, result.scaleTonicPc, result.scaleNotesPitchClasses, analysisContext);
+                    } else if (result.activeNotePitchClasses.length === 1) {
+                        result.currentHarmonicFunction = this._getNoteHarmonicFunction(result.activeNotePitchClasses[0], result.scaleTonicPc, result.scaleNotesPitchClasses);
+                    }
+                    if (this._debug) console.log("[HME.analyzeContext] Current Harmonic Function:", result.currentHarmonicFunction);
+                } else {
+                    console.warn(`[HME.analyzeContext] Could not get scale notes (cached or fetched) for ${tonicNoteDetails.name} ${analysisContext.scaleId}. Analysis will be limited.`);
+                    // result.scaleNotesPitchClasses is already null from _getCachedScaleNotes in this case
                     result.isDiatonic = false;
                     result.currentHarmonicFunction = null;
                 }
@@ -182,22 +209,25 @@ const harmonicMarkerEngine = {
 
     /**
      * Определяет гармоническую функцию аккорда в контексте лада.
-     * (Копипаста из вашего плана Фазы 1, с небольшими адаптациями и проверками)
      */
     _getChordHarmonicFunction(chordDetails, scaleTonicPc, scaleNotesPc, analysisContext) {
-        if (!this.isInitialized || !chordDetails || !chordDetails.tonic || !scaleTonicPc || !scaleNotesPc ||
+        if (!this.isInitialized || !chordDetails || !chordDetails.tonic || !scaleTonicPc ||
+            !scaleNotesPc || // Ensure scaleNotesPc is provided and valid
             !this.musicTheoryServiceRef._TonalNote || !this.musicTheoryServiceRef._TonalInterval || !this.musicTheoryServiceRef._TonalRomanNumeral) {
-            if (this._debug) console.warn("[HME._getChordHarmonicFunction] Missing dependencies or invalid args.");
+            if (this._debug) console.warn("[HME._getChordHarmonicFunction] Missing dependencies or invalid args (scaleNotesPc might be null).", { chordDetails, scaleTonicPc, scaleNotesPcProvided: !!scaleNotesPc });
+            return null;
+        }
+         if (scaleNotesPc.length === 0) { // Explicit check for empty scale notes array
+            if (this._debug) console.warn("[HME._getChordHarmonicFunction] scaleNotesPc is empty. Cannot determine function.");
             return null;
         }
 
+
         try {
             const chordRootPc = this.musicTheoryServiceRef._TonalNote.simplify(chordDetails.tonic);
-            // Интервал от тоники лада до корня аккорда
             const intervalFromScaleTonic = this.musicTheoryServiceRef._TonalInterval.between(scaleTonicPc, chordRootPc);
 
             if (!intervalFromScaleTonic) {
-                // Попытка найти первую диатоническую ноту в аккорде, если корень не в ладу
                 const firstDiatonicNoteInChord = chordDetails.notes.find(notePc =>
                     scaleNotesPc.includes(this.musicTheoryServiceRef._TonalNote.simplify(notePc))
                 );
@@ -208,55 +238,42 @@ const harmonicMarkerEngine = {
                 return "Non-Diatonic";
             }
 
-            // Пытаемся получить римскую цифру
-            // Tonal.RomanNumeral.get() ожидает интервал ИЛИ имя ступени (1, 2, #2, b3...)
-            // Мы будем использовать имя ступени, полученное из интервала
             const stepName = this.musicTheoryServiceRef._TonalInterval.num(intervalFromScaleTonic) + (this.musicTheoryServiceRef._TonalInterval.alt(intervalFromScaleTonic) || '');
-
-            let chordTypeForRoman = ""; // Tonal.RomanNumeral.get не всегда хорошо работает с полным типом
+            let chordTypeForRoman = "";
             const type = chordDetails.type.toLowerCase();
-                 if (type.includes("maj7")) chordTypeForRoman = "M7"; // M7 для major seventh
-            else if (type.includes("m7")) chordTypeForRoman = "m7";   // m7 для minor seventh
-            else if (type.includes("7")) chordTypeForRoman = "7";     // 7 для dominant seventh
+                 if (type.includes("maj7")) chordTypeForRoman = "M7";
+            else if (type.includes("m7")) chordTypeForRoman = "m7";
+            else if (type.includes("7")) chordTypeForRoman = "7";
             else if (type.includes("m")) chordTypeForRoman = "m";
-            else if (type.includes("dim")) chordTypeForRoman = "dim"; // или °
-            else if (type.includes("aug")) chordTypeForRoman = "aug"; // или +
+            else if (type.includes("dim")) chordTypeForRoman = "dim";
+            else if (type.includes("aug")) chordTypeForRoman = "aug";
 
-            // Tonal.RomanNumeral.get (в Tonal.js > 4.x) может не иметь .get()
-            // Вместо этого, Tonal.Degree.romanNumeral(degree, isMajor)
-            // Или Tonal.Chord.romanNumeral(chordSymbol, keySignature, isMajor)
-            // Пока оставим упрощенный вариант, который может потребовать доработки
-            // в зависимости от точной версии Tonal.js и ее API.
-            // Попробуем через Tonal.Chord.romanNumeral, если доступно
             let romanNumeralString = null;
             if(this.musicTheoryServiceRef._TonalChord && typeof this.musicTheoryServiceRef._TonalChord.romanNumeral === 'function') {
                 try {
-                    // Пытаемся определить, мажорный ли лад
                     const isMajorScale = analysisContext.scaleId.toLowerCase().includes("major") || analysisContext.scaleId.toLowerCase().includes("lydian") || analysisContext.scaleId.toLowerCase().includes("mixolydian");
                     romanNumeralString = this.musicTheoryServiceRef._TonalChord.romanNumeral(chordDetails.symbol, scaleTonicPc, isMajorScale).name;
                 } catch(e) { /* ignore, try fallback */ }
             }
 
-            if (!romanNumeralString) { // Fallback, если Tonal.Chord.romanNumeral не сработал или недоступен
+            if (!romanNumeralString) {
                 romanNumeralString = this._degreeToRoman(this.musicTheoryServiceRef._TonalInterval.num(intervalFromScaleTonic)) + chordTypeForRoman;
             }
 
-            // Преобразование римской цифры в основную функцию (T, S, D)
             const degreeNum = this.musicTheoryServiceRef._TonalInterval.num(intervalFromScaleTonic);
             switch (degreeNum) {
                 case 1: return `T (${romanNumeralString})`;
                 case 4: return `S (${romanNumeralString})`;
                 case 5: return `D (${romanNumeralString})`;
-                case 2: return `Sp (${romanNumeralString})`; // Subdominant Parallel / Supertonic
-                case 6: return `Tp (${romanNumeralString})`; // Tonic Parallel / Submediant
-                case 3: return `Tx (${romanNumeralString})`; // Mediant (может быть T или D в зависимости от контекста)
-                case 7: return `L (${romanNumeralString})`;  // Leading Tone (часть D)
+                case 2: return `Sp (${romanNumeralString})`;
+                case 6: return `Tp (${romanNumeralString})`;
+                case 3: return `Tx (${romanNumeralString})`;
+                case 7: return `L (${romanNumeralString})`;
                 default: return romanNumeralString || "Unknown";
             }
 
         } catch (e) {
             console.error("[HME._getChordHarmonicFunction] Error:", e);
-            // Фоллбэк на простую ступень, если что-то пошло не так
             const degreeIndex = scaleNotesPc.indexOf(this.musicTheoryServiceRef._TonalNote.simplify(chordDetails.tonic));
             if (degreeIndex !== -1) return this._degreeToFunction(degreeIndex + 1, chordDetails.type || "chord");
             return "Unknown Chord Function";
@@ -267,11 +284,17 @@ const harmonicMarkerEngine = {
      * Определяет гармоническую функцию одиночной ноты в контексте лада.
      */
     _getNoteHarmonicFunction(notePc, scaleTonicPc, scaleNotesPc) {
-        if (!this.isInitialized || !notePc || !scaleTonicPc || !scaleNotesPc ||
+        if (!this.isInitialized || !notePc || !scaleTonicPc ||
+            !scaleNotesPc || // Ensure scaleNotesPc is provided and valid
             !this.musicTheoryServiceRef._TonalNote) {
-            if (this._debug) console.warn("[HME._getNoteHarmonicFunction] Missing dependencies or invalid args.");
+            if (this._debug) console.warn("[HME._getNoteHarmonicFunction] Missing dependencies or invalid args (scaleNotesPc might be null).");
             return null;
         }
+        if (scaleNotesPc.length === 0) { // Explicit check for empty scale notes array
+             if (this._debug) console.warn("[HME._getNoteHarmonicFunction] scaleNotesPc is empty. Cannot determine function.");
+            return null;
+        }
+
         const simplifiedNotePc = this.musicTheoryServiceRef._TonalNote.simplify(notePc);
         const degreeIndex = scaleNotesPc.indexOf(simplifiedNotePc);
         if (degreeIndex !== -1) {
@@ -294,30 +317,26 @@ const harmonicMarkerEngine = {
     _degreeToFunction(degree, chordTypeOrNote = "note") {
         const roman = this._degreeToRoman(degree);
         let quality = "";
-        // Определение качества аккорда (мажор, минор, и т.д.)
         if (chordTypeOrNote !== "note" && typeof chordTypeOrNote === 'string') {
             const type = chordTypeOrNote.toLowerCase();
-                 if (type.includes("major") || type.match(/^M/) || type === "") quality = "";  // Пусто для мажора
+                 if (type.includes("major") || type.match(/^M/) || type === "") quality = "";
             else if (type.includes("minor") || type.match(/^m[^a]/)) quality = "m";
             else if (type.includes("dim")) quality = "°";
             else if (type.includes("aug")) quality = "+";
-            // Добавление септаккордов
-                 if (type.includes("maj7")) quality = "maj7"; // Major 7th
-            else if (type.includes("m7") && !type.includes("maj7")) quality = "m7"; // Minor 7th
-            else if (type.includes("7") && !type.includes("maj7") && !type.includes("m7")) quality = "7"; // Dominant 7th
-            // Другие типы септаккордов можно добавить по аналогии (m7b5, dim7, etc.)
+                 if (type.includes("maj7")) quality = "maj7";
+            else if (type.includes("m7") && !type.includes("maj7")) quality = "m7";
+            else if (type.includes("7") && !type.includes("maj7") && !type.includes("m7")) quality = "7";
         }
 
-        // Определение основной функции по ступени
         switch (degree) {
-            case 1: return `T (${roman}${quality})`;  // Тоника
-            case 4: return `S (${roman}${quality})`;  // Субдоминанта
-            case 5: return `D (${roman}${quality})`;  // Доминанта
-            case 2: return `Sp (${roman}${quality})`; // Субдоминантовая параллель / Супертоника
-            case 6: return `Tp (${roman}${quality})`; // Тоническая параллель / Субмедианта
-            case 3: return `Tx (${roman}${quality})`; // Медианта (может быть T или D функцией)
-            case 7: return `L (${roman}${quality})`;  // Вводный тон (часть D)
-            default: return `Degree ${degree}`; // Если ступень вне 1-7
+            case 1: return `T (${roman}${quality})`;
+            case 4: return `S (${roman}${quality})`;
+            case 5: return `D (${roman}${quality})`;
+            case 2: return `Sp (${roman}${quality})`;
+            case 6: return `Tp (${roman}${quality})`;
+            case 3: return `Tx (${roman}${quality})`;
+            case 7: return `L (${roman}${quality})`;
+            default: return `Degree ${degree}`;
         }
     }
 };

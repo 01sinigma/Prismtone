@@ -208,8 +208,10 @@ const app = {
             if (typeof visualizer === 'undefined') throw new Error("visualizer.js is not loaded!");
             await visualizer.init(document.getElementById('xy-visualizer'), analyserNode);
             if (visualizer.isReady) {
-                await visualizer.setVisualizerType(this.state.visualizer);
-                await visualizer.setTouchEffectType(this.state.touchEffect);
+                await Promise.all([
+                    visualizer.setVisualizerType(this.state.visualizer),
+                    visualizer.setTouchEffectType(this.state.touchEffect)
+                ]);
             }
 
             // UI Panels
