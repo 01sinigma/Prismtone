@@ -20,6 +20,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
+import androidx.lifecycle.Observer; // Added import
 import androidx.lifecycle.ViewModelProvider;
 import androidx.webkit.WebViewAssetLoader;
 
@@ -39,6 +40,15 @@ public class MainActivity extends AppCompatActivity {
         hideSystemBars();
 
         viewModel = new ViewModelProvider(this).get(MainViewModel.class);
+
+        // Observe isScanningModules LiveData
+        viewModel.isScanningModules.observe(this, new Observer<Boolean>() {
+            @Override
+            public void onChanged(Boolean isLoading) {
+                Log.d("MainActivity", "isScanningModules changed: " + isLoading);
+                // Here you could also show/hide a loading indicator in the UI
+            }
+        });
 
         assetLoader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", new CorsAssetsPathHandler(this))

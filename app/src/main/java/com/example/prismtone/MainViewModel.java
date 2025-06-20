@@ -28,6 +28,10 @@ public class MainViewModel extends ViewModel {
     private final MutableLiveData<YAxisControls> yAxisControlsLiveData = new MutableLiveData<>(new YAxisControls());
     private final Map<String, Object> genericSettings = new HashMap<>();
 
+    // LiveData for module scanning state
+    private final MutableLiveData<Boolean> _isScanningModules = new MutableLiveData<>(false);
+    public final LiveData<Boolean> isScanningModules = _isScanningModules;
+
     public MainViewModel() {
         // Теперь genericSettings заполняются из значений LiveData
         genericSettings.put("theme", currentTheme.getValue());
@@ -66,6 +70,11 @@ public class MainViewModel extends ViewModel {
     // === НОВОЕ: Getter для текущей тоники ===
     public LiveData<String> getCurrentTonic() { return currentTonic; }
     // ========================================
+
+    // Method for ModuleManager to update scanning state
+    public void setIsScanningModules(boolean isLoading) {
+        _isScanningModules.postValue(isLoading);
+    }
 
     public void setCurrentTheme(String themeId) {
         currentTheme.setValue(themeId);
