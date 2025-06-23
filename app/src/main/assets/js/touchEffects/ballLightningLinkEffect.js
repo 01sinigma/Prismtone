@@ -178,19 +178,32 @@ class BallLightningLinkEffect {
         return true;
     }
 
-    _generateLinkPoints(x1, y1, x2, y2, segments, jitter) {
-        const points = [{x:x1, y:y1}];
+    _generateLinkPoints(pointsArray, x1, y1, x2, y2, segments, jitter) {
+        // Убедимся, что pointsArray существует и имеет правильную длину.
+        // Если segments изменились, массив должен быть пересоздан вовне.
+        // Здесь мы просто проверяем, что он готов к использованию.
+        if (!pointsArray || pointsArray.length !== segments + 1) {
+            // Это аварийная ситуация, массив должен быть подготовлен заранее.
+            // Можно либо создать его здесь, либо просто выйти, предполагая, что это ошибка.
+            // Для безопасности, если он не готов, мы не будем его заполнять.
+            console.warn("[BallLightningLinkEffect] _generateLinkPoints called with improperly sized pointsArray.");
+            return; // или throw new Error("pointsArray not initialized correctly");
+        }
+
+        pointsArray[0].x = x1;
+        pointsArray[0].y = y1;
+
         for (let i = 1; i < segments; i++) {
             const t = i / segments;
-            // Дрожание максимально в центре дуги и уменьшается к концам
             const currentJitter = jitter * Math.sin(Math.PI * t);
-            points.push({
-                x: x1 + (x2 - x1) * t + (Math.random() - 0.5) * currentJitter,
-                y: y1 + (y2 - y1) * t + (Math.random() - 0.5) * currentJitter
-            });
+            const point = pointsArray[i]; // Получаем существующий объект
+            point.x = x1 + (x2 - x1) * t + (Math.random() - 0.5) * currentJitter;
+            point.y = y1 + (y2 - y1) * t + (Math.random() - 0.5) * currentJitter;
         }
-        points.push({x:x2, y:y2});
-        return points;
+
+        pointsArray[segments].x = x2;
+        pointsArray[segments].y = y2;
+        // Массив модифицируется по ссылке, возвращать не нужно
     }
 
     _drawLinkSecondaryEffects(link, now, linkOpacity) {
@@ -231,14 +244,21 @@ class BallLightningLinkEffect {
             }
         }
         // При фильтрации "мертвых" искр, возвращаем их в пул
-        if (link.secondarySparks) {
-            link.secondarySparks = link.secondarySparks.filter(spark => {
-                const alive = this._drawSpark(spark, spark.color, spark.color, now); // Предполагается, что _drawSpark возвращает false, если искра умерла
-                if (!alive) {
-                    spark.isActive = false; // Возвращаем в пул
+        if (link.secondarySparks && link.secondarySparks.length > 0) {
+            let writeIndex = 0;
+            for (let readIndex = 0; readIndex < link.secondarySparks.length; readIndex++) {
+                const spark = link.secondarySparks[readIndex];
+                const alive = this._drawSpark(spark, spark.color, spark.color, now);
+                if (alive) {
+                    if (writeIndex !== readIndex) {
+                        link.secondarySparks[writeIndex] = spark;
+                    }
+                    writeIndex++;
+                } else {
+                    spark.isActive = false; // Помечаем для пула, сам объект не удаляем из памяти тут
                 }
-                return alive;
-            });
+            }
+            link.secondarySparks.length = writeIndex;
         }
 
         // Ответвления от основной дуги (mainBranches)
@@ -268,14 +288,21 @@ class BallLightningLinkEffect {
                 link.mainBranches.push(newBranchSpark);
             }
         }
-        if (link.mainBranches) {
-            link.mainBranches = link.mainBranches.filter(spark => {
+        if (link.mainBranches && link.mainBranches.length > 0) {
+            let writeIndex = 0;
+            for (let readIndex = 0; readIndex < link.mainBranches.length; readIndex++) {
+                const spark = link.mainBranches[readIndex];
                 const alive = this._drawSpark(spark, spark.color, spark.color, now);
-                if (!alive) {
-                    spark.isActive = false; // Возвращаем в пул
+                if (alive) {
+                    if (writeIndex !== readIndex) {
+                        link.mainBranches[writeIndex] = spark;
+                    }
+                    writeIndex++;
+                } else {
+                    spark.isActive = false; // Помечаем для пула
                 }
-                return alive;
-            });
+            }
+            link.mainBranches.length = writeIndex;
         }
     }
 
@@ -314,9 +341,18 @@ class BallLightningLinkEffect {
         link.lastX1 = x1; link.lastY1 = y1;
         link.lastX2 = x2; link.lastY2 = y2;
 
-        const points = this._generateLinkPoints(x1, y1, x2, y2, this.settings.linkSegments, this.settings.linkJitter);
-        link.points = points;
-        if (points.length < 2) return true; // Нечего рисовать, но дуга может быть еще жива
+    // Убедимся, что link.points имеет правильный размер, если linkSegments изменились динамически
+    // (хотя в текущем коде они не меняются после инициализации эффекта)
+    const expectedNumPoints = (this.settings.linkSegments || 7) + 1;
+    if (!link.points || link.points.length !== expectedNumPoints) {
+        link.points = Array.from({ length: expectedNumPoints }, () => ({ x: 0, y: 0 }));
+        console.warn("[BallLightningLinkEffect] link.points was re-initialized in _drawLinkArc. This should ideally not happen frequently.");
+    }
+
+    this._generateLinkPoints(link.points, x1, y1, x2, y2, this.settings.linkSegments, this.settings.linkJitter);
+    const points = link.points; // Используем обновленный массив
+    // Проверка на points.length < 2 не так актуальна, если segments > 0, но оставим на всякий случай
+    if (!points || points.length < 2) return true;
 
         const color1 = bl1 ? bl1.auraColor : link.color1;
         const color2 = bl2 ? bl2.auraColor : link.color2;
@@ -447,12 +483,14 @@ class BallLightningLinkEffect {
 
                     let link = this.activeLinks.get(linkKey);
                     if (!link || !link.isActive) { // Если линка нет ИЛИ он был неактивен (затухал)
+                        const numPoints = (this.settings.linkSegments || 7) + 1;
                         link = {
                             key: linkKey, id1: bl1.id, id2: bl2.id,
-                            points: [], branches: [], secondarySparks: [],
+                            points: Array.from({ length: numPoints }, () => ({ x: 0, y: 0 })), // Инициализируем массив точек
+                            branches: [], secondarySparks: [],
                             thickness: this.settings.linkBaseThickness + ((bl1.currentY + bl2.currentY) / 2) * this.settings.linkThicknessYMultiplier,
                             color1: bl1.auraColor, color2: bl2.auraColor,
-                            isActive: true, fadeStartTime: 0, fadeProgress: -1,
+                            isActive: true, fadeStartTime: 0, fadeProgress: -1, // -1 чтобы показать, что затухание не началось
                             lastSecondarySparkTime: 0,
                             lastX1: bl1.x, lastY1: bl1.y, lastX2: bl2.x, lastY2: bl2.y
                         };
@@ -560,20 +598,20 @@ class BallLightningLinkEffect {
                 if (now - bl.lastSparkEmitTime > this.settings.sparkEmitInterval) {
                     bl.lastSparkEmitTime = now;
                     const numSparks = Math.floor(this.settings.sparksPerEmitBase + (bl.currentY * this.settings.sparksPerEmitYMultiplier));
-                    
+
                     for (let i = 0; i < numSparks; i++) {
                         const angle = bl.sparkBundleAngle + (Math.random() - 0.5) * this.settings.sparkBundleSpread;
                         const length = this.settings.sparkBaseLength + Math.random() * bl.currentY * this.settings.sparkLengthYMultiplier;
-                        
+
                         // >>> OPTIMIZATION: Используем пул <<<
                         const newSpark = this._getSparkFromPool();
                         if (newSpark) {
                             Object.assign(newSpark, {
-                                startX: bl.x, 
-                                startY: bl.y, 
+                                startX: bl.x,
+                                startY: bl.y,
                                 basePoints: this._generateSparkBasePoints(length, this.settings.sparkSegments, this.settings.sparkJitter, angle),
-                                length: length, 
-                                lifetime: this.settings.sparkMaxLifetime, 
+                                length: length,
+                                lifetime: this.settings.sparkMaxLifetime,
                                 startTime: now
                                 // If sparks from ballLightnings can have their own distinct color, add it here:
                                 // color: someColorLogicForBlSpark
@@ -586,15 +624,22 @@ class BallLightningLinkEffect {
             }
 
             // Отрисовка и фильтрация собственных искр шаровой молнии
-            if (bl.sparks) {
-                bl.sparks = bl.sparks.filter(spark => {
-                    const sparkCoreRenderColor = spark.color || this.settings.sparkCoreColor || bl.auraColor; // Determine core color for this spark
+            if (bl.sparks && bl.sparks.length > 0) {
+                let writeIndex = 0;
+                for (let readIndex = 0; readIndex < bl.sparks.length; readIndex++) {
+                    const spark = bl.sparks[readIndex];
+                    const sparkCoreRenderColor = spark.color || this.settings.sparkCoreColor || bl.auraColor;
                     let sparkIsAlive = this._drawSpark(spark, bl.auraColor, sparkCoreRenderColor, now);
-                    if (!sparkIsAlive) {
-                        spark.isActive = false; // <--- ВОЗВРАЩАЕМ В ПУЛ
+                    if (sparkIsAlive) {
+                        if (writeIndex !== readIndex) {
+                            bl.sparks[writeIndex] = spark;
+                        }
+                        writeIndex++;
+                    } else {
+                        spark.isActive = false; // Помечаем для пула
                     }
-                    return sparkIsAlive;
-                });
+                }
+                bl.sparks.length = writeIndex;
             }
 
             if (!bl.isActive && bl.activeLinkCount === 0 && bl.sparks.length === 0 &&

@@ -2,14 +2,14 @@
   "id": "stellar_nursery",
   "type": "visualizer",
   "name": "Stellar Nursery",
-  "version": "4.0",
-  "description": "An interactive nebula where touches form stars with advanced physics.",
+  "version": "4.1.4",
+  "description": "An interactive nebula configured for 'Cosmic Star Dance' preset, emphasizing star interactions, with staggered transformed particle color change.",
   "active": true,
   "data": {
     "rendererScript": "js/visualizers/StellarNurseryRenderer.js",
     "settings": {
       "fadeSpeed": 0.25,
-      "particleCount": 800,
+      "particleCount": 600,
       "coreMinSize": 8,
       "coreMaxSize": 45,
       "timeToMaxSizeMs": 2000,
@@ -19,10 +19,13 @@
       "friction": 0.97,
       "attraction": 50,
       "inertiaDamping": 30,
+      "touchHistoryLength": 5,
 
-      "starGravity": 800,
-      "starPolarityStrength": 1200,
+      "maxStars": 12,
+      "starGravityFactor": 1200,
+      "starPolarityStrength": 2.2,
       "starBounceDamping": -0.6,
+      "starDefaultDecay": 0.0009,
 
       "explosion": {
         "particleCount": 40,
@@ -31,11 +34,15 @@
         "size": 2.5
       },
 
-      "particleRepulsion": 0.005,
+      "particleRepulsionActive": true,
+      "particleRepulsion": 0.01,
+      "particleRepulsionRadiusSq": 2500,
       "transformedParticle": {
-        "lifeMs": 3000,
-        "initialSpeedBoost": 1.5,
-        "gravityImmunityDurationMs": 1500
+        "lifeMs": 4000,
+        "initialSpeedBoost": 2.0,
+        "gravityImmunityDurationMs": 1500,
+        "coolDownMs": 1500,
+        "maxColorChangeDelayMs": 500
       }
     }
   }
