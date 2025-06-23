@@ -1,0 +1,20 @@
+{
+  "id": "linkedParticles",
+  "name": "Linked Particles",
+  "description": "Particles appear at touch points and lines connect them dynamically.",
+  "type": "touchEffect",
+  "rendererScript": "touchEffects/linkedParticlesEffect.js",
+  "settings": {
+    "particleRadius": 5,
+    "particleMaxRadius": 10,
+    "particleBaseOpacity": 0.8,
+    "particleFadeSpeed": 0.03,
+    "lineBaseThickness": 1,
+    "lineMaxThickness": 3,
+    "lineBaseOpacity": 0.5,
+    "connectionDistanceThreshold": 300,
+    "colorSource": "note",
+    "showParticles": true,
+    "showLines": true
+  }
+}

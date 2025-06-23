@@ -219,7 +219,7 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
 */
 
 /* XY-touch (визуализация касаний) - оставляем как есть */
-.xy-touch { position: absolute; width: 40px; height: 40px; border-radius: 50%; transform: translate(-50%, -50%) scale(1); pointer-events: none; background: radial-gradient(circle, rgba(var(--color-primary-rgb), 0.8) 0%, rgba(var(--color-primary-rgb), 0) 70%); opacity: 0; transition: opacity 0.3s ease-out, transform 0.1s ease-out, box-shadow 0.1s ease-out, background 0.1s ease-out; will-change: transform, opacity, background, box-shadow; }
+.xy-touch { position: absolute; width: 40px; height: 40px; border-radius: 50%; transform: translate(-50%, -50%) scale(1); pointer-events: none; background: radial-gradient(circle, rgba(var(--color-primary-rgb), 0.8) 0%, rgba(var(--color-primary-rgb), 0) 70%); opacity: 0; transition: opacity 0.3s ease-out, transform 0.1s ease-out, box-shadow 0.1s ease-out, background 0.1s ease-out; will-change: opacity, transform; }
 
 /* Panels */
 .side-panel, .top-panel { position: absolute; background-color: var(--color-surface); z-index: 200; display: flex; flex-direction: column; box-shadow: 0 0 15px rgba(0, 0, 0, 0.1); overflow: hidden; }
@@ -349,6 +349,7 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
     word-break: break-word;
     transition: background-color 0.2s ease-out, border-color 0.2s ease-out,
                 box-shadow 0.2s ease-out, transform 0.15s cubic-bezier(0.2, 0.8, 0.4, 1.2);
+    will-change: transform;
 }
 .preset-cube:hover {
     border-color: var(--color-primary-light);
@@ -393,6 +394,7 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
     cursor: pointer;
     transition: opacity 0.5s ease-out, transform 0.5s ease-out, visibility 0s linear 0.5s;
     overflow: hidden;
+    will-change: opacity, transform;
 }
 #loading-overlay::before {
     content: '';
@@ -1161,7 +1163,7 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
 
 /* Когда на родительской кнопке есть класс confirm-delete, показываем крестик */
 .chord-button.confirm-delete .delete-chord-btn {
-    display: flex; 
+    display: flex;
     align-items: center;
     justify-content: center;
 }
@@ -1189,9 +1191,9 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
 }
 
 .suggested-list .chord-button { /* Отличительный стиль для кнопок предложений */
-    padding: 8px 10px; 
+    padding: 8px 10px;
     font-size: 0.8rem; /* Еще чуть меньше */
-    background-color: var(--color-surface-container); 
+    background-color: var(--color-surface-container);
     border: 1px solid var(--color-border-subtle); /* Менее заметная граница */
 }
 
@@ -1200,9 +1202,9 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
     border-color: var(--color-secondary); /* Используем secondary для ховера предложений */
 }
 
-/* Если предложенный аккорд выбирается и становится активным в основном списке, 
-   он получит класс .active оттуда. Если нужно специфичное выделение для предложенного, 
-   пока он только предложен, это другая логика. 
+/* Если предложенный аккорд выбирается и становится активным в основном списке,
+   он получит класс .active оттуда. Если нужно специфичное выделение для предложенного,
+   пока он только предложен, это другая логика.
    Пока что при клике он станет обычным выбранным аккордом. */
 
 /* === Стилизация Скроллбара === */
@@ -1250,8 +1252,8 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
 .panel-resize-handle {
     position: absolute;
     top: 0;
-    right: -6px; 
-    width: 16px; 
+    right: -6px;
+    width: 16px;
     height: 100%;
     cursor: ew-resize;
     z-index: 201;
@@ -1263,7 +1265,7 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
 
 .panel-resize-handle::after {
     content: '';
-    width: 4px; 
+    width: 4px;
     height: 50px;
     background-color: var(--color-border);
     border-radius: 2px;
@@ -1526,7 +1528,7 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
     padding: 0 10px; /* Согласуем отступы по горизонтали, вертикальный браузер обычно сам выравнивает */
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
-    background-color: var(--color-surface); /* ИЗМЕНЕНИЕ: Используем --color-surface вместо --color-background */ 
+    background-color: var(--color-surface); /* ИЗМЕНЕНИЕ: Используем --color-surface вместо --color-background */
     color: var(--color-text-primary);
     font-size: 14px; /* Согласуем размер шрифта с .dropdown-display */
     /* line-height: 38px; Для input line-height может вести себя иначе, часто достаточно padding и height */
@@ -1534,10 +1536,10 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
 
 /* Специфичные стили для .dropdown-display внутри .prism-modal (для окна добавления) */
 .prism-modal .modal-content .dropdown-display {
-    /* Стили для .dropdown-display уже определены глобально, 
+    /* Стили для .dropdown-display уже определены глобально,
        но если нужны специфичные для модального окна, можно добавить сюда.
        Например, width: 100%; если он еще не такой */
-    width: 100%; 
+    width: 100%;
 }
 
 
@@ -1569,18 +1571,18 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
 /* Классы .button.danger-button и .close-button должны наследоваться глобально и уже стилизованы */
 /* Убедимся, что .danger-button имеет нужные стили */
 .button.danger-button {
-    background-color: var(--color-accent); 
-    color: white; 
-    border-color: var(--color-accent-dark, #d32f2f); 
+    background-color: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent-dark, #d32f2f);
 }
 
 .button.danger-button:hover {
-    background-color: var(--color-accent-dark, #d32f2f); 
-    border-color: var(--color-accent-darker, #b71c1c); 
+    background-color: var(--color-accent-dark, #d32f2f);
+    border-color: var(--color-accent-darker, #b71c1c);
 }
 
 .button.danger-button:active {
-    background-color: var(--color-accent-darker, #b71c1c); 
+    background-color: var(--color-accent-darker, #b71c1c);
 }
 
 /* === Конец общих стилей для .prism-modal детей === */
@@ -1829,19 +1831,19 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
     position: absolute;
     top: 0;
     height: 100%;
-    
+
     /* >>> НАЧАЛО ИЗМЕНЕНИЙ <<< */
     /* Убираем градиент, ставим сплошной цвет темы */
     background-color: var(--color-primary);
-    
+
     /* Усиливаем неоновый эффект */
-    box-shadow: 0 0 5px 1.5px var(--color-primary), 
+    box-shadow: 0 0 5px 1.5px var(--color-primary),
                 0 0 12px 2px rgba(var(--color-primary-rgb), 0.7);
-    
+
     /* Убираем opacity, полоса всегда полностью видима во время анимации */
-    opacity: 1; 
-    
-    width: 0%; /* Начальное состояние */
+    opacity: 1;
+
+    /* width: 0%; */ /* Начальное состояние - удалено, будет управляться scaleX и базовой шириной */
     /* >>> КОНЕЦ ИЗМЕНЕНИЙ <<< */
 }
 
@@ -1849,11 +1851,13 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
 .timer-progress-bar.left {
     right: 50%;
     transform-origin: right;
+    width: 50%; /* Базовая ширина для scaleX */
 }
 
 .timer-progress-bar.right {
     left: 50%;
     transform-origin: left;
+    width: 50%; /* Базовая ширина для scaleX */
 }
 
 #timer-progress-container.timer-active .timer-progress-bar {
@@ -1867,10 +1871,10 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
 /* Исправленная анимация без прозрачности */
 @keyframes progress-bar-expand {
     from {
-        width: 0%;
+        transform: scaleX(0);
     }
     to {
-        width: 50%;
+        transform: scaleX(1);
     }
 }
 

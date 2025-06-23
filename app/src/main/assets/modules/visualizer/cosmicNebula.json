@@ -1,0 +1,23 @@
+{
+  "id": "cosmicNebula",
+  "name": "Cosmic Nebula",
+  "description": "A swirling nebula background that reacts to device tilt and audio, with stars appearing at touch points.",
+  "type": "visualizer",
+  "rendererScript": "visualizers/cosmicNebulaRenderer.js",
+  "settings": {
+    "starBaseRadius": 3,
+    "starMaxRadius": 8,
+    "starBrightness": 0.8,
+    "starFadeSpeed": 0.02,
+    "tiltEffectStrength": 50,
+    "nebulaBaseAlpha": 0.6,
+    "noiseDetail": 0.03,
+    "noiseSpeed": 0.0005,
+    "nebulaLayer1Color": [60, 20, 120],
+    "nebulaLayer1Alpha": 0.3,
+    "nebulaLayer2Color": [20, 40, 150],
+    "nebulaLayer2Alpha": 0.25,
+    "nebulaLayer3Color": [100, 20, 100],
+    "nebulaLayer3Alpha": 0.2
+  }
+}

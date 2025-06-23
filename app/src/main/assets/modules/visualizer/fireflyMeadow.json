@@ -1,0 +1,27 @@
+{
+  "id": "fireflyMeadow",
+  "name": "Firefly Meadow",
+  "description": "A dynamic field of fireflies reacting to device tilt, multi-touch input, and audio.",
+  "type": "visualizer",
+  "rendererScript": "visualizers/fireflyMeadowRenderer.js",
+  "settings": {
+    "initialCount": 80,
+    "maxCount": 120,
+    "baseSpeed": 0.3,
+    "maxSpeed": 1.0,
+    "tiltForceFactor": 0.05,
+    "touchAttractionForce": 0.08,
+    "touchAttractionRadius": 200,
+    "motherFireflyBaseRadius": 6,
+    "motherFireflyPulseAmount": 3,
+    "particleBaseRadius": 1.0,
+    "particlePulseAmount": 1.0,
+    "particleMaxAge": 8000,
+    "particleFlickerSpeed": 0.1,
+    "particleFlickerAmount": 0.3,
+    "audioPulseStrength": 0.7,
+    "backgroundColor": "rgba(10,20,40,1)",
+    "fireflyColor1": "rgba(255, 223, 186, 1)",
+    "fireflyColor2": "rgba(173, 255, 47, 1)"
+  }
+}

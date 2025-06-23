@@ -1,7 +1,10 @@
 package com.example.prismtone;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
+import android.webkit.WebView; // Added import
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -15,21 +18,28 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale; // Added import
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ChordProgressionRepository {
     private static final String TAG = "ChordProgressionRepository";
     private static ChordProgressionRepository instance;
     private final Context context;
     private final File progressionDir;
-    private final Gson gson;
+    private final Gson gson; // gson instance is already available
+    private final ExecutorService executorService;
+    private final Handler mainThreadHandler;
 
     private ChordProgressionRepository(Context context) {
         this.context = context.getApplicationContext();
         // Путь изменен на modules/chordProgression
         this.progressionDir = new File(context.getExternalFilesDir(null), "modules/chordProgression");
         this.gson = new Gson();
-        
+        this.executorService = Executors.newSingleThreadExecutor();
+        this.mainThreadHandler = new Handler(Looper.getMainLooper());
+
         if (!progressionDir.exists()) {
             progressionDir.mkdirs();
         }
@@ -47,10 +57,10 @@ public class ChordProgressionRepository {
      */
     public List<JsonObject> getUserProgressions() {
         List<JsonObject> progressions = new ArrayList<>();
-        
+
         File[] files = progressionDir.listFiles((dir, name) -> name.endsWith(".json"));
         if (files == null) return progressions;
-        
+
         for (File file : files) {
             try {
                 String json = FileUtils.readFile(file);
@@ -60,60 +70,81 @@ public class ChordProgressionRepository {
                 e.printStackTrace();
             }
         }
-        
+
         return progressions;
     }
 
     /**
      * Save a progression
      */
-    public String saveProgression(JsonObject progression) {
-        try {
-            // Generate a unique ID
-            String id = "user_" + System.currentTimeMillis();
-            
-            // Set the ID in the progression data
-            progression.addProperty("id", id);
-            
-            // Create directory if needed (progressionDir уже должен быть создан конструктором, но проверим)
-            if (!progressionDir.exists()) {
-                progressionDir.mkdirs();
-            }
-            
-            // Create the progression file
-            File progressionFile = new File(progressionDir, id + ".json");
-            
+    public void saveProgression(JsonObject progression, String successCallbackName, String errorCallbackName, WebView webView) {
+        executorService.execute(() -> {
             try {
-                // Fixed: Using Gson to properly format the JSON with indentation
+                // Generate a unique ID
+                String id = "user_" + System.currentTimeMillis();
+
+                // Set the ID in the progression data
+                progression.addProperty("id", id);
+
+                // Create directory if needed (progressionDir уже должен быть создан конструктором, но проверим)
+                if (!progressionDir.exists()) {
+                    progressionDir.mkdirs();
+                }
+
+                // Create the progression file
+                File progressionFile = new File(progressionDir, id + ".json");
+
                 String jsonOutput = new GsonBuilder().setPrettyPrinting().create().toJson(progression);
                 FileUtils.writeFile(progressionFile, jsonOutput);
-                
-                // Return the ID
-                return id;
-            } catch (IOException e) {
-                Log.e(TAG, "Error saving progression file", e);
-                return "Error: " + e.getMessage();
+
+                // Post success to main thread
+                final String script = String.format(Locale.US, "%s(%s)", successCallbackName, gson.toJson(id));
+                mainThreadHandler.post(() -> {
+                    if (webView != null) {
+                        webView.evaluateJavascript(script, null);
+                    } else {
+                        Log.e(TAG, "WebView is null, cannot execute success callback for " + successCallbackName);
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Error saving progression", e);
+                // Post error to main thread
+                final String errorMsg = "Error: " + e.getMessage();
+                final String script = String.format(Locale.US, "%s(%s)", errorCallbackName, gson.toJson(errorMsg));
+                mainThreadHandler.post(() -> {
+                    if (webView != null) {
+                        webView.evaluateJavascript(script, null);
+                    } else {
+                        Log.e(TAG, "WebView is null, cannot execute error callback for " + errorCallbackName);
+                    }
+                });
             }
-        } catch (Exception e) {
-            Log.e(TAG, "Error saving progression", e);
-            return "Error: " + e.getMessage();
-        }
+        });
     }
-    
+
     /**
      * Save a chord progression from JSONObject
      */
-    public String saveChordProgression(JSONObject progression) { // Метод переименован для консистентности, параметр тоже
+    public void saveChordProgression(JSONObject progression, String successCallbackName, String errorCallbackName, WebView webView) { // Метод переименован для консистентности, параметр тоже
         try {
             // Convert JSONObject to JsonObject
             JsonObject jsonObject = JsonParser.parseString(progression.toString()).getAsJsonObject();
-            return saveProgression(jsonObject); // Вызываем основной метод saveProgression
+            saveProgression(jsonObject, successCallbackName, errorCallbackName, webView); // Вызываем основной метод saveProgression
         } catch (Exception e) {
             Log.e(TAG, "Error converting JSONObject to JsonObject", e);
-            return "Error: " + e.getMessage();
+            // Post error to main thread
+            final String errorMsg = "Error: " + e.getMessage();
+            final String script = String.format(Locale.US, "%s(%s)", errorCallbackName, gson.toJson(errorMsg));
+            mainThreadHandler.post(() -> {
+                if (webView != null) {
+                    webView.evaluateJavascript(script, null);
+                } else {
+                    Log.e(TAG, "WebView is null, cannot execute error callback for " + errorCallbackName + " during JSON conversion.");
+                }
+            });
         }
     }
-    
+
     /**
      * Deletes a user chord progression
      * @return true if deleted successfully
@@ -123,8 +154,10 @@ public class ChordProgressionRepository {
         if (!progressionId.startsWith("user_")) {
             return false;
         }
-        
+        // Ensure file operations are not on main thread if they could be slow,
+        // however, delete is generally fast. For now, keeping it synchronous.
+        // If performance issues arise, consider moving to executorService as well.
         File progressionFile = new File(progressionDir, progressionId + ".json");
         return progressionFile.exists() && progressionFile.delete();
     }
-} 
+}
