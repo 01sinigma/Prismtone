@@ -73,13 +73,9 @@ class GravityMatrixRenderer {
         this.ctx.fillStyle = `rgba(0, 0, 0, ${this.settings.fadeSpeed || 0.25})`;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // --- ИСПРАВЛЕНИЕ ОСЕЙ (v4 - Финальная версия) ---
         const gravityStrength = this.settings.gravityStrength || 0.2;
-        // Горизонтальная гравитация (X) -> от наклона ВПЕРЕД/НАЗАД (pitch)
-        const gravityX = (deviceTilt.pitch / 90) * gravityStrength * -1;
-        // Вертикальная гравитация (Y) -> от наклона ВЛЕВО/ВПРАВО (roll)
-        const gravityY = (deviceTilt.roll / 90) * gravityStrength * -1;
-        // ---------------------------------------------
+        const gravityX = (deviceTilt.roll / 90) * gravityStrength * -1;
+        const gravityY = (deviceTilt.pitch / 90) * gravityStrength;
 
         const friction = this.settings.friction || 0.98;
 

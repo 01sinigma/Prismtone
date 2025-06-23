@@ -1,3 +1,20 @@
+/**
+ * @file visualizer.js
+ * @description
+ * This module is responsible for rendering all visual aspects on the main XY pad canvas.
+ * It manages different types of visualizers (e.g., waveform, particles, nebula) and touch effects.
+ * Key functionalities include:
+ * - Initializing the canvas and its 2D rendering context.
+ * - Registering and managing different renderer modules for main visualizations and touch feedback.
+ * - Dynamically switching between visualizer types (`setVisualizerType`) and touch effects (`setTouchEffectType`).
+ * - Handling canvas resizing to adapt to different screen dimensions.
+ * - Running the main animation loop (`draw`) using `fpsManager` for consistent frame rates.
+ * - Receiving touch event notifications (`notifyTouchDown`, `notifyTouchMove`, `notifyTouchUp`) from `pad.js`
+ *   to trigger touch-specific visual effects.
+ * - Integrating with the `synth.js` analyser node to get audio data for visualizations.
+ * - Managing theme color updates and applying them to renderers.
+ * - Drawing pad-specific hints like active note highlights or harmonic markers (`updatePadHints`).
+ */
 const visualizer = {
     canvas: null,
     ctx: null,
@@ -29,6 +46,15 @@ const visualizer = {
      debugMode: true, // Set to true for verbose logging
     fpsManager: null,
 
+    /**
+     * Initializes the visualizer module.
+     * Sets up the canvas, rendering context, and FPS manager.
+     * Registers a resize listener and prepares the PadHintsRenderer.
+     * @param {HTMLCanvasElement} canvasElement - The canvas element to draw on.
+     * @param {Tone.Analyser|null} [analyserInstance=null] - Optional. An analyser node from the synth.
+     *                                                      If not provided, it will try to get it from `synth.js`.
+     * @async
+     */
     async init(canvasElement, analyserInstance = null) {
         if (this.debugMode) console.log('[Visualizer v4.1 Modular with PadHints] Initializing...');
         if (!canvasElement) {
@@ -90,6 +116,10 @@ const visualizer = {
         this._generateNoteColors();
     },
 
+    /**
+     * Generates a palette of 12 distinct HSL colors, typically used for note representation.
+     * @private
+     */
     _generateNoteColors() {
         this.noteColors = [];
         for (let i = 0; i < 12; i++) {
@@ -100,6 +130,11 @@ const visualizer = {
         console.log("[Visualizer] Generated note color palette:", this.noteColors);
     },
 
+    /**
+     * Registers a new visualizer renderer class.
+     * @param {string} name - The unique name/ID for the renderer (e.g., 'nebulaRenderer').
+     * @param {function} rendererClass - The constructor function of the renderer class.
+     */
     registerRenderer(name, rendererClass) {
         if (typeof name === 'string' && typeof rendererClass === 'function') {
             this.renderersRegistry[name] = rendererClass;
@@ -109,6 +144,11 @@ const visualizer = {
         }
     },
 
+    /**
+     * Registers a new touch effect renderer class.
+     * @param {string} name - The unique name/ID for the touch effect renderer (e.g., 'glowEffect').
+     * @param {function} effectClass - The constructor function of the touch effect renderer class.
+     */
     registerTouchEffectRenderer(name, effectClass) {
         if (typeof name === 'string' && typeof effectClass === 'function') {
             this.touchEffectRenderersRegistry[name] = effectClass;
@@ -118,6 +158,11 @@ const visualizer = {
         }
     },
 
+    /**
+     * Resizes the canvas to fit its parent container.
+     * Also notifies the active main renderer and touch effect renderer about the resize.
+     * This method is debounced using `requestAnimationFrame`.
+     */
     resizeCanvas() {
         if (!this.canvas || !this.canvas.parentElement) return;
         requestAnimationFrame(() => {
@@ -141,6 +186,14 @@ const visualizer = {
         });
     },
 
+    /**
+     * Sets the active visualizer type.
+     * Loads the specified visualizer module, initializes its renderer, and starts the animation loop.
+     * Disposes of any previously active renderer.
+     * @param {string} typeId - The ID of the visualizer type to activate (e.g., 'nebula', 'wavesRenderer').
+     * @async
+     * @returns {Promise<void>}
+     */
     async setVisualizerType(typeId) {
         if (!typeId) {
             if (this.debugMode) console.warn('[Visualizer v4.0] setVisualizerType called with null/empty typeId. Retaining current.');
@@ -227,6 +280,14 @@ const visualizer = {
         this.configureAnalyser();
     },
 
+    /**
+     * Sets the active touch effect type.
+     * Loads the specified touch effect module and initializes its renderer.
+     * Disposes of any previously active touch effect renderer.
+     * @param {string} typeId - The ID of the touch effect type to activate (e.g., 'glow', 'sparkEffect') or 'none'.
+     * @async
+     * @returns {Promise<void>}
+     */
     async setTouchEffectType(typeId) {
         const targetEffectId = typeId || 'none';
         if (this.debugMode) console.log(`[Visualizer v4.0] Setting touch effect type to ${targetEffectId}`);
@@ -286,6 +347,14 @@ const visualizer = {
         }
     },
 
+    /**
+     * Retrieves a renderer class from a given registry based on a script path or name.
+     * Handles cases where scriptPath might include a full path or just the class name.
+     * @param {string} scriptPath - The script path or class name (e.g., "visualizers/nebulaRenderer.js" or "nebulaRenderer").
+     * @param {object} registry - The registry to search (e.g., `this.renderersRegistry`).
+     * @returns {function|null} The renderer class constructor or null if not found.
+     * @private
+     */
     _getRendererClassFromRegistry(scriptPath, registry) {
         if (!scriptPath || typeof scriptPath !== 'string') {
             if (this.debugMode) console.error("[Visualizer v4.0 _getRendererClassFromRegistry] Invalid scriptPath provided:", scriptPath);
@@ -331,6 +400,10 @@ const visualizer = {
         return null;
     },
 
+    /**
+     * Configures the analyser node with settings appropriate for the current visualizer type.
+     * For example, sets FFT size, smoothing, and type (waveform/fft).
+     */
     configureAnalyser() {
         if (this.analyser) {
             try {
@@ -364,6 +437,10 @@ const visualizer = {
         }
     },
 
+    /**
+     * Updates the theme colors used by the visualizer and notifies the active renderers.
+     * Typically called when the application theme changes.
+     */
     updateTheme() {
         if (!this.isReady) return;
         requestAnimationFrame(() => {
@@ -391,6 +468,10 @@ const visualizer = {
         });
     },
 
+    /**
+     * Starts the main animation loop if it's not already running.
+     * Uses the `fpsManager` to control the frame rate.
+     */
     start() {
         if (!this.isReady || (this.fpsManager && this.fpsManager._isActive)) return;
         if (!this.activeRenderer && !this.activeTouchEffectRenderer) {
@@ -402,12 +483,20 @@ const visualizer = {
         }
     },
 
+    /**
+     * Stops the main animation loop.
+     */
     stop() {
         if (this.fpsManager && this.fpsManager._isActive) {
             this.fpsManager.stop();
         }
     },
 
+    /**
+     * The main drawing function, called on each animation frame by `fpsManager`.
+     * Clears the canvas, then calls the `draw` methods of the active main visualizer renderer,
+     * the active touch effect renderer, and the pad hints renderer.
+     */
     draw() {
         if (this.debugMode && this._padHintsToDraw && this._padHintsToDraw.length > 0) {
             console.log(`[Visualizer.draw DBG] _padHintsToDraw (${this._padHintsToDraw.length}) items:`);
@@ -421,19 +510,22 @@ const visualizer = {
         }
         if (!this.isReady || !this.ctx || !this.canvas || this.canvas.width === 0 || this.canvas.height === 0) return;
 
-        const audioData = (this.analyser && (this.activeRenderer || (this.analyser.type === 'fft' && typeof this.analyser.getValue === 'function'))) ? this.analyser.getValue() : null;
+        const audioData = (this.analyser && this.isReady) ? this.analyser.getValue() : null;
         const activeTouchStates = (typeof pad !== 'undefined' && pad.getActiveTouchStates) ? pad.getActiveTouchStates() : [];
-
-        if (this.debugMode) console.log('[Visualizer] draw() using deviceTilt:', JSON.stringify(app.state.deviceTilt));
+        
+        // >>> NEW: Получаем данные о наклоне из app.state <<<
+        const deviceTilt = (app && app.state && app.state.deviceTilt) ? app.state.deviceTilt : { pitch: 0, roll: 0 };
+        
         this.ctx.save();
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         // 1. Основной визуализатор
         if (this.activeRenderer && typeof this.activeRenderer.draw === 'function') {
             try {
-                this.activeRenderer.draw(audioData, activeTouchStates, app.state.deviceTilt);
+                // >>> NEW: Передаем deviceTilt в рендерер <<<
+                this.activeRenderer.draw(audioData, activeTouchStates, deviceTilt);
             } catch (e) {
-                if (this.debugMode) console.error(`[Visualizer v4.1] Error in activeRenderer.draw for ${this.currentVizType}:`, e);
+                console.error(`[Visualizer] Error in activeRenderer.draw for ${this.currentVizType}:`, e);
             }
         }
         // 1. Рисуем fading-маркеры (fade-out)
@@ -486,8 +578,15 @@ const visualizer = {
         this.ctx.restore();
     },
 
+    /**
+     * Draws harmonic markers on the canvas based on active touch states and current musical context.
+     * This method iterates through `_padHintsToDraw` which are set by `updatePadHints`,
+     * and calls specific `_renderMarker_...` methods based on the `hint.markerType`.
+     * @param {Map<number, object>} activeTouchStates - A map of active touch states from `pad.js`.
+     * @private
+     */
     _drawHarmonicMarkers(activeTouchStates) {
-        if (!this.isReady || !this.ctx || !this.canvas || !pad?._currentDisplayedZones || !this._padHintsToDraw || this._padHintsToDraw.length === 0) {
+        if (!this.padHintsRendererInstance || !this._padHintsToDraw || this._padHintsToDraw.length === 0) {
             return;
         }
         // Группируем hints по zoneIndex
@@ -546,6 +645,13 @@ const visualizer = {
         });
     },
 
+    /**
+     * Renders an active note highlight effect for a pad hint.
+     * @param {object} zoneRect - The bounding rectangle of the zone { x, y, width, height }.
+     * @param {object} hint - The pad hint object.
+     * @param {number} [fadeAlpha=1] - Alpha transparency for fading effects.
+     * @private
+     */
     _drawActiveNoteHighlight(zoneRect, hint, fadeAlpha = 1) {
         // Красивый glow с blur и плавным градиентом, усиливается при удержании
         if (!this.ctx) return;
@@ -571,6 +677,14 @@ const visualizer = {
         this.ctx.restore();
     },
 
+    /**
+     * Renders a "GlowFromNote" style harmonic marker.
+     * @param {object} zoneRect - The zone's rectangle.
+     * @param {object} hint - The hint object for the marker.
+     * @param {Map<number, object>} activeTouchStates - Current active touch states.
+     * @param {number} [fadeAlpha=1] - Alpha for fading.
+     * @private
+     */
     _renderMarker_GlowFromNote(zoneRect, hint, activeTouchStates, fadeAlpha = 1) {
         // Мягкое сияние с blur и цветным градиентом
         if (!this.ctx) return;
@@ -693,6 +807,11 @@ const visualizer = {
         this.ctx.restore();
     },
 
+    /**
+     * Notifies the visualizer about a 'pointerdown' event.
+     * Stores the touch data and calls `onTouchDown` on the active touch effect renderer.
+     * @param {object} touchData - Object containing touch details (pointerId, x, y, etc.).
+     */
     notifyTouchDown(touchData) {
         if (this.canvas && touchData && typeof touchData.id !== 'undefined') { // Safety check for touchData
             this.activeTouchPointsMap.set(touchData.id, {
@@ -712,6 +831,11 @@ const visualizer = {
         }
     },
 
+    /**
+     * Notifies the visualizer about a 'pointermove' event.
+     * Updates stored touch data and calls `onTouchMove` on the active touch effect renderer.
+     * @param {object} touchData - Object containing updated touch details.
+     */
     notifyTouchMove(touchData) {
         if (touchData && typeof touchData.id !== 'undefined') { // Safety check
             const point = this.activeTouchPointsMap.get(touchData.id);
@@ -731,6 +855,13 @@ const visualizer = {
         }
     },
 
+    /**
+     * Mixes two hex colors by a given factor.
+     * @param {string} hex1 - The first hex color string (e.g., "#FF0000").
+     * @param {string} hex2 - The second hex color string.
+     * @param {number} factor - The mixing factor (0 for hex1, 1 for hex2).
+     * @returns {string} The resulting hex color string.
+     */
     mixColors(hex1, hex2, factor) {
         factor = Math.max(0, Math.min(1, factor)); // Clamp factor
         const c1 = this.hexToRgb(hex1);
@@ -743,6 +874,11 @@ const visualizer = {
         return `rgb(${r},${g},${b})`;
     },
 
+    /**
+     * Notifies the visualizer about a 'pointerup' or 'pointercancel' event.
+     * Removes the touch data and calls `onTouchUp` on the active touch effect renderer.
+     * @param {string|number} touchId - The ID of the touch that was released.
+     */
     notifyTouchUp(touchId) {
         if (typeof touchId !== 'undefined') { // Safety check
             this.activeTouchPointsMap.delete(touchId);
@@ -757,6 +893,13 @@ const visualizer = {
         }
     },
 
+    // This function seems to be duplicated. I will keep the one with more comprehensive JSDoc if it exists or this one.
+    /**
+     * Converts a color string (hex, rgb, rgba) to an rgba string with a specified alpha.
+     * @param {string} colorString - The input color string.
+     * @param {number} alpha - The desired alpha value (0 to 1).
+     * @returns {string} The rgba color string (e.g., "rgba(255,0,0,0.5)").
+     */
     getColorWithAlpha(colorString, alpha) {
         const clampedAlpha = Math.max(0, Math.min(1, parseFloat(alpha.toFixed(3))));
         let effectiveColorString = colorString || this.themeColors.primary;
@@ -785,10 +928,14 @@ const visualizer = {
         const fallbackRgb = this.hexToRgb(this.themeColors.primary); // Ensure primary is a hex
         return fallbackRgb ? `rgba(${fallbackRgb.r},${fallbackRgb.g},${fallbackRgb.b},${clampedAlpha})` : `rgba(0,0,255,${clampedAlpha})`; // Fallback to blue if primary is also bad
     },
-
-    _colorAlphaCache: {}, // Cache for getColorWithAlpha
-
-    hexToRgb(hexInput) {
+    
+    /**
+     * Converts a hex color string to an RGB object or array.
+     * @param {string} hexInput - The hex color string (e.g., "#FF0000" or "FF0000").
+     * @param {boolean} [asArray=false] - If true, returns [r, g, b], otherwise {r, g, b}.
+     * @returns {{r: number, g: number, b: number} | [number, number, number] | null} RGB object/array or null if invalid hex.
+     */
+    hexToRgb(hexInput, asArray = false) {
         if (!hexInput || typeof hexInput !== 'string') {
             if (this.debugMode) console.warn(`[Visualizer hexToRgb] Invalid hex input: ${hexInput}`);
             return null;
@@ -820,53 +967,15 @@ const visualizer = {
             if (this.debugMode) console.warn(`[Visualizer hexToRgb] Failed to parse hex components: ${hex}`);
             return null;
         }
-        return { r, g, b };
+        return asArray ? [r, g, b] : { r, g, b };
     },
 
-    getColorWithAlpha(colorString, alpha) {
-        const clampedAlpha = Math.max(0, Math.min(1, parseFloat(alpha.toFixed(3))));
-        const cacheKey = `${colorString}_${clampedAlpha}`;
-
-        if (this._colorAlphaCache[cacheKey]) {
-            return this._colorAlphaCache[cacheKey];
-        }
-
-        let effectiveColorString = colorString || this.themeColors.primary;
-
-        const themeColorValue = this.themeColors[effectiveColorString];
-        if (themeColorValue && (themeColorValue.startsWith('#') || themeColorValue.startsWith('rgb') || themeColorValue.startsWith('hsl'))) {
-            effectiveColorString = themeColorValue;
-        }
-
-        let resultColor;
-        if (typeof effectiveColorString === 'string') {
-            if (effectiveColorString.startsWith('#')) {
-                const rgb = this.hexToRgb(effectiveColorString);
-                resultColor = rgb ? `rgba(${rgb.r},${rgb.g},${rgb.b},${clampedAlpha})` : `rgba(0,0,0,${clampedAlpha})`;
-            } else if (effectiveColorString.startsWith('rgba')) {
-                resultColor = effectiveColorString.replace(/[\d\.]+\)$/g, `${clampedAlpha})`);
-            } else if (effectiveColorString.startsWith('rgb')) {
-                resultColor = effectiveColorString.replace('rgb', 'rgba').replace(')', `, ${clampedAlpha})`);
-            } else if (effectiveColorString.startsWith('hsla')) {
-                resultColor = effectiveColorString.replace(/[\d\.]+\)$/g, `${clampedAlpha})`);
-            } else if (effectiveColorString.startsWith('hsl')) {
-                resultColor = effectiveColorString.replace('hsl', 'hsla').replace(')', `, ${clampedAlpha})`);
-            }
-        }
-
-        if (!resultColor) {
-            if (this.debugMode) console.warn(`[Visualizer getColorWithAlpha] Unknown color format: ${colorString} (effective: ${effectiveColorString}). Using fallback.`);
-            const fallbackRgb = this.hexToRgb(this.themeColors.primary);
-            resultColor = fallbackRgb ? `rgba(${fallbackRgb.r},${fallbackRgb.g},${fallbackRgb.b},${clampedAlpha})` : `rgba(0,0,255,${clampedAlpha})`;
-        }
-
-        if (Object.keys(this._colorAlphaCache).length > 100) { // Simple cache eviction
-             this._colorAlphaCache = {};
-        }
-        this._colorAlphaCache[cacheKey] = resultColor;
-        return resultColor;
-    },
-
+    /**
+     * Updates the list of pad hints to be drawn by the visualizer.
+     * These hints can include active note highlights, suggested notes, or other visual cues on the pad.
+     * @param {Array<object>} newHintsArray - An array of hint objects.
+     *                                        Each object should define properties like `zoneIndex`, `type`, `colorHint`, etc.
+     */
     updatePadHints(newHintsArray) {
         if (this.debugMode) {
             console.log(`[Visualizer.updatePadHints] ----- RECEIVED newHintsArray (${newHintsArray ? newHintsArray.length : 'null/undefined'}) -----`);
@@ -907,6 +1016,10 @@ const visualizer = {
         }
     },
 
+    /**
+     * Disposes of visualizer resources, stops the animation loop, and removes event listeners.
+     * Should be called when the visualizer is no longer needed to prevent memory leaks.
+     */
     dispose() {
         this.stop();
         if (this.activeRenderer && typeof this.activeRenderer.dispose === 'function') this.activeRenderer.dispose();

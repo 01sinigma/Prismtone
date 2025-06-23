@@ -1,3 +1,4 @@
+// Файл: app/src/main/java/com/example/prismtone/MainActivity.java
 package com.example.prismtone;
 
 import android.annotation.SuppressLint;
@@ -5,7 +6,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
@@ -29,7 +29,7 @@ public class MainActivity extends AppCompatActivity {
     private MainViewModel viewModel;
     private ModuleManager moduleManager;
     private WebViewAssetLoader assetLoader;
-    private SensorController sensorController;
+    private SensorController sensorController; // >>> NEW: Добавляем контроллер сенсоров
 
     @SuppressLint({"SetJavaScriptEnabled", "WrongConstant"})
     @Override
@@ -54,15 +54,16 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setDomStorageEnabled(true);
         webSettings.setAllowFileAccess(true);
         webSettings.setAllowContentAccess(true);
-        webSettings.setAllowFileAccessFromFileURLs(false); // Безопасность: обычно false
-        webSettings.setAllowUniversalAccessFromFileURLs(false); // Безопасность: обычно false
+        webSettings.setAllowFileAccessFromFileURLs(false);
+        webSettings.setAllowUniversalAccessFromFileURLs(false);
         webSettings.setMediaPlaybackRequiresUserGesture(false);
-        WebView.setWebContentsDebuggingEnabled(true); // Для разработки
+        WebView.setWebContentsDebuggingEnabled(true);
 
         moduleManager = new ModuleManager(this, viewModel);
         bridge = new PrismtoneBridge(this, webView, viewModel, moduleManager);
         webView.addJavascriptInterface(bridge, "PrismtoneBridge");
 
+        // >>> NEW: Инициализируем SensorController <<<
         sensorController = new SensorController(this, bridge);
 
         webView.loadUrl("https://appassets.androidplatform.net/assets/index.html");
@@ -79,7 +80,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         @Nullable
-        public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+        public WebResourceResponse shouldInterceptRequest(WebView view, @NonNull WebResourceRequest request) {
             Uri requestedUri = request.getUrl();
             return mAssetLoader.shouldInterceptRequest(requestedUri);
         }
@@ -108,12 +109,14 @@ public class MainActivity extends AppCompatActivity {
             webView.onResume();
             webView.evaluateJavascript("if(window.app && typeof window.app.resumeAudio === 'function') app.resumeAudio(); else console.warn('app.resumeAudio not found');", null);
         }
+        // >>> NEW: Запускаем сенсоры при возобновлении <<<
         if (sensorController != null) sensorController.start();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        // >>> NEW: Останавливаем сенсоры при паузе для экономии батареи <<<
         if (sensorController != null) sensorController.stop();
         if (webView != null) {
             webView.onPause();

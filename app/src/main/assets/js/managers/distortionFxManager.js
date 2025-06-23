@@ -1,11 +1,23 @@
+/**
+ * @file distortionFxManager.js
+ * @description
+ * This manager handles the creation, configuration, and control of a Tone.Distortion effect node.
+ * It allows for setting parameters like the amount of distortion, oversampling, and wet/dry mix,
+ * enabling various types of distortion effects within an audio chain.
+ */
+
 // Файл: app/src/main/assets/js/managers/distortionFxManager.js
 const distortionFxManager = {
     isOptional: true, // Инсертные эффекты опциональны
 
     /**
-     * Создает узел Tone.Distortion.
-     * @param {object} [initialSettings={}] - Начальные настройки из пресета (секция params эффекта).
-     * @returns {object} - Объект { nodes: { distortionNode: Tone.Distortion }, audioInput: Tone.Distortion, audioOutput: Tone.Distortion, error: string | null }
+     * Creates a new Tone.Distortion effect node.
+     * @param {object} [initialSettings={}] - Initial settings for the distortion effect.
+     * @param {number} [initialSettings.distortion=0.4] - The amount of distortion (0-1).
+     * @param {number} [initialSettings.wet=1.0] - The wet/dry mix. Defaults to 1.0 for an insert effect.
+     * @param {'none'|'2x'|'4x'} [initialSettings.oversample='none'] - The oversampling rate for the distortion effect.
+     * @returns {{nodes: {distortionNode: Tone.Distortion}|null, audioInput: Tone.Distortion|null, audioOutput: Tone.Distortion|null, modInputs: object, modOutputs: object, error: string|null}}
+     *          An object containing the created `distortionNode`, audio input/output references, empty modulator I/O, and an error message (null on success).
      */
     create(initialSettings = {}) {
         console.log("[DistortionFxManager] Creating Distortion node with settings:", initialSettings);
@@ -48,10 +60,10 @@ const distortionFxManager = {
     },
 
     /**
-     * Обновляет параметры Tone.Distortion.
-     * @param {object} nodes - Объект узлов { distortionNode }.
-     * @param {object} newSettings - Новые настройки { distortion, wet, oversample }.
-     * @returns {boolean} - true при успехе.
+     * Updates the parameters of an existing Tone.Distortion node.
+     * @param {object} nodes - An object containing the `distortionNode` (the Tone.Distortion instance).
+     * @param {object} newSettings - An object with the new settings to apply (distortion, wet, oversample).
+     * @returns {boolean} True if the update was successful, false otherwise.
      */
     update(nodes, newSettings) {
         if (!nodes || !nodes.distortionNode || !newSettings) {
@@ -79,10 +91,11 @@ const distortionFxManager = {
     },
 
     /**
-     * Включает/выключает эффект (управляет wet).
-     * @param {object} nodes - Узлы компонента { distortionNode }.
-     * @param {boolean} isEnabled - Новое состояние.
-     * @returns {boolean} - true.
+     * Enables or disables the distortion effect by controlling its wet level.
+     * Remembers the previous wet level when disabling and restores it (or a default of 1.0) upon enabling.
+     * @param {object} nodes - An object containing the `distortionNode`.
+     * @param {boolean} isEnabled - True to enable the effect, false to disable (sets wet to 0).
+     * @returns {boolean} True if the operation was successful, false otherwise.
      */
     enable(nodes, isEnabled) {
         if (!nodes || !nodes.distortionNode) {
@@ -106,7 +119,12 @@ const distortionFxManager = {
     },
 
     /**
-     * Соединяет эффект с соседями по цепочке.
+     * Connects the distortion node to previous and next nodes in an audio chain.
+     * Delegates to `blankManager.connectPeers` for standard connection logic.
+     * @param {object} nodes - An object containing the `distortionNode`.
+     * @param {Tone.AudioNode|null} prevOutputNode - The output of the preceding node in the chain.
+     * @param {Tone.AudioNode|null} nextInputNode - The input of the succeeding node in the chain.
+     * @returns {boolean} The result of the `blankManager.connectPeers` call.
      */
     connectPeers(nodes, prevOutputNode, nextInputNode) {
         // Используем стандартную реализацию blankManager
@@ -114,7 +132,9 @@ const distortionFxManager = {
     },
 
     /**
-     * Освобождает ресурсы.
+     * Disposes of the Tone.Distortion node, freeing its resources.
+     * Delegates to `blankManager.dispose` for the actual disposal of the node.
+     * @param {object} nodes - An object containing the `distortionNode` to be disposed.
      */
     dispose(nodes) {
         console.log("[DistortionFxManager] Disposing Distortion node...");

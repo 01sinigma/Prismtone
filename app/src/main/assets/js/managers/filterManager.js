@@ -1,11 +1,31 @@
+/**
+ * @file filterManager.js
+ * @description
+ * This manager is responsible for creating, configuring, and controlling a Tone.Filter node,
+ * which is a crucial component in shaping the timbre of a synthesizer voice.
+ * It handles parameters like filter type, frequency, Q (resonance), rolloff, and gain.
+ * It also supports modulation of its key parameters (frequency, Q, gain, detune).
+ */
+
 // Файл: app/src/main/assets/js/managers/filterManager.js
 // Менеджер для управления основным фильтром голоса (Tone.Filter)
 
 const filterManager = {
     /**
-     * Создает узел Tone.Filter.
-     * @param {object} [initialSettings={}] - Начальные настройки фильтра из пресета.
-     * @returns {object} - Объект { nodes: { filter: Tone.Filter }, audioInput: Tone.Filter, audioOutput: Tone.Filter, modInputs: { frequency, detune, Q, gain }, error: string | null }
+     * Creates a new Tone.Filter node.
+     * @param {object} [initialSettings={}] - Initial settings for the filter.
+     * @param {Tone.Frequency} [initialSettings.frequency=5000] - The cutoff or center frequency of the filter.
+     * @param {number} [initialSettings.Q=1] - The Q factor (resonance) of the filter.
+     * @param {BiquadFilterType} [initialSettings.type='lowpass'] - The type of the filter (e.g., 'lowpass', 'highpass', 'bandpass').
+     * @param {-12|-24|-48|-96} [initialSettings.rolloff=-12] - The rolloff slope of the filter in dB/octave.
+     * @param {number} [initialSettings.gain=0] - The gain of the filter, applicable for some filter types like 'lowshelf', 'highshelf', 'peaking'.
+     * @returns {{nodes: {filter: Tone.Filter}|null, audioInput: Tone.Filter|null, audioOutput: Tone.Filter|null, modInputs: {frequency?: Tone.Param, detune?: Tone.Param, Q?: Tone.Param, gain?: Tone.Param}, modOutputs: object, error: string|null}}
+     *          An object containing:
+     *          - `nodes`: Contains the created `filter` node (Tone.Filter).
+     *          - `audioInput`, `audioOutput`: References to the filter node itself, as it processes audio.
+     *          - `modInputs`: An object mapping parameter names (frequency, detune, Q, gain) to their respective Tone.Param instances if available for modulation.
+     *          - `modOutputs`: An empty object, as the filter is not a modulator source in this context.
+     *          - `error`: An error message string if creation failed, otherwise null.
      */
     create(initialSettings = {}) {
         const t0 = performance.now();
@@ -60,10 +80,11 @@ const filterManager = {
     },
 
     /**
-     * Обновляет параметры фильтра.
-     * @param {object} nodes - Объект узлов { filter }.
-     * @param {object} newSettings - Новые настройки { frequency, Q, type, rolloff, gain }.
-     * @returns {boolean} - true при успехе.
+     * Updates the parameters of an existing Tone.Filter node.
+     * Parameters like frequency, Q, and gain are ramped for smooth transitions, while type and rolloff are set directly.
+     * @param {object} nodes - An object containing the `filter` node (the Tone.Filter instance).
+     * @param {object} newSettings - An object with new settings to apply (frequency, Q, type, rolloff, gain).
+     * @returns {boolean} True if the update was successful, false otherwise.
      */
     update(nodes, newSettings) {
         if (!nodes || !nodes.filter || !newSettings) {
@@ -107,7 +128,12 @@ const filterManager = {
     },
 
     /**
-     * Соединяет фильтр с соседями по цепочке.
+     * Connects the filter node to previous and next nodes in an audio chain.
+     * Delegates to `blankManager.connectPeers` for standard connection logic.
+     * @param {object} nodes - An object containing the `filter` node.
+     * @param {Tone.AudioNode|null} prevOutputNode - The output of the preceding node in the chain.
+     * @param {Tone.AudioNode|null} nextInputNode - The input of the succeeding node in the chain.
+     * @returns {boolean} The result of the `blankManager.connectPeers` call.
      */
     connectPeers(nodes, prevOutputNode, nextInputNode) {
         // Используем стандартную реализацию blankManager
@@ -115,7 +141,11 @@ const filterManager = {
     },
 
     /**
-     * Основной фильтр обычно не имеет состояния enable/bypass.
+     * Enables or disables the filter component. For Tone.Filter, which is always part of the audio chain
+     * if included, this typically has no direct action, as its effect is controlled by its parameters (e.g., type, frequency).
+     * @param {object} nodes - The component's nodes.
+     * @param {boolean} isEnabled - The requested enabled state (ignored).
+     * @returns {boolean} Always true.
      */
     enable(nodes, isEnabled) {
         console.log(`[FilterManager] enable() called with ${isEnabled} (no action needed).`);
@@ -123,11 +153,11 @@ const filterManager = {
     },
 
     /**
-     * Подключает модулятор к параметру фильтра.
-     * @param {object} nodes - Узлы этого компонента (должен содержать nodes.filter).
-     * @param {string} targetParamPath - Имя целевого параметра ('frequency', 'Q', 'gain', 'detune').
-     * @param {Tone.OutputNode} sourceNode - Выходной узел модулятора.
-     * @returns {boolean} - true при успехе.
+     * Connects a modulator source (e.g., LFO, envelope) to a specified parameter of the filter.
+     * @param {object} nodes - An object containing the `filter` node (Tone.Filter instance).
+     * @param {string} targetParamPath - The name of the filter parameter to modulate (e.g., 'frequency', 'Q', 'gain', 'detune').
+     * @param {Tone.AudioNode|Tone.Signal} sourceNode - The output node of the modulator.
+     * @returns {boolean} True if the connection was successful, false otherwise.
      */
     connectModulator(nodes, targetParamPath, sourceNode) {
         if (!nodes?.filter || !targetParamPath || !sourceNode) return false;
@@ -157,7 +187,11 @@ const filterManager = {
     },
 
     /**
-     * Отключает модулятор от параметра фильтра.
+     * Disconnects a modulator source from a specified parameter of the filter.
+     * @param {object} nodes - An object containing the `filter` node.
+     * @param {string} targetParamPath - The name of the filter parameter from which to disconnect the modulator.
+     * @param {Tone.AudioNode|Tone.Signal} sourceNode - The output node of the modulator to be disconnected.
+     * @returns {boolean} True if disconnection was attempted (Tone.js disconnects silently even if not previously connected).
      */
     disconnectModulator(nodes, targetParamPath, sourceNode) {
         if (!nodes?.filter || !targetParamPath || !sourceNode) return false;
@@ -182,7 +216,8 @@ const filterManager = {
     },
 
     /**
-     * Уничтожает узел фильтра.
+     * Disposes of the Tone.Filter node, freeing its resources.
+     * @param {object} nodes - An object containing the `filter` node to be disposed.
      */
     dispose(nodes) {
         const t0 = performance.now();

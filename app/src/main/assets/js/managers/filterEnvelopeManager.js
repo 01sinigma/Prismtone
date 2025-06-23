@@ -1,3 +1,13 @@
+/**
+ * @file filterEnvelopeManager.js
+ * @description
+ * This manager is responsible for creating, configuring, and controlling a filter envelope.
+ * A filter envelope typically modulates the cutoff frequency of a filter (like Tone.Filter)
+ * over time, based on an ADSR (Attack, Decay, Sustain, Release) profile.
+ * It uses a Tone.Envelope for the ADSR shape and a Tone.Multiply node to scale the envelope's
+ * output by an 'amount' parameter, which then modulates the target filter parameter.
+ */
+
 // Файл: app/src/main/assets/js/managers/filterEnvelopeManager.js
 // Менеджер для огибающей фильтра (Filter Envelope)
 
@@ -5,16 +15,24 @@ const filterEnvelopeManager = {
     isOptional: true, // Это опциональный компонент
 
     /**
-     * Создает узлы Tone.Envelope и Tone.Multiply для управления параметрами фильтра.
-     * @param {object} [initialSettings={}] - Начальные настройки из пресета (секция filterEnvelope.params).
-     * @returns {object} - Объект вида:
-     * {
-     *   nodes: { env: Tone.Envelope, amountControl: Tone.Multiply } | null,
-     *   audioInput: null, // Модуляторы обычно не имеют аудио входа/выхода
-     *   audioOutput: null,
-     *   modOutputs: { output: Tone.Multiply } | {}, // Выход, уже масштабированный по amount
-     *   error: string | null
-     * }
+     * Creates the necessary Tone.js nodes for a filter envelope modulator.
+     * This includes a Tone.Envelope for the ADSR shape and a Tone.Multiply node
+     * to control the modulation amount.
+     * @param {object} [initialSettings={}] - Initial settings for the filter envelope.
+     * @param {number} [initialSettings.attack=0.1] - The attack time in seconds.
+     * @param {number} [initialSettings.decay=0.2] - The decay time in seconds.
+     * @param {number} [initialSettings.sustain=0.5] - The sustain level (0-1).
+     * @param {number} [initialSettings.release=0.5] - The release time in seconds.
+     * @param {string} [initialSettings.attackCurve='linear'] - The curve shape for the attack phase.
+     * @param {string} [initialSettings.decayCurve='exponential'] - The curve shape for the decay phase.
+     * @param {string} [initialSettings.releaseCurve='exponential'] - The curve shape for the release phase.
+     * @param {number} [initialSettings.amount=0] - The overall modulation amount. This scales the envelope's output.
+     * @returns {{nodes: {env: Tone.Envelope, amountControl: Tone.Multiply}|null, audioInput: null, audioOutput: null, modOutputs: {output: Tone.Multiply}|object, error: string|null}}
+     *          An object containing:
+     *          - `nodes`: Contains the `env` (Tone.Envelope) and `amountControl` (Tone.Multiply) nodes.
+     *          - `audioInput`, `audioOutput`: Null, as filter envelopes are modulators, not audio processors in the main chain.
+     *          - `modOutputs`: An object with an `output` property referencing the `amountControl` node, which is the final modulated signal.
+     *          - `error`: An error message string if creation failed, otherwise null.
      */
     create(initialSettings = {}) {
         const t0 = performance.now();
@@ -55,10 +73,11 @@ const filterEnvelopeManager = {
     },
 
     /**
-     * Обновляет параметры огибающей и amount.
-     * @param {object} nodes - Объект узлов (nodes.env, nodes.amountControl).
-     * @param {object} newSettings - Новые настройки.
-     * @returns {boolean} - true при успехе.
+     * Updates the parameters of an existing filter envelope.
+     * Modifies settings for both the Tone.Envelope (ADSR, curves) and the Tone.Multiply node (amount).
+     * @param {object} nodes - An object containing the `env` (Tone.Envelope) and `amountControl` (Tone.Multiply) nodes.
+     * @param {object} newSettings - An object with new settings to apply (attack, decay, sustain, release, curves, amount).
+     * @returns {boolean} True if the update was successful, false otherwise.
      */
     update(nodes, newSettings) {
         if (!nodes?.env || !nodes?.amountControl) {
@@ -97,23 +116,38 @@ const filterEnvelopeManager = {
         }
     },
 
-    /** Filter Envelope не участвует в основной аудио цепочке */
+    /**
+     * Connects peers in an audio chain. For a filter envelope (which is a modulator),
+     * this is typically a no-op as it doesn't process audio in the main signal path.
+     * @param {object} nodes - The component's nodes.
+     * @param {Tone.AudioNode|null} prevOutputNode - The output of the preceding node.
+     * @param {Tone.AudioNode|null} nextInputNode - The input of the succeeding node.
+     * @returns {boolean} Always true, as no connection is made.
+     */
     connectPeers(nodes, prevOutputNode, nextInputNode) {
         return true;
     },
 
     /**
-     * Включение/выключение (обычно управляется подключением/amount).
-     * @param {object} nodes - Узлы компонента.
-     * @param {boolean} isEnabled - Новое состояние.
-     * @returns {boolean} - true.
+     * Enables or disables the filter envelope component.
+     * For modulators like this, 'enabled' is often managed by whether it's connected to a target
+     * or if its modulation `amount` is non-zero, rather than a direct enable/disable state.
+     * This method logs the call but performs no direct action on the nodes.
+     * @param {object} nodes - The component's nodes.
+     * @param {boolean} isEnabled - The requested enabled state.
+     * @returns {boolean} Always true.
      */
     enable(nodes, isEnabled) {
         console.log(`[FilterEnvManager] enable() called with state: ${isEnabled}. Effect primarily controlled by connection and amount parameter.`);
         return true;
     },
 
-     /** Запуск атаки огибающей */
+     /**
+      * Triggers the attack phase of the filter envelope.
+      * @param {object} nodes - An object containing the `env` (Tone.Envelope) node.
+      * @param {Tone.Time} [time=Tone.now()] - The time (in Tone.js context) at which to trigger the attack.
+      * @returns {boolean} True if the attack was successfully triggered, false otherwise.
+      */
     triggerAttack(nodes, time = Tone.now()) {
         const t0 = performance.now();
         console.log(`[FilterEnvManager] triggerAttack() called. Time: ${time}`);
@@ -133,7 +167,12 @@ const filterEnvelopeManager = {
         return false;
     },
 
-    /** Запуск затухания огибающей */
+    /**
+     * Triggers the release phase of the filter envelope.
+     * @param {object} nodes - An object containing the `env` (Tone.Envelope) node.
+     * @param {Tone.Time} [time=Tone.now()] - The time (in Tone.js context) at which to trigger the release.
+     * @returns {boolean} True if the release was successfully triggered, false otherwise.
+     */
     triggerRelease(nodes, time = Tone.now()) {
         const t0 = performance.now();
         console.log(`[FilterEnvManager] triggerRelease() called. Time: ${time}`);
@@ -173,18 +212,38 @@ const filterEnvelopeManager = {
         return false;
     },
 
-    /** FilterEnv является источником модуляции, а не целью */
+    /**
+     * Attempts to connect a modulator source to a target parameter of this component.
+     * Filter envelopes are typically modulator sources themselves, not targets for other modulators.
+     * This method logs a warning and returns false.
+     * @param {object} nodes - The component's nodes.
+     * @param {string} targetParamPath - The path to the target parameter.
+     * @param {Tone.Signal|Tone.AudioNode} sourceNode - The modulator's output node.
+     * @returns {boolean} Always false, as filter envelopes are not typically modulated this way.
+     */
     connectModulator(nodes, targetParamPath, sourceNode) {
         console.warn(`[FilterEnvManager] connectModulator called for '${targetParamPath}', but FilterEnv is a modulator source, not a target.`);
         return false;
     },
 
+    /**
+     * Attempts to disconnect a modulator source from this component.
+     * Since filter envelopes are sources, this method logs a warning and returns true (as no connection was made).
+     * @param {object} nodes - The component's nodes.
+     * @param {string} targetParamPath - The path to the target parameter.
+     * @param {Tone.Signal|Tone.AudioNode} sourceNode - The modulator's output node.
+     * @returns {boolean} Always true.
+     */
     disconnectModulator(nodes, targetParamPath, sourceNode) {
         console.warn(`[FilterEnvManager] disconnectModulator called for '${targetParamPath}'. (No action as it's a source)`);
         return true;
     },
 
-    /** Освобождает ресурсы */
+    /**
+     * Disposes of the Tone.js nodes created for the filter envelope (Tone.Envelope and Tone.Multiply).
+     * This is essential for freeing up audio resources.
+     * @param {object} nodes - An object containing the `env` and `amountControl` nodes to be disposed.
+     */
     dispose(nodes) {
         const t0 = performance.now();
         console.log("[FilterEnvManager] dispose() called");

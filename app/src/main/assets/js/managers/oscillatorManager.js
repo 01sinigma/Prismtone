@@ -1,7 +1,50 @@
+/**
+ * @file oscillatorManager.js
+ * @description
+ * This manager is responsible for creating, configuring, and managing various types of Tone.js oscillator nodes.
+ * Oscillators are the fundamental sound sources in a synthesizer, generating periodic waveforms.
+ * This manager handles different oscillator types like basic (sine, square, sawtooth, triangle via Tone.Oscillator or Tone.OmniOscillator),
+ * PWM (Tone.PWMOscillator), Pulse (Tone.PulseOscillator), Fat (Tone.FatOscillator),
+ * AM (Tone.AMOscillator), FM (Tone.FMOscillator), and Noise (Tone.Noise).
+ * It sets initial parameters, provides an interface for updating them, and manages their lifecycle and modulation inputs.
+ */
+
 // Файл: app/src/main/assets/js/managers/oscillatorManager.js
 // ВЕРСИЯ V3: Тестирование Tone.Oscillator для sine, ограничение FatOsc, исправление rampTo
 
 const oscillatorManager = {
+    /**
+     * Creates a specific Tone.js oscillator node based on the provided initial settings.
+     * The type of oscillator created is determined by `initialSettings.type`.
+     * All created oscillators are started immediately by default.
+     *
+     * @param {object} [initialSettings={ type: 'triangle' }] - Initial settings for the oscillator.
+     * @param {string} [initialSettings.type='triangle'] - The primary type of oscillator to create. Examples:
+     *        'sine', 'square', 'sawtooth', 'triangle' (uses Tone.Oscillator for 'sine', Tone.OmniOscillator for others),
+     *        'pwm', 'pulse', 'fatsine', 'fatsquare', 'fatsawtooth', 'fattriangle',
+     *        'amsine', 'amsquare', 'amsawtooth', 'amtriangle',
+     *        'fmsine', 'fmsquare', 'fmsawtooth', 'fmtriangle',
+     *        'white', 'pink', 'brown' (for Tone.Noise).
+     * @param {number} [initialSettings.phase=0] - Initial phase of the oscillator in degrees.
+     * @param {Tone.Time} [initialSettings.portamento=0] - The portamento time in seconds for frequency changes.
+     * @param {number} [initialSettings.modulationFrequency] - For 'pwm' type: the modulation frequency of the PWM.
+     * @param {number} [initialSettings.width] - For 'pulse' type: the width of the pulse (0-1).
+     * @param {number} [initialSettings.count=3] - For 'fat*' types: the number of detuned oscillators (capped).
+     * @param {number} [initialSettings.spread=20] - For 'fat*' types: the detune spread in cents.
+     * @param {number} [initialSettings.harmonicity=1] - For 'am*' and 'fm*' types: the harmonicity of the modulator oscillator.
+     * @param {string} [initialSettings.modulationType='square'] - For 'am*' and 'fm*' types: the waveform type of the modulator.
+     * @param {number} [initialSettings.modulationIndex=10] - For 'fm*' types: the modulation index.
+     * @returns {{nodes: {oscillatorNode: Tone.Source, oscillatorType: string}|null, audioInput: null, audioOutput: Tone.Source|null, modInputs: object, modOutputs: object, error: string|null}}
+     *          An object containing:
+     *          - `nodes`: 
+     *            - `oscillatorNode`: The created Tone.js oscillator instance (e.g., Tone.Oscillator, Tone.OmniOscillator, Tone.Noise, etc.).
+     *            - `oscillatorType`: The string representing the category of the created oscillator (e.g., 'sine', 'pwm', 'fatsine').
+     *          - `audioInput`: Always null, as oscillators are sources.
+     *          - `audioOutput`: The oscillator node itself, which is the audio source.
+     *          - `modInputs`: An object containing references to the oscillator's modulatable parameters (e.g., `frequency`, `detune`, and type-specific ones like `width`, `modulationFrequency`, `harmonicity`, `modulationIndex`).
+     *          - `modOutputs`: An empty object, as oscillators are typically not modulator sources in this context.
+     *          - `error`: An error message string if creation failed, otherwise null.
+     */
     create(initialSettings = { type: 'triangle' }) {
         const t0 = performance.now();
         console.log("[OscillatorManager] create() called with:", initialSettings);
@@ -154,6 +197,21 @@ const oscillatorManager = {
         console.log(`[OscillatorManager] create() duration: ${(t1-t0).toFixed(2)}ms`);
         return { nodes, audioInput: null, audioOutput, modInputs, modOutputs: {}, error };
     },
+    /**
+     * Updates the parameters of an existing oscillator node.
+     * This method handles various parameters common to oscillators (frequency, detune, phase, portamento)
+     * as well as type-specific parameters for PWM, Pulse, Fat, AM, and FM oscillators.
+     * Frequency, detune, and other Tone.Param/Tone.Signal properties are updated using `set` for batched changes,
+     * while direct properties like `phase`, `portamento`, and internal `type` (waveform) are assigned directly.
+     *
+     * @param {object} nodes - An object containing `nodes.oscillatorNode` (the oscillator instance) and `nodes.oscillatorType` (its category string).
+     * @param {object} newSettings - An object containing the new settings to apply. Examples:
+     *        `frequency`, `detune`, `phase`, `portamento`, `type` (for waveform changes within OmniOscillator, AM, FM, Fat types),
+     *        `modulationFrequency` (for PWM), `width` (for Pulse),
+     *        `count`, `spread` (for FatOscillators),
+     *        `harmonicity`, `modulationType`, `modulationIndex` (for AM/FM oscillators).
+     * @returns {boolean} True if the update was successful, false otherwise.
+     */
     update(nodes, newSettings) {
         if (!nodes?.oscillatorNode || !newSettings) {
             console.warn("[OscillatorManager] Update called with invalid args", { nodes, newSettings });
@@ -249,6 +307,12 @@ const oscillatorManager = {
             return false;
         }
     },
+    /**
+     * Disposes of the oscillator node, freeing its resources.
+     * It's important to call this when the oscillator is no longer needed to prevent memory leaks.
+     *
+     * @param {object} nodes - An object containing `nodes.oscillatorNode` (the oscillator instance to dispose).
+     */
     dispose(nodes) {
         const t0 = performance.now();
         console.log("[OscillatorManager] dispose() called");
@@ -264,15 +328,53 @@ const oscillatorManager = {
         const t1 = performance.now();
         console.log(`[OscillatorManager] dispose() duration: ${(t1-t0).toFixed(2)}ms`);
     },
+    /**
+     * Connects the oscillator (which is an audio source) to the next node in the audio chain.
+     * Oscillators typically only have an audio output.
+     *
+     * @param {object} nodes - An object containing `nodes.oscillatorNode`.
+     * @param {Tone.AudioNode|null} prevOutputNode - The output of the preceding node (should be null or ignored for a source like an oscillator).
+     * @param {Tone.AudioNode|null} nextInputNode - The input of the succeeding node in the audio chain to connect the oscillator's output to.
+     * @returns {boolean} True if the connection attempt was made (delegates to `blankManager.connectPeers` which connects `nodes.oscillatorNode` to `nextInputNode`).
+     */
     connectPeers(nodes, prevOutputNode, nextInputNode) {
         return true;
     },
+    /**
+     * Enables or disables the oscillator component. Note: Oscillators in Tone.js are typically started via `.start()`
+     * (which this manager does in `create`) and their perceived sound is controlled by subsequent nodes like an
+     * amplitude envelope. This `enable` method might have a limited or specific role depending on the overall synth architecture.
+     * As currently implemented in the visible code, it appears to be a placeholder or a general hook.
+     *
+     * @param {object} nodes - An object containing `nodes.oscillatorNode`.
+     * @param {boolean} isEnabled - The requested enabled state.
+     * @returns {boolean} Returns true, but the actual effect depends on the oscillator's state and synth design.
+     */
     enable(nodes, isEnabled) {
         return true;
     },
+    /**
+     * Connects a modulator source (e.g., LFO, envelope) to a specified parameter of the oscillator.
+     * Common modulatable parameters include `frequency` and `detune`. Some oscillator types (PWM, Pulse, AM, FM)
+     * have additional modulatable parameters like `modulationFrequency`, `width`, `harmonicity`, `modulationIndex`.
+     *
+     * @param {object} nodes - An object containing `nodes.oscillatorNode`.
+     * @param {string} targetParamPath - The name of the oscillator parameter to modulate (e.g., 'frequency', 'detune', 'width').
+     *                                   Must match a key in the `modInputs` object returned by `create`.
+     * @param {Tone.AudioNode|Tone.Signal} sourceNode - The output node of the modulator.
+     * @returns {boolean} True if the connection was successful, false otherwise (e.g., if `targetParamPath` is invalid or not modulatable).
+     */
     connectModulator(nodes, targetParamPath, sourceNode) {
         return true;
     },
+    /**
+     * Disconnects a modulator source from a specified parameter of the oscillator.
+     *
+     * @param {object} nodes - An object containing `nodes.oscillatorNode`.
+     * @param {string} targetParamPath - The name of the oscillator parameter from which to disconnect the modulator.
+     * @param {Tone.AudioNode|Tone.Signal} sourceNode - The output node of the modulator to be disconnected.
+     * @returns {boolean} True if disconnection was attempted (Tone.js disconnects silently).
+     */
     disconnectModulator(nodes, targetParamPath, sourceNode) {
         return true;
     }

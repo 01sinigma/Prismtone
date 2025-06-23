@@ -1,23 +1,42 @@
 {
-  "id": "stellarNursery",
+  "id": "stellar_nursery",
   "type": "visualizer",
   "name": "Stellar Nursery",
-  "version": "2.1.0",
-  "description": "Form stars from cosmic dust using touch and motion.",
-  "active": false,
+  "version": "4.0",
+  "description": "An interactive nebula where touches form stars with advanced physics.",
+  "active": true,
   "data": {
-    "rendererScript": "StellarNurseryRenderer",
+    "rendererScript": "js/visualizers/StellarNurseryRenderer.js",
     "settings": {
-      "fadeSpeed": 0.2,
-      "particleCount": 1200,
-      "maxParticles": 500,
+      "fadeSpeed": 0.25,
+      "particleCount": 800,
+      "coreMinSize": 8,
+      "coreMaxSize": 45,
+      "timeToMaxSizeMs": 2000,
+      "maxMassFactor": 10,
+      "energyGain": 0.015,
       "windStrength": 0.3,
       "friction": 0.97,
       "attraction": 50,
-      "energyGain": 0.015,
-      "coreMaxSize": 40,
-      "minMatterSize": 8,
-      "matterSizeYFactor": 40
+      "inertiaDamping": 30,
+
+      "starGravity": 800,
+      "starPolarityStrength": 1200,
+      "starBounceDamping": -0.6,
+
+      "explosion": {
+        "particleCount": 40,
+        "maxSpeed": 3.5,
+        "lifeMs": 600,
+        "size": 2.5
+      },
+
+      "particleRepulsion": 0.005,
+      "transformedParticle": {
+        "lifeMs": 3000,
+        "initialSpeedBoost": 1.5,
+        "gravityImmunityDurationMs": 1500
+      }
     }
   }
 }

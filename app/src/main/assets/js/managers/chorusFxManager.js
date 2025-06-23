@@ -1,5 +1,25 @@
+/**
+ * @file chorusFxManager.js
+ * @description
+ * This manager handles the creation, configuration, and control of a Tone.Chorus effect node.
+ * It allows for setting parameters like frequency, depth, delay time, and wet level for the chorus effect,
+ * and manages its lifecycle within an audio chain.
+ */
+
 // Файл: app/src/main/assets/js/managers/chorusFxManager.js
 const chorusFxManager = {
+    /**
+     * Creates a new Tone.Chorus effect node.
+     * @param {object} [initialSettings={}] - Initial settings for the chorus effect.
+     * @param {number} [initialSettings.frequency=1.5] - The frequency of the LFO modulating the chorus.
+     * @param {number} [initialSettings.depth=0.7] - The depth of the LFO modulation (0-1).
+     * @param {number} [initialSettings.delayTime=3.5] - The base delay time for the chorus voices in milliseconds.
+     * @param {number} [initialSettings.wet=0.0] - The wet/dry mix of the effect (0 for dry, 1 for wet).
+     * @param {string} [initialSettings.type='sine'] - The waveform type of the LFO (e.g., 'sine', 'square').
+     * @param {number} [initialSettings.spread=180] - The stereo spread of the chorus voices in degrees.
+     * @returns {{nodes: {chorusNode: Tone.Chorus}|null, audioInput: Tone.Chorus|null, audioOutput: Tone.Chorus|null, modInputs: object, modOutputs: object, error: string|null}}
+     *          An object containing the created `chorusNode`, audio input/output references, empty modulator I/O (as Chorus is typically not a modulator source/target itself this way), and an error message (null on success).
+     */
     create(initialSettings = {}) {
         console.log("[ChorusFxManager] Creating Chorus node with settings:", initialSettings);
         let nodes = { chorusNode: null };
@@ -28,6 +48,12 @@ const chorusFxManager = {
         return { nodes, audioInput, audioOutput, modInputs: {}, modOutputs: {}, error };
     },
 
+    /**
+     * Updates the parameters of an existing Tone.Chorus node.
+     * @param {object} nodes - An object containing the `chorusNode` (the Tone.Chorus instance).
+     * @param {object} newSettings - An object with the new settings to apply (frequency, depth, delayTime, wet, type, spread).
+     * @returns {boolean} True if the update was successful, false otherwise.
+     */
     update(nodes, newSettings) {
         if (!nodes?.chorusNode || !newSettings) return false;
         const chorusNode = nodes.chorusNode;
@@ -46,6 +72,13 @@ const chorusFxManager = {
         }
     },
 
+    /**
+     * Enables or disables the chorus effect by controlling its wet level.
+     * Remembers the previous wet level when disabling and restores it upon enabling.
+     * @param {object} nodes - An object containing the `chorusNode`.
+     * @param {boolean} isEnabled - True to enable the effect, false to disable (sets wet to 0).
+     * @returns {boolean} True if the operation was successful, false otherwise.
+     */
     enable(nodes, isEnabled) {
         if (!nodes?.chorusNode) return false;
         const chorusNode = nodes.chorusNode;
@@ -59,7 +92,20 @@ const chorusFxManager = {
         } catch (err) { return false; }
     },
 
+    /**
+     * Connects the chorus node to previous and next nodes in an audio chain.
+     * Delegates to `blankManager.connectPeers` for standard connection logic.
+     * @param {object} nodes - An object containing the `chorusNode`.
+     * @param {Tone.AudioNode|null} prevOutputNode - The output of the preceding node in the chain.
+     * @param {Tone.AudioNode|null} nextInputNode - The input of the succeeding node in the chain.
+     * @returns {boolean} The result of the `blankManager.connectPeers` call.
+     */
     connectPeers(nodes, prev, next) { return blankManager.connectPeers(nodes, prev, next); },
+    /**
+     * Disposes of the Tone.Chorus node, stopping its LFO and freeing resources.
+     * Delegates to `blankManager.dispose` for the actual disposal of the node.
+     * @param {object} nodes - An object containing the `chorusNode` to be disposed.
+     */
     dispose(nodes) {
         if (nodes?.chorusNode) {
             nodes.chorusNode.stop(); // Останавливаем LFO перед удалением

@@ -35,9 +35,9 @@ class BallLightningLinkEffect {
         this.activeLinks = new Map();
         this.lastDrawTime = performance.now();
 
-        // >>> НАЧАЛО ИЗМЕНЕНИЙ (Пул объектов) <<<
-        this.sparkPool = []; // Пул для переиспользования объектов искр
-        // >>> КОНЕЦ ИЗМЕНЕНИЙ <<<
+        // >>> OPTIMIZATION: Пул объектов для искр <<<
+        this.sparkPool = [];
+        this.poolSize = 200; // Можно вынести в настройки JSON, например, this.settings.sparkPoolSize
     }
 
     init(ctx, canvas, initialSettings, themeColors, globalVisualizerRef) {
@@ -50,16 +50,16 @@ class BallLightningLinkEffect {
         this.activeLinks.clear();
         this.lastDrawTime = performance.now();
 
-        // >>> НАЧАЛО ИЗМЕНЕНИЙ (Пул объектов) <<<
-        // Предварительно заполняем пул при инициализации
+        // >>> OPTIMIZATION: Инициализация пула объектов <<<
         this.sparkPool = []; // Ensure pool is clean for init
-        const poolSize = this.settings.maxSparksInPool || 200; // Можно вынести в настройки JSON
-        for (let i = 0; i < poolSize; i++) {
+        // Используем this.poolSize, который теперь является свойством класса
+        const currentPoolSize = this.settings.sparkPoolSize || this.poolSize; 
+        for (let i = 0; i < currentPoolSize; i++) {
             this.sparkPool.push({ isActive: false }); // Все объекты в пуле изначально неактивны
         }
-        // >>> КОНЕЦ ИЗМЕНЕНИЙ <<<
+        this.poolSize = currentPoolSize; // Обновляем this.poolSize, если он был взят из настроек
         
-        console.log(`[BallLightningLinkEffect v1.3-pooled] Initialized. Pool size: ${this.sparkPool.length}`);
+        console.log(`[BallLightningLinkEffect] Initialized with spark pool size: ${this.poolSize}`);
     }
 
     onThemeChange(themeColors) {
@@ -195,7 +195,7 @@ class BallLightningLinkEffect {
 
     _drawLinkSecondaryEffects(link, now, linkOpacity) {
         // Вторичные искры вдоль дуги
-        if (this.settings.linkSecondarySparks && link.isActive) { // Только для активных дуг
+        if (this.settings.linkSecondarySparks && link.isActive) {
             if (!link.lastSecondarySparkTime || (now - link.lastSecondarySparkTime > this.settings.linkSecondarySparkInterval)) {
                 link.lastSecondarySparkTime = now;
                 if (!link.secondarySparks) link.secondarySparks = [];
@@ -213,57 +213,66 @@ class BallLightningLinkEffect {
                     const length = (this.settings.sparkBaseLength || 15) * 0.6 * (0.5 + Math.random() * 0.5);
                     const sparkColor = Math.random() < 0.5 ? link.color1 : link.color2;
 
+                    // >>> OPTIMIZATION: Используем пул <<<
                     const newSpark = this._getSparkFromPool();
-                    Object.assign(newSpark, {
-                        startX: startX, startY: startY,
-                        basePoints: this._generateSparkBasePoints(length, Math.max(1, Math.floor(this.settings.sparkSegments / 2)), this.settings.sparkJitter / 2, angle),
-                        length: length,
-                        lifetime: (this.settings.sparkMaxLifetime || 400) * 0.4,
-                        startTime: now,
-                        color: sparkColor
-                    });
-                    link.secondarySparks.push(newSpark);
+                    if (newSpark) {
+                        Object.assign(newSpark, {
+                            startX: startX, startY: startY,
+                            basePoints: this._generateSparkBasePoints(length, Math.max(1, Math.floor(this.settings.sparkSegments / 2)), this.settings.sparkJitter / 2, angle),
+                            length: length,
+                            lifetime: (this.settings.sparkMaxLifetime || 400) * 0.4,
+                            startTime: now,
+                            color: sparkColor
+                            // isActive уже true
+                        });
+                        link.secondarySparks.push(newSpark);
+                    }
                 }
             }
         }
+        // При фильтрации "мертвых" искр, возвращаем их в пул
         if (link.secondarySparks) {
             link.secondarySparks = link.secondarySparks.filter(spark => {
-                const alive = this._drawSpark(spark, spark.color, spark.color, now);
+                const alive = this._drawSpark(spark, spark.color, spark.color, now); // Предполагается, что _drawSpark возвращает false, если искра умерла
                 if (!alive) {
-                    spark.isActive = false; // <--- ВОЗВРАЩАЕМ В ПУЛ
+                    spark.isActive = false; // Возвращаем в пул
                 }
                 return alive;
             });
         }
 
-        // Ответвления от основной дуги
+        // Ответвления от основной дуги (mainBranches)
         if (this.settings.linkBranchChance > 0 && link.isActive && Math.random() < this.settings.linkBranchChance) {
-             if (!link.mainBranches) link.mainBranches = [];
-             if (link.points.length < 2) return;
-             const pIndex = Math.floor(Math.random() * (link.points.length - 1));
-             const p1 = link.points[pIndex];
-             const startX = p1.x;
-             const startY = p1.y;
-             const angle = Math.random() * Math.PI * 2; // Случайный угол
-             const length = (this.settings.sparkBaseLength || 15) * (0.7 + Math.random() * 0.6);
-             const branchColor = Math.random() < 0.5 ? link.color1 : link.color2;
+            if (!link.mainBranches) link.mainBranches = [];
+            if (link.points.length < 2) return; // Нет точек для ветвления
 
-             const newBranch = this._getSparkFromPool();
-             Object.assign(newBranch, {
-                startX: startX, startY: startY,
-                basePoints: this._generateSparkBasePoints(length, this.settings.sparkSegments, this.settings.sparkJitter, angle),
-                length: length,
-                lifetime: (this.settings.sparkMaxLifetime || 400) * 0.6,
-                startTime: now,
-                color: branchColor
-             });
-             link.mainBranches.push(newBranch);
+            const pIndex = Math.floor(Math.random() * (link.points.length - 1));
+            const p1 = link.points[pIndex];
+            const startX = p1.x;
+            const startY = p1.y;
+            const angle = Math.random() * Math.PI * 2;
+            const length = (this.settings.sparkBaseLength || 15) * (0.7 + Math.random() * 0.6);
+            const branchColor = Math.random() < 0.5 ? link.color1 : link.color2;
+
+            // >>> OPTIMIZATION: Используем пул для mainBranches <<<
+            const newBranchSpark = this._getSparkFromPool();
+            if (newBranchSpark) {
+                Object.assign(newBranchSpark, {
+                    startX: startX, startY: startY,
+                    basePoints: this._generateSparkBasePoints(length, this.settings.sparkSegments, this.settings.sparkJitter, angle),
+                    length: length,
+                    lifetime: (this.settings.sparkMaxLifetime || 400) * 0.7, // Ветки могут жить дольше
+                    startTime: now,
+                    color: branchColor
+                });
+                link.mainBranches.push(newBranchSpark);
+            }
         }
-         if (link.mainBranches) {
-            link.mainBranches = link.mainBranches.filter(branch => {
-                const alive = this._drawSpark(branch, branch.color, branch.color, now);
+        if (link.mainBranches) {
+            link.mainBranches = link.mainBranches.filter(spark => {
+                const alive = this._drawSpark(spark, spark.color, spark.color, now);
                 if (!alive) {
-                    branch.isActive = false; // <--- ВОЗВРАЩАЕМ В ПУЛ
+                    spark.isActive = false; // Возвращаем в пул
                 }
                 return alive;
             });
@@ -556,8 +565,8 @@ class BallLightningLinkEffect {
                         const angle = bl.sparkBundleAngle + (Math.random() - 0.5) * this.settings.sparkBundleSpread;
                         const length = this.settings.sparkBaseLength + Math.random() * bl.currentY * this.settings.sparkLengthYMultiplier;
                         
-                        // >>> НАЧАЛО ИЗМЕНЕНИЙ (Пул объектов в drawActiveEffects) <<<
-                        const newSpark = this._getSparkFromPool(); 
+                        // >>> OPTIMIZATION: Используем пул <<<
+                        const newSpark = this._getSparkFromPool();
                         if (newSpark) {
                             Object.assign(newSpark, {
                                 startX: bl.x, 
@@ -571,7 +580,6 @@ class BallLightningLinkEffect {
                             });
                             bl.sparks.push(newSpark);
                         }
-                        // >>> КОНЕЦ ИЗМЕНЕНИЙ (Пул объектов в drawActiveEffects) <<<
                     }
                     bl.sparkBundleAngle += (Math.random() - 0.5) * this.settings.sparkAngleFactor;
                 }
@@ -600,23 +608,22 @@ class BallLightningLinkEffect {
     dispose() {
         this.ballLightnings.clear();
         this.activeLinks.clear();
-        this.ctx = null;
-        this.canvas = null;
-        console.log("[BallLightningLinkEffect v1.2-multi-final] Disposed.");
+        this.sparkPool = []; // Очищаем пул при dispose
+        console.log("[BallLightningLinkEffect] Disposed.");
     }
 
     _getSparkFromPool() {
-        for (let i = 0; i < this.sparkPool.length; i++) {
+        for (let i = 0; i < this.poolSize; i++) {
             if (!this.sparkPool[i].isActive) {
-                this.sparkPool[i].isActive = true; // Помечаем как активную
+                this.sparkPool[i].isActive = true; // Помечаем как используемый
+                // Очищаем предыдущие свойства, если нужно, или полагаемся на Object.assign
+                // delete this.sparkPool[i].someOldProperty; // Пример
                 return this.sparkPool[i];
             }
         }
-        // Если пул исчерпан, логируем предупреждение и создаем новый объект "на лету"
-        console.warn("[BallLightningLinkEffect] Spark pool depleted. Consider increasing pool size.");
-        const newSpark = { isActive: true };
-        // Не добавляем его в пул, чтобы не раздувать пул бесконечно
-        return newSpark;
+        // Если пул исчерпан, возвращаем null. Это лучше, чем создавать новые объекты и вызывать GC.
+        console.warn("[BallLightningLinkEffect] Spark pool depleted. Frame will have fewer sparks.");
+        return null;
     }
 }
 

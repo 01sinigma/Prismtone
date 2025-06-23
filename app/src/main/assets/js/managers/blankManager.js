@@ -1,20 +1,41 @@
+/**
+ * @file blankManager.js
+ * @description
+ * This file serves as a template or base manager for creating new audio component managers within the Prismtone application.
+ * It outlines the standard interface and methods that an audio component manager should implement,
+ * including creation (`create`), parameter updates (`update`), audio chain connections (`connectPeers`),
+ * enabling/disabling (`enable`), modulator connections (`connectModulator`, `disconnectModulator`),
+ * lifecycle events (`triggerAttack`, `triggerRelease`), and disposal (`dispose`).
+ *
+ * The example implementation within this template often uses a simple `Tone.Gain` node as a placeholder
+ * to illustrate how audio input/output and parameters might be handled.
+ * Specific managers for actual audio components (like oscillators, filters, effects) should replace
+ * this placeholder logic with the actual Tone.js nodes and configurations relevant to that component.
+ */
+
 // Файл: app/src/main/assets/js/managers/blankManager.js
 // Шаблон для создания нового менеджера аудио-компонента
 
 const blankManager = {
     /**
-     * Создает узлы Tone.js для этого компонента.
-     * Вызывается ОДИН РАЗ при создании голоса в voiceBuilder.
-     * @param {object | null} initialSettings - Начальные настройки из пресета (или default) для этого компонента.
-     * @returns {object} - Объект вида:
-     * {
-     *   nodes: object | null,        // Объект со ссылками на созданные узлы Tone.js (или null при ошибке)
-     *   audioInput: Tone.InputNode | null, // Узел для приема аудиосигнала (если компонент в аудиоцепочке)
-     *   audioOutput: Tone.OutputNode | null,// Узел для вывода аудиосигнала (если компонент в аудиоцепочке)
-     *   modInputs?: object,           // (Опционально) { paramName: Tone.Param | Tone.Signal, ... } для модулируемых параметров
-     *   modOutputs?: object,          // (Опционально) { sourceName: Tone.Signal | Tone.LFO | ..., ... } для выходов модуляции
-     *   error: string | null         // Сообщение об ошибке или null
-     * }
+     * Creates the Tone.js nodes for an audio component based on initial settings.
+     * This method is intended to be overridden by specific component managers.
+     * The example implementation creates a simple `Tone.Gain` node.
+     *
+     * @param {object} [initialSettings={}] - Initial settings for the component, typically from a sound preset.
+     * @returns {{nodes: object|null, audioInput: Tone.InputNode|null, audioOutput: Tone.OutputNode|null, modInputs?: object, modOutputs?: object, error: string|null}}
+     *          An object containing:
+     *          - `nodes`: An object holding references to the created Tone.js nodes (e.g., `nodes.gain` in the example).
+     *                     Should be `null` if creation fails.
+     *          - `audioInput`: The primary audio input node for this component if it processes audio.
+     *                          `null` for modulator sources like LFOs or pure sources like oscillators.
+     *          - `audioOutput`: The primary audio output node for this component if it processes or generates audio.
+     *                           `null` for components that only modulate parameters.
+     *          - `modInputs` (optional): An object mapping parameter names to their modulatable `Tone.Param` or `Tone.Signal` instances
+     *                                  (e.g., `{ gain: gainNode.gain }`).
+     *          - `modOutputs` (optional): An object mapping output signal names to their `Tone.Signal` or other modulator source instances
+     *                                   (e.g., `{ output: lfoNode }` for an LFO manager).
+     *          - `error`: A string containing an error message if creation failed, otherwise `null`.
      */
     create(initialSettings = {}) {
         console.log("[BlankManager] Creating nodes with settings:", initialSettings);
@@ -61,11 +82,13 @@ const blankManager = {
     },
 
     /**
-     * Обновляет параметры существующих узлов компонента.
-     * Вызывается из synth.js при применении пресета или изменении настроек в UI.
-     * @param {object} nodes - Объект узлов, возвращенный методом create.
-     * @param {object} newSettings - Новые настройки для компонента.
-     * @returns {boolean} - true при успехе, false при ошибке.
+     * Updates the parameters of the component's existing Tone.js nodes.
+     * This method is intended to be overridden by specific component managers.
+     * The example implementation shows how to update a `gain` parameter on a placeholder `Tone.Gain` node.
+     *
+     * @param {object} nodes - The object containing references to the component's Tone.js nodes (as returned by `create`).
+     * @param {object} newSettings - An object containing the new settings to apply to the component.
+     * @returns {boolean} `true` if the update was successful, `false` otherwise.
      */
     update(nodes, newSettings) {
         if (!nodes || !newSettings) {
@@ -96,12 +119,16 @@ const blankManager = {
     },
 
     /**
-     * Соединяет аудио входы/выходы компонента с соседями по цепочке.
-     * Вызывается из voiceBuilder при построении цепочки.
-     * @param {object} nodes - Объект узлов, возвращенный методом create.
-     * @param {Tone.OutputNode | null} prevOutputNode - Выходной узел предыдущего компонента.
-     * @param {Tone.InputNode | null} nextInputNode - Входной узел следующего компонента.
-     * @returns {boolean} - true при успехе, false при ошибке.
+     * Connects the audio input and output of this component to the preceding and succeeding nodes in an audio chain.
+     * This method is typically called by a voice builder when constructing the overall signal path.
+     * It should only perform connections if the component has defined `audioInput` and `audioOutput` nodes.
+     * Modulators or components not in the main audio path might return `true` without making connections.
+     *
+     * @param {object} nodes - The component's nodes object, containing `audioInput` and `audioOutput` if applicable.
+     * @param {Tone.OutputNode|null} prevOutputNode - The audio output of the component immediately preceding this one in the chain.
+     * @param {Tone.InputNode|null} nextInputNode - The audio input of the component immediately succeeding this one in the chain.
+     * @returns {boolean} `true` if connections were made successfully or if no connections were necessary (e.g., for a modulator).
+     *                    `false` if an error occurred during connection.
      */
     connectPeers(nodes, prevOutputNode, nextInputNode) {
         // Проверяем наличие audioInput/audioOutput, если компонент должен быть в аудиоцепочке
@@ -127,12 +154,16 @@ const blankManager = {
     },
 
     /**
-     * Включает/выключает или обходит (bypass) компонент.
-     * Вызывается из synth.js при изменении флага 'enabled'.
-     * Требуется в основном для опциональных модулей (LFO, PitchEnv, VoiceFX).
-     * @param {object} nodes - Объект узлов.
-     * @param {boolean} isEnabled - Новое состояние.
-     * @returns {boolean} - true при успехе, false при ошибке.
+     * Enables or disables (bypasses) the audio component.
+     * The specific implementation of this method depends heavily on the nature of the component.
+     * - For LFOs, it might involve calling `start()` or `stop()`.
+     * - For effects, it might involve manipulating wet/dry levels, or using dedicated bypass nodes.
+     * - For components always active in the chain (like a main filter), it might do nothing.
+     * This method is intended to be overridden by specific component managers.
+     *
+     * @param {object} nodes - The component's Tone.js nodes.
+     * @param {boolean} isEnabled - `true` to enable the component, `false` to disable or bypass it.
+     * @returns {boolean} `true` if the state was set successfully or if no action is applicable, `false` on error.
      */
     enable(nodes, isEnabled) {
         if (!nodes) return false;
@@ -172,12 +203,15 @@ const blankManager = {
     },
 
     /**
-     * Подключает выходной узел модулятора к параметру этого компонента.
-     * Вызывается из synth.js (или ModMatrixManager).
-     * @param {object} nodes - Узлы этого компонента.
-     * @param {string} targetParamPath - Путь к параметру внутри nodes (напр., "filter.frequency.value").
-     * @param {Tone.OutputNode} sourceNode - Выходной узел модулятора (LFO, Env, etc.).
-     * @returns {boolean} - true при успехе.
+     * Connects an external modulator source (e.g., an LFO or envelope output) to a modulatable parameter of this component.
+     * This method typically uses a helper like `voiceBuilder.findParamByPath` to locate the target `Tone.Param` or `Tone.Signal`
+     * within the `nodes` object based on `targetParamPath`, and then connects the `sourceNode` to it.
+     *
+     * @param {object} nodes - The component's Tone.js nodes, which should contain the target parameter.
+     * @param {string} targetParamPath - A string path indicating the parameter to be modulated (e.g., "filter.frequency" or "gainNode.gain").
+     *                                   The path should correspond to how parameters are structured within the `nodes` object and its `modInputs`.
+     * @param {Tone.OutputNode} sourceNode - The output node of the modulator (e.g., `lfo.output`, `envelope.output`).
+     * @returns {boolean} `true` if the modulator was connected successfully, `false` otherwise (e.g., if the target parameter is not found or not connectable).
      */
     connectModulator(nodes, targetParamPath, sourceNode) {
         if (!nodes || !targetParamPath || !sourceNode) {
@@ -203,11 +237,15 @@ const blankManager = {
     },
 
     /**
-     * Отключает модулятор от параметра этого компонента.
-     * @param {object} nodes - Узлы этого компонента.
-     * @param {string} targetParamPath - Путь к параметру внутри nodes.
-     * @param {Tone.OutputNode} sourceNode - Выходной узел модулятора.
-     * @returns {boolean} - true при успехе.
+     * Disconnects an external modulator source from a parameter of this component.
+     * Similar to `connectModulator`, this often uses a helper to find the target parameter and then disconnects the `sourceNode`.
+     * Tone.js handles disconnections gracefully, even if the source was not previously connected to the specific target.
+     *
+     * @param {object} nodes - The component's Tone.js nodes.
+     * @param {string} targetParamPath - The string path to the modulated parameter.
+     * @param {Tone.OutputNode} sourceNode - The output node of the modulator to be disconnected.
+     * @returns {boolean} `true` if the disconnection attempt was made (Tone.js does not throw an error if already disconnected).
+     *                    `false` if critical arguments are missing.
      */
     disconnectModulator(nodes, targetParamPath, sourceNode) {
         if (!nodes || !targetParamPath || !sourceNode) {
@@ -232,9 +270,12 @@ const blankManager = {
     },
 
     /**
-     * Корректно отключает и уничтожает все узлы компонента.
-     * Вызывается из voiceBuilder при ошибке или из synth при полном удалении голоса.
-     * @param {object} nodes - Объект узлов.
+     * Safely disposes of all Tone.js nodes created by this component manager.
+     * This involves iterating through the `nodes` object (and potentially `modOutputs` if they contain disposable nodes),
+     * attempting to disconnect each node, and then calling its `dispose()` method.
+     * This is crucial for freeing up audio resources and preventing memory leaks.
+     *
+     * @param {object} nodes - The object containing all Tone.js nodes managed by this instance.
      */
     dispose(nodes) {
         if (!nodes) return;
@@ -262,13 +303,15 @@ const blankManager = {
         console.log("[BlankManager] Nodes disposed.");
     },
 
-    // --- Дополнительные методы (специфичные для компонента) ---
-
     /**
-     * Пример: Метод для запуска огибающей (если это менеджер огибающей).
-     * @param {object} nodes - Узлы компонента.
-     * @param {Tone.Time} [time=Tone.now()] - Время запуска.
-     * @param {number} [velocity=1] - Громкость атаки (0-1).
+     * Handles the 'note on' or attack phase for components that respond to note events (e.g., envelopes, LFOs that retrigger).
+     * This method is intended to be overridden by specific component managers if they need to react to `triggerAttack` calls from the synthesizer.
+     * For many components (like filters or basic gain stages), this method might be a no-op.
+     *
+     * @param {object} nodes - The component's Tone.js nodes.
+     * @param {Tone.Time} [time=Tone.now()] - The scheduled time for the attack event in the Tone.js transport timeline.
+     * @param {number} [velocity=1] - The velocity of the note event (0-1), which might influence the attack (e.g., envelope intensity).
+     * @returns {boolean} `true` if the attack was handled or if no action is applicable for this component type. `false` on error.
      */
     triggerAttack(nodes, time = Tone.now(), velocity = 1) {
         if (!nodes) return;
@@ -282,9 +325,13 @@ const blankManager = {
     },
 
     /**
-     * Пример: Метод для запуска фазы затухания огибающей.
-     * @param {object} nodes - Узлы компонента.
-     * @param {Tone.Time} [time=Tone.now()] - Время запуска затухания.
+     * Handles the 'note off' or release phase for components that respond to note events (e.g., envelopes).
+     * This method is intended to be overridden by specific component managers if they need to react to `triggerRelease` calls.
+     * For many components, this might be a no-op.
+     *
+     * @param {object} nodes - The component's Tone.js nodes.
+     * @param {Tone.Time} [time=Tone.now()] - The scheduled time for the release event in the Tone.js transport timeline.
+     * @returns {boolean} `true` if the release was handled or if no action is applicable. `false` on error.
      */
     triggerRelease(nodes, time = Tone.now()) {
         if (!nodes) return;

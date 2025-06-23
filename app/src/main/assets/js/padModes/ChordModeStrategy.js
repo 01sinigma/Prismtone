@@ -1471,60 +1471,53 @@ const ChordModeStrategy = {
     },
 
     async _confirmSaveProgression() {
-        if (!this._progressionNameInput) {
-            this._hideSaveProgressionModal();
-            return;
-        }
-        const progressionName = this._progressionNameInput.value.trim();
-
+        const progressionNameInput = document.getElementById('progression-name-input');
+        const progressionName = progressionNameInput.value.trim();
         if (!progressionName) {
-            alert(i18n.translate('progression_name_required', 'Progression name cannot be empty.'));
-            this._progressionNameInput.focus();
-            return;
-        }
-
-        const chordIds = this._availableChords.map(c => c.id);
-        if (chordIds.length === 0) {
-            alert(i18n.translate('cannot_save_empty_progression', 'Cannot save an empty progression.'));
-            this._hideSaveProgressionModal();
+            alert(i18n.translate('progression_name_required', 'Please enter a name for the progression.'));
             return;
         }
         
         const progressionData = {
             name: progressionName,
-            type: 'chordProgression',
-            data: {
-                chordIds: chordIds
-            }
+            id: '', 
+            chords: this.state.currentProgression.map(chord => chord.name)
         };
         
         try {
-            console.log('[ChordModeStrategy._confirmSaveProgression] Saving progression:', progressionData);
-            const newProgressionId = await bridgeFix.callBridge('saveChordProgression', JSON.stringify(progressionData));
+            console.log('[ChordModeStrategy] Saving progression:', progressionData);
+            
+            // >>> OPTIMIZATION: Асинхронный вызов с коллбэками <<<
+            // Создаем уникальные имена для коллбэков, чтобы избежать конфликтов
+            const successCallbackName = `onProgressionSaveSuccess_${Date.now()}`;
+            const errorCallbackName = `onProgressionSaveError_${Date.now()}`;
 
-            if (typeof newProgressionId === 'string' && newProgressionId.startsWith('Error:')) {
-                console.error('[ChordModeStrategy._confirmSaveProgression] Error saving progression from bridge:', newProgressionId);
-                alert(i18n.translate('error_saving_progression_details', `Error: ${newProgressionId.substring(7)}`));
-                // Не скрываем модальное окно, чтобы пользователь мог исправить имя
-                return;
-            }
-
-            if (newProgressionId && !newProgressionId.startsWith("Error:")) {
-                console.log(`[ChordModeStrategy._confirmSaveProgression] Progression saved with ID: ${newProgressionId}`);
-                await moduleManager.getModules('chordProgression', true); // Принудительно обновить кэш
+            // Временно создаем глобальные функции-коллбэки
+            window[successCallbackName] = async (newProgressionId) => {
+                console.log(`[ChordModeStrategy] Progression saved with ID: ${newProgressionId}`);
+                await moduleManager.getModules('chordProgression', true); // Обновляем кэш
                 alert(i18n.translate('progression_saved_success', `Progression '${progressionName}' saved!`));
                 this._hideSaveProgressionModal();
-                // Опционально, загружаем новую сохраненную прогрессию
                 await this.loadProgression(newProgressionId);
-            } else {
-                console.error('[ChordModeStrategy._confirmSaveProgression] Failed to save progression, no valid ID returned.');
-                alert(i18n.translate('error_saving_progression_unknown', 'Unknown error saving progression. Please try again.'));
-                // Не скрываем модальное окно
-            }
+                // Очистка
+                delete window[successCallbackName];
+                delete window[errorCallbackName];
+            };
+
+            window[errorCallbackName] = (errorMessage) => {
+                console.error('[ChordModeStrategy] Error saving progression from bridge:', errorMessage);
+                alert(i18n.translate('error_saving_progression_details', `Error: ${errorMessage}`));
+                // Очистка
+                delete window[successCallbackName];
+                delete window[errorCallbackName];
+            };
+            
+            // Вызываем мост без await
+            bridgeFix.callBridge('saveChordProgression', JSON.stringify(progressionData), successCallbackName, errorCallbackName);
+
         } catch (e) {
-            console.error('[ChordModeStrategy._confirmSaveProgression] Exception while saving:', e);
+            console.error('[ChordModeStrategy] Exception while setting up save:', e);
             alert(i18n.translate('error_saving_progression_exception', `Exception: ${e.message}`));
-            // Не скрываем модальное окно
         }
     },
     // =================================================================

@@ -1,11 +1,28 @@
+/**
+ * @file ampEnvManager.js
+ * @description
+ * This manager is responsible for creating, configuring, and controlling
+ * a Tone.AmplitudeEnvelope node, which shapes the overall loudness of a synth voice.
+ * It handles the envelope's lifecycle (attack, decay, sustain, release) and allows
+ * for dynamic updates to its parameters based on sound presets.
+ */
+
 // Файл: app/src/main/assets/js/managers/ampEnvManager.js
 // Менеджер для управления огибающей амплитуды (Tone.AmplitudeEnvelope)
 
 const ampEnvManager = {
     /**
      * Создает узел Tone.AmplitudeEnvelope.
-     * @param {object} [initialSettings={}] - Начальные настройки огибающей из пресета.
-     * @returns {object} - Объект { nodes: { envelope: Tone.AmplitudeEnvelope }, audioInput: Tone.AmplitudeEnvelope, audioOutput: Tone.AmplitudeEnvelope, error: string | null }
+     * @param {object} [initialSettings={}] - Начальные настройки из пресета.
+     * @param {number} [initialSettings.attack=0.01] - Время атаки в секундах.
+     * @param {number} [initialSettings.decay=0.1] - Время спада в секундах.
+     * @param {number} [initialSettings.sustain=0.7] - Уровень поддержки (0-1).
+     * @param {number} [initialSettings.release=0.5] - Время затухания в секундах.
+     * @param {string} [initialSettings.attackCurve='linear'] - Тип кривой для атаки.
+     * @param {string} [initialSettings.decayCurve='exponential'] - Тип кривой для спада.
+     * @param {string} [initialSettings.releaseCurve='exponential'] - Тип кривой для затухания.
+     * @returns {{nodes: {envelope: Tone.AmplitudeEnvelope}|null, audioInput: Tone.AmplitudeEnvelope|null, audioOutput: Tone.AmplitudeEnvelope|null, modInputs: object, modOutputs: object, error: string|null}}
+     *          Объект, содержащий созданный узел `envelope`, точки входа/выхода аудио, пустые объекты для входов/выходов модуляции (т.к. AmpEnv обычно не модулируется и не модулирует), и сообщение об ошибке (null при успехе).
      */
     create(initialSettings = {}) {
         const t0 = performance.now();
@@ -43,10 +60,10 @@ const ampEnvManager = {
     },
 
     /**
-     * Обновляет параметры огибающей амплитуды.
-     * @param {object} nodes - Объект узлов { envelope }.
-     * @param {object} newSettings - Новые настройки { attack, decay, sustain, release, attackCurve, decayCurve, releaseCurve }.
-     * @returns {boolean} - true при успехе.
+     * Обновляет параметры существующего узла Tone.AmplitudeEnvelope.
+     * @param {object} nodes - Объект узлов, содержащий `nodes.envelope` (экземпляр Tone.AmplitudeEnvelope).
+     * @param {object} newSettings - Объект с новыми настройками для обновления (attack, decay, sustain, release, attackCurve, decayCurve, releaseCurve).
+     * @returns {boolean} True, если обновление прошло успешно, иначе false.
      */
     update(nodes, newSettings) {
         if (!nodes || !nodes.envelope || !newSettings) {
@@ -77,7 +94,13 @@ const ampEnvManager = {
     },
 
     /**
-     * Соединяет огибающую с соседями по цепочке.
+     * Соединяет вход и выход огибающей амплитуды с предыдущим и следующим узлами в аудиоцепочке.
+     * Так как Tone.AmplitudeEnvelope является и входом, и выходом для аудиосигнала,
+     * этот метод делегирует логику стандартному `blankManager.connectPeers`.
+     * @param {object} nodes - Объект узлов, содержащий `nodes.envelope`.
+     * @param {Tone.AudioNode|null} prevOutputNode - Аудиовыход предыдущего компонента.
+     * @param {Tone.AudioNode|null} nextInputNode - Аудиовход следующего компонента.
+     * @returns {boolean} Результат вызова `blankManager.connectPeers`.
      */
     connectPeers(nodes, prevOutputNode, nextInputNode) {
         // Используем стандартную реализацию blankManager
@@ -85,7 +108,11 @@ const ampEnvManager = {
     },
 
     /**
-     * Огибающая амплитуды не имеет состояния enable/bypass.
+     * Включает или выключает компонент. Для Tone.AmplitudeEnvelope это действие не применимо,
+     * так как он всегда активен и его работа управляется через triggerAttack/triggerRelease.
+     * @param {object} nodes - Объект узлов.
+     * @param {boolean} isEnabled - Запрошенное состояние (игнорируется).
+     * @returns {boolean} Всегда true.
      */
     enable(nodes, isEnabled) {
         console.log(`[AmpEnvManager] enable() called with ${isEnabled} (no action needed).`);
@@ -93,7 +120,13 @@ const ampEnvManager = {
     },
 
     /**
-     * Огибающая амплитуды обычно не является целью модуляции.
+     * Подключает модулятор к параметру этого компонента.
+     * Огибающая амплитуды обычно не является целью прямой модуляции своих основных параметров ADSR,
+     * так как они не являются экземплярами Tone.Param или Tone.Signal.
+     * @param {object} nodes - Объект узлов.
+     * @param {string} targetParamPath - Путь к целевому параметру (игнорируется).
+     * @param {Tone.Signal|Tone.AudioNode} sourceNode - Исходный узел модулятора (игнорируется).
+     * @returns {boolean} Всегда false, так как модуляция не поддерживается.
      */
     connectModulator(nodes, targetParamPath, sourceNode) {
         console.warn(`[AmpEnvManager] connectModulator called for '${targetParamPath}', but AmpEnv is not typically modulated.`);
@@ -103,7 +136,12 @@ const ampEnvManager = {
     },
 
     /**
-     * Отключение модулятора (неприменимо).
+     * Отключает модулятор от параметра этого компонента.
+     * Так как подключение не поддерживается, этот метод просто регистрирует вызов.
+     * @param {object} nodes - Объект узлов.
+     * @param {string} targetParamPath - Путь к целевому параметру (игнорируется).
+     * @param {Tone.Signal|Tone.AudioNode} sourceNode - Исходный узел модулятора (игнорируется).
+     * @returns {boolean} Всегда true.
      */
     disconnectModulator(nodes, targetParamPath, sourceNode) {
         console.warn(`[AmpEnvManager] disconnectModulator called for '${targetParamPath}'.`);
@@ -111,7 +149,8 @@ const ampEnvManager = {
     },
 
     /**
-     * Уничтожает узел огибающей.
+     * Уничтожает узел Tone.AmplitudeEnvelope и отключает его от аудиографа.
+     * @param {object} nodes - Объект узлов, содержащий `nodes.envelope`.
      */
     dispose(nodes) {
         const t0 = performance.now();
@@ -132,10 +171,10 @@ const ampEnvManager = {
     // --- Специфичные методы для AmpEnv ---
 
     /**
-     * Запускает фазу атаки огибающей.
-     * @param {object} nodes - Узлы компонента { envelope }.
-     * @param {Tone.Time} [time=Tone.now()] - Время запуска.
-     * @param {number} [velocity=1] - Громкость атаки (0-1).
+     * Запускает фазу атаки (attack) и затем спада (decay) огибающей амплитуды.
+     * @param {object} nodes - Объект узлов, содержащий `nodes.envelope`.
+     * @param {Tone.Time} [time=Tone.now()] - Время в звуковом контексте Tone.js, когда должна начаться атака.
+     * @param {number} [velocity=1] - Нормализованное значение громкости (0-1), до которого нарастает сигнал во время атаки.
      */
     triggerAttack(nodes, time = Tone.now(), velocity = 1) {
         const t0 = performance.now();
@@ -155,9 +194,9 @@ const ampEnvManager = {
     },
 
     /**
-     * Запускает фазу затухания огибающей.
-     * @param {object} nodes - Узлы компонента { envelope }.
-     * @param {Tone.Time} [time=Tone.now()] - Время запуска затухания.
+     * Запускает фазу затухания (release) огибающей амплитуды.
+     * @param {object} nodes - Объект узлов, содержащий `nodes.envelope`.
+     * @param {Tone.Time} [time=Tone.now()] - Время в звуковом контексте Tone.js, когда должно начаться затухание.
      */
     triggerRelease(nodes, time = Tone.now()) {
         const t0 = performance.now();

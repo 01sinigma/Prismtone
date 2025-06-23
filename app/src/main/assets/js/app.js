@@ -1,4 +1,13 @@
-// Файл: app/src/main/assets/js/app.js
+/**
+ * @file app.js
+ * @description
+ * This is the main application file for Prismtone. It orchestrates the initialization of all modules,
+ * manages the application's global state, handles user interactions, and coordinates communication
+ * between different components like the synthesizer (synth.js), the XY pad (pad.js),
+ * UI panels (sidepanel.js, topbar.js), visualizers, and the native Android bridge.
+ * It's responsible for loading settings, themes, sound presets, FX chains, and managing
+ * the overall application lifecycle.
+ */
 
 const app = {
     state: {
@@ -82,6 +91,23 @@ const app = {
     // Добавляем в начало файла, где определяются свойства
     _chordPanelResizeTimeout: null,
 
+    /**
+     * Initializes the entire Prismtone application.
+     * This function coordinates the loading of all modules, settings, and UI components.
+     * It ensures that the DOM is ready, the native bridge is connected,
+     * and all necessary services are up and running before the user can interact with the app.
+     * Key steps include:
+     * - Setting up loading screen animations and audio.
+     * - Waiting for DOMContentLoaded and the Android bridge.
+     * - Loading initial settings from native storage.
+     * - Initializing i18n for internationalization.
+     * - Initializing core modules: moduleManager, MusicTheoryService, pad, PadModeManager, synth, visualizer.
+     * - Initializing UI components: sidePanel, topbar, soundPresets, fxChains.
+     * - Applying initial theme, sound preset, FX chain, and other settings.
+     * - Setting up event listeners and final UI updates.
+     * @async
+     * @returns {Promise<void>} A promise that resolves when initialization is complete or logs an error if it fails.
+     */
     async init() {
         console.log('[App.init v2.5.1 PadModeManager] Starting application initialization...');
         this.elements.body = document.body;
@@ -299,6 +325,12 @@ const app = {
         }
     },
 
+    /**
+     * Updates the text displayed on the loading overlay.
+     * @param {string} key - The i18n key for the loading message.
+     * @param {string} fallback - The fallback text if i18n key is not found.
+     * @param {boolean} [isError=false] - If true, styles the message as an error.
+     */
     updateLoadingText(key, fallback, isError = false) {
         if (this.elements.loadingText) {
             const message = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate(key, fallback) : fallback;
@@ -308,12 +340,19 @@ const app = {
         }
     },
 
+    /**
+     * Handles clicks on the loading overlay to initiate app start after user interaction.
+     */
     handleOverlayClick() {
         console.log("[App v6] Loading overlay clicked by user.");
         if (app.loadingTimeoutId) { clearTimeout(app.loadingTimeoutId); app.loadingTimeoutId = null; }
         app.triggerAppStart();
     },
 
+    /**
+     * Triggers the application start sequence, usually after user interaction.
+     * Plays loading sounds and proceeds to `startAudioAndShowApp`.
+     */
     triggerAppStart() {
         if (app.isStartingApp || !app.state.isInitialized) { return; }
         console.log("[App v6] Triggering app start sequence...");
@@ -327,6 +366,12 @@ const app = {
         else { app.startAudioAndShowApp(); }
     },
 
+    /**
+     * Starts the audio engine (Tone.js) and reveals the main application interface
+     * by hiding the loading overlay.
+     * @async
+     * @returns {Promise<void>}
+     */
     async startAudioAndShowApp() {
         console.log("[App v6] Starting audio and hiding overlay...");
         try {
@@ -360,6 +405,9 @@ const app = {
         }
     },
 
+    /**
+     * Hides the loading overlay and displays the main application content.
+     */
     hideLoading() {
         if (this.elements.loadingOverlay && !this.elements.loadingOverlay.classList.contains('hidden')) {
             this.elements.loadingOverlay.classList.add('hiding');
@@ -371,6 +419,10 @@ const app = {
         }
     },
 
+    /**
+     * Waits for the Android native bridge (PrismtoneBridge) to become available.
+     * @returns {Promise<void>} A promise that resolves when the bridge is ready.
+     */
     waitForBridge() {
         const timeoutMs = 10000; const checkInterval = 100;
         return new Promise((resolve, reject) => {
@@ -384,6 +436,13 @@ const app = {
         });
     },
 
+    /**
+     * Loads initial application settings from the native side (Android SharedPreferences).
+     * This includes theme, language, last used presets, visualizer, touch effect, scale, etc.
+     * Also initializes critical services like the SensorController.
+     * @async
+     * @returns {Promise<void>} A promise that resolves when settings are loaded and applied.
+     */
     async loadInitialSettings() {
         console.log("[App.loadInitialSettings] Loading settings...");
         // Пример загрузки из localStorage, замените на реальный вызов Bridge, если нужно
@@ -620,6 +679,9 @@ const app = {
         }
     },
 
+    /**
+     * Suspends the audio context. Typically called when the app goes to the background.
+     */
     suspendAudio() {
         console.log("[App.suspendAudio] Suspending audio.");
         if (synth?.stopAllNotes) {
@@ -627,6 +689,10 @@ const app = {
         }
     },
 
+    /**
+     * Applies a new visual theme to the application.
+     * @param {string} themeId - The ID of the theme to apply (e.g., 'aurora', 'cyberpunk').
+     */
     applyTheme(themeId) {
         if (!themeId) return;
         try {
@@ -640,6 +706,13 @@ const app = {
         } catch (error) { console.error(`[App] Error applying theme ${themeId}:`, error); }
     },
 
+    /**
+     * Applies a new language to the application.
+     * Fetches language data and updates all i18n-sensitive UI elements.
+     * @param {string} languageId - The language code (e.g., 'en', 'ru').
+     * @async
+     * @returns {Promise<void>}
+     */
     async applyLanguage(languageId) {
          if (!languageId) return;
          const previousLanguageId = this.state.language; // Для отката
@@ -686,6 +759,12 @@ const app = {
         }
     },
 
+    /**
+     * Applies a new visualizer.
+     * @param {string} visualizerId - The ID of the visualizer to apply.
+     * @async
+     * @returns {Promise<void>}
+     */
     async applyVisualizer(visualizerId) {
         if (!visualizerId) return; // Проверка на пустой visualizerId
         // Флаг isApplyingChange здесь не используется, согласно примеру пользователя
@@ -716,6 +795,12 @@ const app = {
         }
     },
 
+    /**
+     * Applies a new touch effect.
+     * @param {string} effectId - The ID of the touch effect to apply.
+     * @async
+     * @returns {Promise<void>}
+     */
     async applyTouchEffect(effectId) {
         // Значение по умолчанию 'none' применяется, если effectId это null или undefined
         const targetEffectId = effectId ?? 'none'; 
@@ -747,6 +832,13 @@ const app = {
         }
     },
 
+    /**
+     * Determines the effective Y-axis control configuration (preset vs. global)
+     * and applies it to the synth and UI.
+     * This method is crucial for ensuring that Y-axis modulations are correctly
+     * sourced either from the loaded sound preset or global application settings.
+     * @private
+     */
     _applyAndSyncYAxisState() {
         console.log(`[App._applyAndSyncYAxisState v8] Syncing Y-Axis state from app.state:`, JSON.parse(JSON.stringify(this.state.yAxisControls)));
         if (synth) {
@@ -764,6 +856,14 @@ const app = {
         }
     },
 
+    /**
+     * Loads and applies a sound preset to the synthesizer and updates the UI.
+     * It fetches preset data, applies it to the synth, updates Y-axis controls,
+     * and saves the choice to native storage.
+     * @param {string} presetId - The unique ID of the preset to load.
+     * @async
+     * @returns {Promise<void>}
+     */
     async applySoundPreset(presetId) {
         // Используем более гибкий вариант определения targetPresetId из предыдущей версии
         const targetPresetId = presetId || (this.config.defaultPreset ? this.config.defaultPreset.id : 'default_piano');
@@ -840,6 +940,14 @@ const app = {
         }
     },
 
+    /**
+     * Loads and applies an FX chain to the synthesizer and updates the UI.
+     * It fetches chain data, configures synth effects, updates Y-axis controls if necessary,
+     * and saves the choice to native storage.
+     * @param {string | null} chainId - The unique ID of the FX chain to load, or null to clear.
+     * @async
+     * @returns {Promise<void>}
+     */
     async applyFxChain(chainId) {
         const targetChainId = chainId ?? null;
         console.log(`[App.applyFxChain] Applying FX Chain ID: ${targetChainId}.`);
@@ -919,6 +1027,13 @@ const app = {
         }
     },
 
+    /**
+     * Sets the musical scale for the pads.
+     * Updates the internal state, informs the PadModeManager, updates UI, and saves to native.
+     * @param {string} scaleId - The ID of the scale to apply (e.g., 'major', 'minor_pentatonic').
+     * @async
+     * @returns {Promise<void>}
+     */
     async setScale(scaleId) {
         if (!scaleId || this.state.scale === scaleId) return;
         console.log(`[App] Setting scale to: ${scaleId}`);
@@ -951,6 +1066,14 @@ const app = {
             }
         }
     },
+
+    /**
+     * Sets the global octave offset for the pads.
+     * Updates internal state, informs PadModeManager, updates UI, and saves to native.
+     * @param {number} offset - The octave offset value (integer).
+     * @async
+     * @returns {Promise<void>}
+     */
     async setOctaveOffset(offset) {
         const newOffset = Math.max(-7, Math.min(7, parseInt(offset, 10)));
         if (newOffset === this.state.octaveOffset || isNaN(newOffset)) return;
@@ -984,6 +1107,13 @@ const app = {
         }
     },
 
+    /**
+     * Sets the number of zones (pads) to be displayed.
+     * Updates internal state, informs PadModeManager, updates UI, and saves to native.
+     * @param {number} count - The number of zones.
+     * @async
+     * @returns {Promise<void>}
+     */
     async setZoneCount(count) {
         const newCount = parseInt(count, 10);
         if (isNaN(newCount) || newCount < 8 || newCount > 36 || newCount % 2 !== 0) {
@@ -1025,6 +1155,12 @@ const app = {
         }
     },
 
+    /**
+     * Triggers an update of the pad zone layout based on current settings.
+     * Delegates to the active PadModeStrategy.
+     * @async
+     * @returns {Promise<void>}
+     */
     async updateZoneLayout() {
         // Полный цикл: layout + визуальные подсказки
         if (!this.state.isInitialized || !PadModeManager || !PadModeManager.getCurrentStrategy() || !pad?.isReady) {
@@ -1050,6 +1186,12 @@ const app = {
         }
     },
 
+    /**
+     * Updates the visual representation of the pad zones (labels, highlights).
+     * @param {Array<object>} [currentZonesData=pad._currentDisplayedZones] - The zone data to use for rendering.
+     * @async
+     * @returns {Promise<void>}
+     */
     async updateZoneVisuals(currentZonesData = pad._currentDisplayedZones) {
         if (!this.state.isInitialized || !PadModeManager?.getCurrentStrategy() || !pad?.isReady) return;
         try {
@@ -1089,6 +1231,10 @@ const app = {
         }
     },
 
+    /**
+     * Toggles the visibility of note names on the pads.
+     * @param {boolean} show - True to show note names, false to hide.
+     */
     toggleNoteNames(show) {
         if (this.state.isApplyingChange) {
             console.log('[App.toggleNoteNames] Change blocked because a major change is in progress.');
@@ -1102,6 +1248,10 @@ const app = {
         this._updateSidePanelSettingsUI();
     },
 
+    /**
+     * Toggles the visibility of grid lines on the pads.
+     * @param {boolean} show - True to show lines, false to hide.
+     */
     toggleLines(show) {
         if (this.state.isApplyingChange) {
             console.log('[App.toggleLines] Change blocked because a major change is in progress.');
@@ -1115,6 +1265,10 @@ const app = {
         this._updateSidePanelSettingsUI();
     },
 
+    /**
+     * Sets the master volume ceiling for the synthesizer.
+     * @param {number} value - The volume ceiling (0.0 to 1.0).
+     */
     setMasterVolumeCeiling(value) {
         if (this.state.isApplyingChange) {
             console.log('[App.setMasterVolumeCeiling] Change blocked because a major change is in progress.');
@@ -1141,6 +1295,10 @@ const app = {
         }
     },
 
+    /**
+     * Enables or disables polyphony volume scaling in the synthesizer.
+     * @param {boolean} isEnabled - True to enable, false to disable.
+     */
     setEnablePolyphonyVolumeScaling(isEnabled) {
         const enabled = typeof isEnabled === 'boolean' ? isEnabled : !!isEnabled; // Ensure boolean
         if (this.state.enablePolyphonyVolumeScaling === enabled) return;
@@ -1154,7 +1312,12 @@ const app = {
         this._updateSidePanelSettingsUI();
     },
 
-    // === ОБНОВЛЕННАЯ ФУНКЦИЯ setYAxisControl для Части 2 ===
+    /**
+     * Sets a specific Y-axis control parameter.
+     * @param {'volume' | 'effects'} group - The control group ('volume' or 'effects').
+     * @param {string} controlName - The specific parameter name (e.g., 'minOutput', 'curveType').
+     * @param {number | string} value - The new value for the parameter.
+     */
     setYAxisControl(group, controlName, value) {
         if (this.state.isApplyingChange) {
             console.log(`[App.setYAxisControl] Change for ${group}.${controlName} blocked because a major change is in progress.`);
@@ -1221,6 +1384,14 @@ const app = {
     },
     // =======================================================
 
+    /**
+     * Restarts the audio engine (Tone.js). This is a complex operation
+     * that involves tearing down the current audio context and rebuilding it.
+     * It's used when significant audio configuration changes occur or to recover from errors.
+     * Preserves current sound preset and FX chain if possible.
+     * @async
+     * @returns {Promise<boolean>} True if restart was successful, false otherwise.
+     */
     async restartAudioEngine() {
         console.warn("[App] Инициирую перезапуск аудио-движка v8 (обернуто в try/catch/finally)...");
         if (this.isRestartingAudio) {
@@ -1373,6 +1544,13 @@ const app = {
         }, animationDuration);
         }
     },
+
+    /**
+     * Triggers a full application reload via the native bridge.
+     * This is a more drastic measure than restarting the audio engine.
+     * @async
+     * @returns {Promise<void>}
+     */
     async triggerFullReload() {
         console.warn("[App] Запрос на ПОЛНУЮ ПЕРЕЗАГРУЗКУ приложения v2 (с try/catch/finally)...");
 
@@ -1429,9 +1607,12 @@ const app = {
             }, animationDuration);
         }
     },
+
     /**
-     * Устанавливает текущую тонику приложения.
-     * @param {string} noteName - Название ноты (например, "C4", "G#5").
+     * Sets the current musical tonic (root note and octave).
+     * @param {string} noteName - The scientific notation of the tonic (e.g., "C4", "A#3").
+     * @async
+     * @returns {Promise<void>}
      */
     async setTonic(noteName) {
         if (!this.state.isInitialized || !noteName || this.state.currentTonic === noteName) {
@@ -1495,7 +1676,12 @@ const app = {
         }
     },
 
-    // Добавьте или найдите существующий метод для переключения highlightSharpsFlats
+    /**
+     * Toggles the highlighting of sharps/flats (accidentals) on the pads.
+     * @param {boolean} enabled - True to enable highlighting, false to disable.
+     * @async
+     * @returns {Promise<void>}
+     */
     async toggleHighlightSharpsFlats(enabled) {
         try {
         if (typeof enabled !== 'boolean') {
@@ -1515,7 +1701,13 @@ const app = {
         }
     },
 
-    // === НОВЫЙ МЕТОД для Установки Аккорда ===
+    /**
+     * Sets the currently active chord, typically in modes like Chord Mode or Rocket Mode.
+     * Updates UI and informs relevant modules.
+     * @param {string | null} chordName - The name of the chord (e.g., "Cmaj7") or null if no chord is active.
+     * @async
+     * @returns {Promise<void>}
+     */
     async setCurrentChord(chordName) {
         try {
             const newChord = chordName || null;
@@ -1542,6 +1734,15 @@ const app = {
     },
     // ======================================
 
+    /**
+     * Sets the active pad mode (e.g., 'classic', 'chord', 'rocket').
+     * This involves initializing the corresponding strategy in PadModeManager,
+     * updating UI elements, and applying mode-specific settings.
+     * @param {string} modeId - The ID of the pad mode to activate.
+     * @param {boolean} [initialLoad=false] - True if this is part of the initial app load sequence.
+     * @async
+     * @returns {Promise<void>}
+     */
     async setPadMode(modeId, initialLoad = false) {
         if (!PadModeManager) {
             console.error("[App.setPadMode] PadModeManager is not available.");
@@ -1648,6 +1849,10 @@ const app = {
         localStorage.setItem('isChordPanelCollapsed', shouldBeCollapsed);
     },
 
+    /**
+     * Updates the settings UI elements in the side panel to reflect the current application state.
+     * @private
+     */
     _updateSidePanelSettingsUI() {
         if (sidePanel && typeof sidePanel.updateSettingsControls === 'function') {
             sidePanel.updateSettingsControls(
@@ -1670,6 +1875,13 @@ const app = {
         }
     },
 
+    /**
+     * Sets a specific setting for a given pad mode.
+     * Used for mode-specific configurations (e.g., Rocket Mode settings).
+     * @param {string} modeId - The ID of the pad mode.
+     * @param {string} settingName - The name of the setting to change.
+     * @param {*} value - The new value for the setting.
+     */
     setModeSpecificSetting(modeId, settingName, value) {
         if (modeId === 'rocket' && this.state.rocketModeSettings) {
             let changed = false;
@@ -1733,6 +1945,10 @@ const app = {
         };
     })(),
 
+    /**
+     * Sets the current phase for Rocket Mode.
+     * @param {string} newPhase - The name of the new phase (e.g., 'ignition', 'liftOff').
+     */
     setRocketPhase(newPhase) {
         const validPhases = ['ignition', 'lift-off', 'burst'];
         if (this.state.rocketModePhase === newPhase || !validPhases.includes(newPhase)) return;
@@ -2026,6 +2242,10 @@ const app = {
         }
     },
 
+    /**
+     * Applies Y-axis changes to both the UI (sidepanel knobs/selectors) and the synth.
+     * @private
+     */
     _applyYAxisChangesToUIAndSynth() {
         if (!this.state.isInitialized) return;
         console.log('[App._applyYAxisChangesToUIAndSynth] Updating UI and Synth with final Y-Axis settings.');
@@ -2088,7 +2308,9 @@ const app = {
         }, 500);
     },
 
-    // Добавляем новые функции для работы с прогрессией аккордов
+    /**
+     * Selects the next chord in the current progression (Chord Mode).
+     */
     selectNextChord() {
         if (this.state.padMode !== 'chord') {
             console.log('[App.selectNextChord] Not in chord mode.');
@@ -2103,6 +2325,9 @@ const app = {
         }
     },
 
+    /**
+     * Selects the previous chord in the current progression (Chord Mode).
+     */
     selectPreviousChord() {
         if (this.state.padMode !== 'chord') {
             console.log('[App.selectPreviousChord] Not in chord mode.');
@@ -2162,26 +2387,35 @@ const app = {
     setVibrationEnabled(enabled) {
         if (typeof enabled !== 'boolean') return;
         this.state.vibrationEnabled = enabled;
-        VibrationService.setEnabled(enabled);
+        if (typeof VibrationService !== 'undefined') VibrationService.setEnabled(enabled);
         this._updateSidePanelSettingsUI();
         bridgeFix.callBridge('setSetting', 'vibrationEnabled', enabled.toString()).catch(err => console.error("[App] Bridge setSetting vibrationEnabled failed:", err));
     },
 
+    /**
+     * Sets the intensity of haptic feedback.
+     * @param {'weak' | 'medium' | 'strong'} level - The desired intensity level.
+     */
     setVibrationIntensity(level) {
         if (!['weak', 'medium', 'strong'].includes(level)) return;
         this.state.vibrationIntensity = level;
-        VibrationService.setIntensity(level);
+        if (typeof VibrationService !== 'undefined') VibrationService.setIntensity(level);
         this._updateSidePanelSettingsUI();
         bridgeFix.callBridge('setSetting', 'vibrationIntensity', level).catch(err => console.error("[App] Bridge setSetting vibrationIntensity failed:", err));
     },
 
+    /**
+     * Handles device tilt data received from the SensorController.
+     * Updates the internal state and can be used to modulate synth parameters or visuals.
+     * @param {{pitch: number, roll: number, yaw?: number}} tiltData - Object containing pitch and roll values.
+     */
     onDeviceTilt(tiltData) {
-    console.log('[App] onDeviceTilt received:', JSON.stringify(tiltData));
-        // Этот метод будет вызываться из PrismtoneBridge
+        // Этот метод вызывается из PrismtoneBridge
         if (tiltData && typeof tiltData.pitch === 'number' && typeof tiltData.roll === 'number') {
             this.state.deviceTilt.pitch = tiltData.pitch;
             this.state.deviceTilt.roll = tiltData.roll;
-            // console.log(`Tilt updated: Pitch=${tiltData.pitch.toFixed(1)}, Roll=${tiltData.roll.toFixed(1)}`); // Раскомментировать для отладки
+            // Optionally, you might want to log this or trigger other updates if needed immediately
+            // console.log(`[App.onDeviceTilt] Pitch: ${this.state.deviceTilt.pitch}, Roll: ${this.state.deviceTilt.roll}`);
         }
     },
 };

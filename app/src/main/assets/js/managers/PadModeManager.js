@@ -1,3 +1,13 @@
+/**
+ * @file PadModeManager.js
+ * @description
+ * This manager is responsible for handling different pad modes within the Prismtone application.
+ * Pad modes define how the XY touch pad is divided into zones and how touch interactions
+ * are translated into musical notes or control signals.
+ * It holds references to various PadModeStrategy instances, manages the currently active strategy,
+ * and coordinates updates when the mode, tonic, or chord changes.
+ */
+
 // Assuming PadModeManager is an object
 const PadModeManager = {
     appRef: null,
@@ -6,6 +16,12 @@ const PadModeManager = {
     currentModeId: null,
     currentStrategy: null,
 
+    /**
+     * Initializes the PadModeManager with references to the main application instance
+     * and the music theory service.
+     * @param {object} appInstance - A reference to the main `app` object.
+     * @param {object} musicTheoryServiceInstance - A reference to the `MusicTheoryService` instance.
+     */
     init(appInstance, musicTheoryServiceInstance) {
         this.appRef = appInstance;
         this.musicTheoryServiceRef = musicTheoryServiceInstance;
@@ -13,6 +29,12 @@ const PadModeManager = {
         // Strategies are expected to register themselves using registerStrategy
     },
 
+    /**
+     * Registers a pad mode strategy with the manager.
+     * Strategies are expected to have `getId`, `getName`, `getZoneLayoutOptions`, and `generateZoneData` methods.
+     * @param {object} strategy - The pad mode strategy instance to register.
+     *                          It should conform to the expected PadModeStrategy interface.
+     */
     registerStrategy(strategy) {
         if (strategy && strategy.getId && strategy.getName && strategy.getZoneLayoutOptions && strategy.generateZoneData) {
             const id = strategy.getId();
@@ -23,6 +45,14 @@ const PadModeManager = {
         }
     },
 
+    /**
+     * Sets the active pad mode by its ID.
+     * If a strategy for the given `modeId` is found, it becomes the `currentStrategy`,
+     * and the application is notified to update its pad zones.
+     * @param {string} modeId - The unique identifier of the pad mode strategy to activate.
+     * @returns {Promise<boolean>} A promise that resolves to `true` if the mode was successfully set and zones updated,
+     *                           `false` otherwise (e.g., if the strategy is not found or `appRef.updateZones` fails).
+     */
     async setActiveMode(modeId) {
         console.log("[PadModeManager.setActiveMode] Attempting to set active mode to:", modeId); // Log at entry
         if (!this.strategies[modeId]) {
@@ -47,15 +77,29 @@ const PadModeManager = {
         }
     },
 
+    /**
+     * Gets the ID of the currently active pad mode.
+     * @returns {string|null} The ID of the current mode, or `null` if no mode is active.
+     */
     getCurrentModeId() {
         return this.currentModeId;
     },
 
+    /**
+     * Gets the instance of the currently active pad mode strategy.
+     * @returns {object|null} The current strategy instance, or `null` if no mode is active.
+     */
     getCurrentStrategy() {
         return this.currentStrategy;
     },
 
-    // Handle tonic changes - delegate to current strategy if it supports it
+    /**
+     * Handles changes to the global tonic (root note).
+     * It delegates this event to the current strategy if the strategy implements an `onTonicChanged` method.
+     * Regardless of strategy support, it always triggers an update of the pad zones via `appRef.updateZones()`.
+     * @param {string} newTonic - The new tonic note (e.g., "C4").
+     * @returns {Promise<void>} A promise that resolves when the tonic change has been processed and zones updated.
+     */
     async onTonicChanged(newTonic) {
         console.log("[PadModeManager.onTonicChanged] Tonic changed to:", newTonic);
         if (this.currentStrategy && typeof this.currentStrategy.onTonicChanged === 'function') {
@@ -69,7 +113,14 @@ const PadModeManager = {
         }
     },
 
-     // Handle chord changes - delegate to current strategy if it supports it
+     /**
+      * Handles changes to the global current chord.
+      * It delegates this event to the current strategy if the strategy implements an `onChordChanged` method.
+      * Regardless of strategy support, it always triggers an update of the pad zones via `appRef.updateZones()`
+      * as chord changes can affect zone layouts or data in relevant modes.
+      * @param {string} newChord - The new current chord (e.g., "Cm7").
+      * @returns {Promise<void>} A promise that resolves when the chord change has been processed and zones updated.
+      */
     async onChordChanged(newChord) {
         console.log("[PadModeManager.onChordChanged] Chord changed to:", newChord);
         if (this.currentStrategy && typeof this.currentStrategy.onChordChanged === 'function') {

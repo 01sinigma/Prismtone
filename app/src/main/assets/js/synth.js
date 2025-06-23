@@ -1,3 +1,19 @@
+/**
+ * @file synth.js
+ * @description
+ * This file defines the main audio synthesis engine for Prismtone.
+ * It manages a pool of voices, handles note lifecycle (start, update, release),
+ * applies sound presets, and manages an FX chain.
+ * Key features include:
+ * - Polyphonic voice management using `voiceBuilder.js`.
+ * - Asynchronous processing of note events via an update queue (`_updateQueue`, `_processUpdateQueue`)
+ *   to prevent blocking the main JavaScript thread, ensuring UI responsiveness.
+ * - Master volume control with optional polyphony-based volume scaling.
+ * - Y-axis modulation પાર્શ્વભૂમિ for dynamic parameter changes based on touch position.
+ * - Global effects bus (`fxBus`) with configurable FX chains (delay, reverb, chorus, etc.).
+ * - Analyser node for visualizers.
+ */
+
 // Файл: app/src/main/assets/js/synth.js
 // ВЕРСИЯ С Master Volume Control, Polyphony Scaling И ГИБКИМ Y-Axis (Часть 1 и 2)
 // + АСИНХРОННАЯ ОЧЕРЕДЬ ЗАДАЧ
@@ -73,6 +89,15 @@ const synth = {
         debug: true
     },
 
+    /**
+     * Initializes the synthesizer engine.
+     * Sets up the master volume, limiter, analyser, and FX bus.
+     * Creates a pool of voice objects based on `config.polyphony` and `config.defaultPreset`,
+     * using `voiceBuilder.js` for each voice.
+     * Initializes global effects defined in `config.effectDefinitions`.
+     * Starts a silent notes check interval.
+     * Clears and prepares the asynchronous update queue.
+     */
     init() {
         console.log('[Synth v8 - AsyncQueue] Initializing...');
         try {
@@ -166,6 +191,10 @@ const synth = {
         }
     },
 
+    /**
+     * Applies master volume settings, including ceiling and polyphony scaling.
+     * Reads settings from `app.state` and applies them to `this.masterVolume`.
+     */
     applyMasterVolumeSettings() {
         if (!this.isReady || !this.masterVolume || !app || !app.state) {
             console.warn("[Synth applyMasterVolumeSettings] Not ready or masterVolume/app.state missing.");
@@ -189,6 +218,19 @@ const synth = {
         }
     },
 
+    /**
+     * Calculates a generic parameter value based on Y-axis position and a configuration object.
+     * Supports linear, exponential, logarithmic, and S-curve mappings.
+     * @param {number} yPosition - Normalized Y-axis position (0 to 1).
+     * @param {object} config - Configuration object for the calculation.
+     * @param {number} [config.minOutput=0] - The minimum output value.
+     * @param {number} [config.maxOutput=1] - The maximum output value.
+     * @param {number} [config.yThreshold=0.0] - The Y position below which `minOutput` is returned.
+     * @param {'linear'|'exponential'|'logarithmic'|'sCurve'} [config.curveType='linear'] - The type of curve to apply.
+     * @param {number} [config.curveFactor=1.0] - A factor influencing the shape of the curve.
+     * @param {'gain'|'db'} [config.outputType] - Optional. If 'db', -Infinity is used for values below threshold.
+     * @returns {number} The calculated parameter value.
+     */
     calculateGenericYParameter(yPosition, config) {
         const {
             minOutput = 0,
@@ -235,6 +277,12 @@ const synth = {
         return Math.max(minOutput, Math.min(maxOutput, finalOutput));
     },
 
+    /**
+     * Applies a sound preset to all voices in the synth.
+     * If `forceRecreation` is true, voices are completely rebuilt. Otherwise, parameters are updated.
+     * @param {object} presetData - The sound preset object containing component settings.
+     * @param {boolean} [forceRecreation=false] - Whether to force a full recreation of voice components.
+     */
     applyPreset(presetData, forceRecreation = false) {
         const t0 = performance.now();
         if (!this.isReady || !presetData) {
@@ -384,6 +432,15 @@ const synth = {
     // === НОВЫЕ ПУБЛИЧНЫЕ МЕТОДЫ: Только добавляют задачи в очередь ===
     // ====================================================================
 
+    /**
+     * Public method to start playing a note.
+     * Adds a 'start' task to the `_updateQueue` for asynchronous processing.
+     * Does not block the main thread.
+     * @param {number} frequency - The frequency of the note in Hz.
+     * @param {number} velocity - The velocity (amplitude) of the note (0 to 1).
+     * @param {number} yPosition - The normalized Y-axis position of the touch (0 to 1), used for modulation.
+     * @param {string|number} touchId - A unique identifier for the touch/pointer.
+     */
     startNote(frequency, velocity, yPosition, touchId) {
         this._updateQueue.set(touchId, {
             action: 'start',
@@ -395,6 +452,14 @@ const synth = {
         this._processUpdateQueue();
     },
 
+    /**
+     * Public method to update parameters of an already playing note.
+     * Adds an 'update' task to the `_updateQueue`.
+     * @param {number} frequency - The new frequency for the note.
+     * @param {number} velocity - The new velocity.
+     * @param {number} yPosition - The new Y-axis position.
+     * @param {string|number} touchId - The unique identifier for the touch/pointer.
+     */
     updateNote(frequency, velocity, yPosition, touchId) {
         const task = this._updateQueue.get(touchId) || { action: 'update', noteId: this.activeVoices.get(touchId)?.noteId };
         if (task.action === 'release') {
@@ -408,6 +473,11 @@ const synth = {
         this._processUpdateQueue();
     },
 
+    /**
+     * Public method to trigger the release phase of a note.
+     * Adds a 'release' task to the `_updateQueue`.
+     * @param {string|number} touchId - The unique identifier for the touch/pointer.
+     */
     triggerRelease(touchId) {
         const activeNoteId = this.activeVoices.get(touchId)?.noteId;
         this._updateQueue.set(touchId, { action: 'release', noteId: activeNoteId });
@@ -418,6 +488,12 @@ const synth = {
     // === НОВЫЕ ПРИВАТНЫЕ МЕТОДЫ: Обработчик очереди и исполнители ===
     // ====================================================================
 
+    /**
+     * Processes tasks from the `_updateQueue` asynchronously using `requestAnimationFrame`.
+     * Ensures that synth updates happen smoothly without blocking the UI.
+     * Iterates through the `_updateQueue`, calling corresponding `_execute...` methods.
+     * @private
+     */
     _processUpdateQueue() {
         if (this._isProcessingQueue || this._updateQueue.size === 0) {
             return;
@@ -463,6 +539,17 @@ const synth = {
         });
     },
 
+    /**
+     * Executes the logic for starting a new note. Called by `_processUpdateQueue`.
+     * Finds a free voice, applies the preset, sets parameters, and triggers the attack phase.
+     * Manages `activeVoices` map.
+     * @param {number} frequency - The frequency of the note.
+     * @param {number} velocity - The velocity of the note.
+     * @param {number} yPosition - The Y-axis position for modulation.
+     * @param {string|number} touchId - The touch identifier.
+     * @param {string} noteId - A unique ID for this specific note instance.
+     * @private
+     */
     _executeStartNote(frequency, velocity, yPosition, touchId, noteId) {
         if (!this.isReady) return;
         const voiceIndex = this.getFreeVoiceIndex(touchId);
@@ -499,6 +586,15 @@ const synth = {
         }
     },
 
+    /**
+     * Executes the logic for updating an existing note. Called by `_processUpdateQueue`.
+     * Finds the active voice associated with `touchId` and updates its parameters.
+     * @param {number} frequency - The new frequency.
+     * @param {number} velocity - The new velocity.
+     * @param {number} yPosition - The new Y-axis position.
+     * @param {string|number} touchId - The touch identifier.
+     * @private
+     */
     _executeUpdateNote(frequency, velocity, yPosition, touchId) {
         if (!this.isReady) return;
         const voiceIndex = this.findVoiceIndex(touchId);
@@ -522,6 +618,13 @@ const synth = {
         }
     },
 
+    /**
+     * Executes the logic for releasing a note. Called by `_processUpdateQueue`.
+     * Finds the active voice and triggers its release phase.
+     * Updates `activeVoices` map and `voiceState`.
+     * @param {string|number} touchId - The touch identifier.
+     * @private
+     */
     _executeTriggerRelease(touchId) {
         if (!this.isReady) return;
             const voiceIndex = this.findVoiceIndex(touchId);
@@ -548,6 +651,15 @@ const synth = {
     // === ВСЕ ОСТАЛЬНЫЕ МЕТОДЫ ОСТАЮТСЯ НИЖЕ (applyPreset, getAnalyser, и т.д.) ===
     // ====================================================================
 
+    /**
+     * Applies an FX chain to the synthesizer.
+     * Connects effects in the specified order to the `fxBus`.
+     * @param {Array<object>|object} fullFxChainData - An array of effect objects or a single FX chain object
+     *                                                containing the chain configuration and parameters.
+     *                                                If an array, it's assumed to be the `chain` property.
+     *                                                If an object, it should have a `chain` property.
+     *                                                Each effect object in the chain should have `id` and `params`.
+     */
     applyFxChain(fullFxChainData) {
         this.currentFxChainData = fullFxChainData ? JSON.parse(JSON.stringify(fullFxChainData)) : null;
         const fxChainSettingsArray = fullFxChainData ? fullFxChainData.effects : [];
@@ -656,7 +768,17 @@ const synth = {
         }
     },
 
+    /**
+     * Returns the analyser node for use by visualizers.
+     * @returns {Tone.Analyser|null} The analyser node or null if not ready.
+     */
     getAnalyser() { return this.analyser; },
+
+    /**
+     * Retrieves the current settings of all active global effects.
+     * Useful for saving the current FX state or for UI display.
+     * @returns {object} An object where keys are effect names and values are their current parameters.
+     */
     getCurrentFxSettings() {
         const settings = [];
         if (!this.isReady) return settings;

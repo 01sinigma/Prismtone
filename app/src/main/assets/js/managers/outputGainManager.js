@@ -1,11 +1,27 @@
+/**
+ * @file outputGainManager.js
+ * @description
+ * This manager is responsible for creating, configuring, and controlling a Tone.Gain node
+ * that acts as the final output gain stage for a synthesizer voice.
+ * It allows setting the overall volume of the voice before it's passed to the main output or effects chain.
+ */
+
 // Файл: app/src/main/assets/js/managers/outputGainManager.js
 // Менеджер для управления выходным гейном голоса (Tone.Gain)
 
 const outputGainManager = {
     /**
-     * Создает узел Tone.Gain для выходной громкости голоса.
-     * @param {object} [initialSettings={ gain: 0 }] - Начальные настройки (обычно гейн = 0).
-     * @returns {object} - Объект { nodes: { gainNode: Tone.Gain }, audioInput: Tone.Gain, audioOutput: Tone.Gain, modInputs: { gain }, error: string | null }
+     * Creates a new Tone.Gain node to control the output volume of a synth voice.
+     * @param {object} [initialSettings={ gain: 0 }] - Initial settings for the gain node.
+     *                                                Typically, the gain is initialized to 0 (or a preset master volume).
+     * @param {number} [initialSettings.gain=0] - The initial gain value (linear). 1 is no change, 0 is silence.
+     * @returns {{nodes: {gainNode: Tone.Gain}|null, audioInput: Tone.Gain|null, audioOutput: Tone.Gain|null, modInputs: {gain?: Tone.Param}, modOutputs: object, error: string|null}}
+     *          An object containing:
+     *          - `nodes`: Contains the created `gainNode` (Tone.Gain).
+     *          - `audioInput`, `audioOutput`: References to the gain node itself, as it processes audio.
+     *          - `modInputs`: An object with a `gain` property referencing the gain node's `gain` parameter, if modulatable.
+     *          - `modOutputs`: An empty object.
+     *          - `error`: An error message string if creation failed, otherwise null.
      */
     create(initialSettings = { gain: 0 }) {
         const t0 = performance.now();
@@ -38,10 +54,11 @@ const outputGainManager = {
     },
 
     /**
-     * Обновляет параметр gain выходного узла.
-     * @param {object} nodes - Объект узлов { gainNode }.
-     * @param {object} newSettings - Новые настройки { gain }.
-     * @returns {boolean} - true при успехе.
+     * Updates the gain parameter of an existing Tone.Gain node.
+     * @param {object} nodes - An object containing the `gainNode` (the Tone.Gain instance).
+     * @param {object} newSettings - An object containing the new `gain` value.
+     * @param {number} newSettings.gain - The new gain value to set.
+     * @returns {boolean} True if the update was successful, false otherwise.
      */
     update(nodes, newSettings) {
         const t0 = performance.now();
@@ -69,7 +86,13 @@ const outputGainManager = {
     },
 
     /**
-     * Соединяет выходной гейн с соседями по цепочке.
+     * Connects the output gain node to previous and next nodes in an audio chain.
+     * Specifically, it connects the `prevOutputNode` to the input of this gain node.
+     * The output of this gain node would be connected by the `voiceBuilder` or a similar orchestrator.
+     * @param {object} nodes - An object containing the `gainNode`.
+     * @param {Tone.AudioNode|null} prevOutputNode - The output of the preceding node in the chain (e.g., an oscillator or filter).
+     * @param {Tone.AudioNode|null} nextInputNode - The input of the succeeding node (not used by this specific `connectPeers` implementation for an output gain, as it mainly handles its input connection).
+     * @returns {boolean} True if the input connection was successful, false otherwise.
      */
     connectPeers(nodes, prevOutputNode, nextInputNode) {
         if (!nodes || !nodes.gainNode || !prevOutputNode) {
@@ -89,7 +112,12 @@ const outputGainManager = {
     },
 
     /**
-     * Выходной гейн не имеет состояния enable/bypass.
+     * Enables or disables the output gain component.
+     * For a simple gain node, this typically has no direct action beyond what its `gain` parameter dictates.
+     * A gain of 0 effectively disables it. This method logs the call but performs no direct action on the node.
+     * @param {object} nodes - The component's nodes.
+     * @param {boolean} isEnabled - The requested enabled state (ignored).
+     * @returns {boolean} Always true.
      */
     enable(nodes, isEnabled) {
         console.log(`[OutputGainManager] enable() called with ${isEnabled} (no action needed).`);
@@ -97,21 +125,32 @@ const outputGainManager = {
     },
 
     /**
-     * Подключает модулятор к параметру gain (если нужно).
+     * Connects a modulator source to the `gain` parameter of this output gain node.
+     * Delegates to `blankManager.connectModulator` for generic modulator connection logic.
+     * @param {object} nodes - An object containing the `gainNode` and its `modInputs` (which should include `gain`).
+     * @param {string} targetParamPath - Should be 'gain' to modulate the output gain.
+     * @param {Tone.Signal|Tone.AudioNode} sourceNode - The modulator's output node.
+     * @returns {boolean} The result of the `blankManager.connectModulator` call.
      */
     connectModulator(nodes, targetParamPath, sourceNode) {
         return blankManager.connectModulator(nodes, targetParamPath, sourceNode);
     },
 
     /**
-     * Отключает модулятор от параметра gain.
+     * Disconnects a modulator source from the `gain` parameter of this output gain node.
+     * Delegates to `blankManager.disconnectModulator`.
+     * @param {object} nodes - An object containing the `gainNode`.
+     * @param {string} targetParamPath - Should be 'gain'.
+     * @param {Tone.Signal|Tone.AudioNode} sourceNode - The modulator's output node.
+     * @returns {boolean} The result of the `blankManager.disconnectModulator` call.
      */
     disconnectModulator(nodes, targetParamPath, sourceNode) {
         return blankManager.disconnectModulator(nodes, targetParamPath, sourceNode);
     },
 
     /**
-     * Уничтожает узел гейна.
+     * Disposes of the Tone.Gain node, freeing its resources.
+     * @param {object} nodes - An object containing the `gainNode` to be disposed.
      */
     dispose(nodes) {
         const t0 = performance.now();
