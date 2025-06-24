@@ -2,64 +2,47 @@
   "id": "stellar_nursery",
   "type": "visualizer",
   "name": "Stellar Nursery",
-  "version": "6.1.0",
-  "description": "Interactive cosmic ecosystem with temporary antimatter transformation of particles. Version 6.1.",
+  "version": "6.0",
+  "description": "Interactive nebula with antimatter physics, star polarity, and advanced interactions.",
   "active": true,
   "data": {
     "rendererScript": "js/visualizers/StellarNurseryRenderer.js",
     "settings": {
       "fadeSpeed": 0.25,
-      "windStrength": 0.3,
-      "globalFriction": 0.97,
+      "particleCount": 800,
+      "windStrength": 1,
+      "friction": 0.80,
 
-      "backgroundParticles": {
-        "count": 800,
-        "attractionToCores": 50,
-        "repulsionFactor": 0.005,
-        "repulsionActive": true,
-        "repulsionRadiusSq": 2500,
-        "attractionToTransformedAntimatter": 75,
-        "transformed": {
-          "lifeMs": 3000,
-          "initialSpeedBoost": 1.5,
-          "gravityImmunityDurationMs": 1500,
-          "coolDownMs": 1000
-        },
-        "antimatterTransformation": {
-          "durationMs": 2000,
-          "coolDownMs": 1500,
-          "impulseFactor": 1.5,
-          "color": "themeError",
-          "repulsionFromStarsFactor": 0.2,
-          "repulsionFromCoresFactor": 0.2,
-          "attractionToNormalFactor": 100
-        }
+      "coreMinSize": 8,
+      "coreMaxSize": 45,
+      "timeToMaxSizeMs": 2000,
+      "maxMassFactor": 10,
+      "energyGain": 0.08,
+      "inertiaDamping": 30,
+
+      "attraction": 50,
+      "particleRepulsion": 0.02,
+
+      "maxStars": 25,
+      "starGravityFactor": 600,
+      "starPolarityStrength": 2.0,
+      "starBounceDamping": -0.6,
+      "starFadeStartSize": 35,
+      "starDefaultDecay": 0.5,
+
+      "supernova": {
+        "radius": 250,
+        "strength": 25,
+        "antimatterCount": 70,
+        "antimatterSpeed": 4,
+        "antimatterLifeMs": 1000
       },
 
-      "touchCores": {
-        "minSize": 8,
-        "maxSize": 45,
-        "timeToMaxSizeMs": 2000,
-        "maxMassFactor": 10,
-        "energyGain": 0.015,
-        "inertiaDamping": 30,
-        "historyLength": 5,
-        "windInfluence": 0.5
-
-      },
-
-      "stars": {
-        "maxCount": 15,
-        "gravityFactor": 800,
-        "polarityStrength": 2.0,
-        "bounceDamping": -0.6,
-        "defaultDecay": 0.0025,
-        "fadeStartSize": 15,
-        "supernova": {
-          "starPushForce": 5,
-          "antimatterConversionRadiusFactor": 4,
-          "maxParticlesToTransform": 20
-        }
+      "antimatterParticle": {
+        "lifeMs": 1000,
+        "coolDownMs": 1500,
+        "antigravityFactor": -2,
+        "color": "accent"
       }
     }
   }

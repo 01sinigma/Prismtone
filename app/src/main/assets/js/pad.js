@@ -27,6 +27,7 @@ const pad = {
     isReady: false,
     activeTouchesInternal: new Map(), // Хранит { pointerId, x, y, currentZoneIndex, previousZoneIndex, baseFrequency, state }
     _currentDisplayedZones: [],
+    _zoneMidiNoteToIndexMap: new Map(), // Карта для быстрого поиска индекса зоны по MIDI ноте
     cachedRect: null,
     lastInteractionTime: 0,
 
@@ -230,6 +231,7 @@ const pad = {
 
         this.zonesContainer.innerHTML = '';
         this.labelsContainer.innerHTML = '';
+        this._zoneMidiNoteToIndexMap.clear(); // Очищаем карту перед заполнением
 
         if (this._currentDisplayedZones.length === 0) {
             console.warn("[Pad.drawZones v10] No zonesData to draw.");
@@ -253,7 +255,12 @@ const pad = {
 
         this._currentDisplayedZones.forEach((zone, index) => {
             console.log(`[Pad.drawZones] Drawing zone ${index}:`, zone.noteName,`startX: ${zone.startX}, width: ${(zone.endX - zone.startX) * 100}%`);
-            zone.index = index;
+            zone.index = index; // Убедимся, что у каждой зоны есть ее индекс
+
+            // Заполняем карту <midiNote, zoneIndex>
+            if (zone.midiNote !== undefined) {
+                this._zoneMidiNoteToIndexMap.set(zone.midiNote, index);
+            }
 
             const zoneElement = document.createElement('div');
             zoneElement.className = 'xy-pad-zone-area';
@@ -347,11 +354,16 @@ const pad = {
                 // ВАЖНО: Вызываем неблокирующий метод synth.js
                 synth.startNote(noteAction.note.frequency, 0.7, touchInfo.y, event.pointerId);
 
-                const zone = this._currentDisplayedZones.find(z => z.midiNote === noteAction.note.midiNote);
+                let zoneIndex = -1;
+                if (noteAction.note && noteAction.note.midiNote !== undefined) {
+                    zoneIndex = this._zoneMidiNoteToIndexMap.get(noteAction.note.midiNote);
+                    if (zoneIndex === undefined) zoneIndex = -1; // Если нота не найдена в карте
+                }
+
                 this.activeTouchesInternal.set(event.pointerId, {
                     pointerId: event.pointerId, x: touchInfo.x, y: touchInfo.y,
-                    currentZoneIndex: zone ? zone.index : -1,
-                    previousZoneIndex: zone ? zone.index : -1,
+                    currentZoneIndex: zoneIndex,
+                    previousZoneIndex: zoneIndex,
                     baseFrequency: noteAction.note.frequency,
                     state: 'down'
                 });
@@ -425,7 +437,11 @@ const pad = {
 
         if (noteAction) {
             const noteOrNewNote = noteAction.newNote || noteAction.note;
-            let newZoneIndex = noteOrNewNote ? this._currentDisplayedZones.findIndex(z => z.midiNote === noteOrNewNote.midiNote) : -1;
+            let newZoneIndex = -1;
+            if (noteOrNewNote && noteOrNewNote.midiNote !== undefined) {
+                newZoneIndex = this._zoneMidiNoteToIndexMap.get(noteOrNewNote.midiNote);
+                if (newZoneIndex === undefined) newZoneIndex = -1;
+            }
 
             if (VibrationService.isEnabled && newZoneIndex !== -1 && newZoneIndex !== previousZoneIndex) {
                 VibrationService.trigger('zone_cross', touchInfo.y);

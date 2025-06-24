@@ -24,8 +24,8 @@
         },
 
         "physics": {
-          "windStrength": 0.4,
-          "friction": 0.97,
+          "windStrength": 1,
+          "friction": 0.80,
           "audioEnergyMultiplier": 3.0
         },
 
@@ -35,12 +35,12 @@
           "energyChargeRate": 0.05,
           "pollination": {
             "energyCost": 0.8,
-            "newSpiritsCount": 3,
-            "flashDurationMs": 300
+            "newSpiritsCount": 5,
+            "flashDurationMs": 200
           },
           "multiTouchBridge": {
             "lineWidth": 2.0,
-            "glow": 10
+            "glow": 5
           },
           "pinchExplosion": {
             "strength": 5.0,

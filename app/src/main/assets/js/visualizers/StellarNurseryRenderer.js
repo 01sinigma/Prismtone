@@ -1,5 +1,5 @@
 // Файл: app/src/main/assets/js/visualizers/StellarNurseryRenderer.js
-// ВЕРСИЯ 6.1: Временная антиматериальная трансформация частиц, коррекция яркости и взаимодействий.
+// ВЕРСИЯ 6.2.1: Исправлена ошибка с extractBaseColor.
 
 class StellarNurseryRenderer {
 
@@ -27,6 +27,9 @@ class StellarNurseryRenderer {
     }
 
     _hslToRgb(hslColor) {
+        if (this.hslToRgbCache.has(hslColor)) {
+            return this.hslToRgbCache.get(hslColor);
+        }
         if (typeof hslColor !== 'string') return null;
         const match = hslColor.match(/^hsl\((\d+),\s*([\d.]+)%,\s*([\d.]+)%\)$/i);
         if (!match) return null;
@@ -35,50 +38,84 @@ class StellarNurseryRenderer {
         let s = parseFloat(match[2]) / 100;
         let l = parseFloat(match[3]) / 100;
 
+        let r, g, b;
+
         if (s === 0) {
-            const val = Math.round(l * 255);
-            return { r: val, g: val, b: val };
+            r = g = b = l; // achromatic
+        } else {
+            const hueToRgb = (p, q, t) => {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1 / 6) return p + (q - p) * 6 * t;
+                if (t < 1 / 2) return q;
+                if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                return p;
+            };
+            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            const p = 2 * l - q;
+            h /= 360;
+            r = hueToRgb(p, q, h + 1 / 3);
+            g = hueToRgb(p, q, h);
+            b = hueToRgb(p, q, h - 1 / 3);
         }
 
-        const hueToRgb = (p, q, t) => {
-            if (t < 0) t += 1;
-            if (t > 1) t -= 1;
-            if (t < 1 / 6) return p + (q - p) * 6 * t;
-            if (t < 1 / 2) return q;
-            if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-            return p;
-        };
-
-        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-        const p = 2 * l - q;
-        h /= 360;
-
-        const r = hueToRgb(p, q, h + 1 / 3);
-        const g = hueToRgb(p, q, h);
-        const b = hueToRgb(p, q, h - 1 / 3);
-
-        return {
+        const result = {
             r: Math.round(r * 255),
             g: Math.round(g * 255),
             b: Math.round(b * 255),
         };
+        this.hslToRgbCache.set(hslColor, result);
+        return result;
     }
 
     _extractAlphaFromColor(colorString) {
-        if (typeof colorString !== 'string') return 1.0;
-        if (colorString.startsWith('rgba')) {
-            const match = colorString.match(/rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*([\d.]+)\s*\)/i);
-            if (match && match[1] !== undefined) {
-                return parseFloat(match[1]);
-            }
-        } else if (colorString.startsWith('hsla')) {
-            const match = colorString.match(/hsla\(\s*\d+\s*,\s*[\d.]+%?\s*,\s*[\d.]+%?\s*,\s*([\d.]+)\s*\)/i);
-            if (match && match[1] !== undefined) {
-                return parseFloat(match[1]);
+        if (this.extractAlphaCache.has(colorString)) {
+            return this.extractAlphaCache.get(colorString);
+        }
+        let alpha = 1.0;
+        if (typeof colorString === 'string') {
+            if (colorString.startsWith('rgba')) {
+                const match = colorString.match(/rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*([\d.]+)\s*\)/i);
+                if (match && match[1] !== undefined) {
+                    alpha = parseFloat(match[1]);
+                }
+            } else if (colorString.startsWith('hsla')) {
+                const match = colorString.match(/hsla\(\s*\d+\s*,\s*[\d.]+%?\s*,\s*[\d.]+%?\s*,\s*([\d.]+)\s*\)/i);
+                if (match && match[1] !== undefined) {
+                    alpha = parseFloat(match[1]);
+                }
             }
         }
-        return 1.0;
+        this.extractAlphaCache.set(colorString, alpha);
+        return alpha;
     }
+
+    _getRgbComponents(colorString) {
+        if (!colorString) return null;
+        if (this.rgbComponentsCache.has(colorString)) {
+            return this.rgbComponentsCache.get(colorString);
+        }
+
+        let result = null;
+        if (typeof colorString === 'string') {
+            if (colorString.startsWith('hsl')) {
+                result = this._hslToRgb(colorString.replace('hsla', 'hsl'));
+            } else if (colorString.startsWith('#') && this.globalVisualizerRef && typeof this.globalVisualizerRef.hexToRgb === 'function') {
+                result = this.globalVisualizerRef.hexToRgb(colorString);
+            } else if (colorString.startsWith('rgb')) {
+                const match = colorString.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/i);
+                if (match) {
+                    result = { r: parseInt(match[1], 10), g: parseInt(match[2], 10), b: parseInt(match[3], 10) };
+                }
+            }
+        }
+        if (!result) {
+            // console.warn(`[StellarNurseryRenderer] Could not parse RGB from: ${colorString}`);
+        }
+        this.rgbComponentsCache.set(colorString, result);
+        return result;
+    }
+
 
     constructor() {
         this.ctx = null;
@@ -87,14 +124,20 @@ class StellarNurseryRenderer {
         this.themeColors = {};
         this.globalVisualizerRef = null;
 
+        this.particlePool = [];
         this.particles = [];
         this.stars = [];
         this.touchCores = new Map();
+        this.supernovaEffectQueue = [];
+
+        this.hslToRgbCache = new Map();
+        this.extractAlphaCache = new Map();
+        this.rgbComponentsCache = new Map();
     }
 
     init(ctx, canvas, initialSettings, themeColors, globalVisualizerRef, analyserNodeRef) {
         if (!ctx || !canvas || !globalVisualizerRef) {
-            console.error(`[StellarNurseryRenderer v6.1] FATAL: Ctx, Canvas, or GlobalVisualizerRef not provided! Renderer: ${this.constructor.name}`);
+            console.error(`[StellarNurseryRenderer v6.2.1] FATAL: Ctx, Canvas, or GlobalVisualizerRef not provided! Renderer: ${this.constructor.name}`);
             return;
         }
         this.ctx = ctx;
@@ -146,7 +189,8 @@ class StellarNurseryRenderer {
                 supernova: {
                     starPushForce: 5,
                     antimatterConversionRadiusFactor: 4,
-                    maxParticlesToTransform: 30
+                    maxParticlesToTransform: 30,
+                    maxQueueLength: 5
                 }
             }
         };
@@ -158,13 +202,22 @@ class StellarNurseryRenderer {
 
         this.stars = [];
         this.touchCores.clear();
+        this.supernovaEffectQueue = [];
+
+        this.hslToRgbCache.clear();
+        this.extractAlphaCache.clear();
+        this.rgbComponentsCache.clear();
+
 
         this.onResize();
-        console.log(`[StellarNurseryRenderer v6.1] Initialized. Max stars: ${this.settings.stars?.maxCount}.`);
+        console.log(`[StellarNurseryRenderer v6.2.1] Initialized. Max stars: ${this.settings.stars?.maxCount}.`);
     }
 
     onThemeChange(themeColors) {
         this.themeColors = themeColors || {};
+        this.hslToRgbCache.clear();
+        this.extractAlphaCache.clear();
+        this.rgbComponentsCache.clear();
         this._initBackgroundParticles();
     }
 
@@ -176,33 +229,127 @@ class StellarNurseryRenderer {
     }
 
     _initBackgroundParticles() {
-        if (!this.canvas || !this.globalVisualizerRef || !this.themeColors.primary || !this.settings.backgroundParticles) {
+        if (!this.canvas || !this.globalVisualizerRef || !this.settings.backgroundParticles) {
+            console.warn("[StellarNurseryRenderer._initBackgroundParticles] Missing prerequisites, skipping particle init.");
             return;
         }
-        this.particles = [];
+        // Ensure themeColors.primary exists, or use a default
+        const baseColor = (this.themeColors && this.themeColors.primary) ? this.themeColors.primary : '#00BFFF';
+
+
         const settings = this.settings.backgroundParticles;
         const count = settings.count;
-        const baseColor = this.themeColors.primary || '#00BFFF';
 
         for (let i = 0; i < count; i++) {
+            let p = this.particlePool[i];
+            if (!p) {
+                p = {};
+                this.particlePool[i] = p;
+            }
+
             const particleColor = this.globalVisualizerRef.getColorWithAlpha(baseColor, Math.random() * 0.3 + 0.4);
-            this.particles.push({
-                x: Math.random() * this.canvas.width,
-                y: Math.random() * this.canvas.height,
-                vx: 0, vy: 0,
-                size: 0.5 + Math.random() * 1.5,
-                color: particleColor,
-                originalColor: particleColor,
 
-                isTransformed: false,
-                transformEndTime: 0,
-                gravityImmunityEndTime: 0,
+            p.x = Math.random() * this.canvas.width;
+            p.y = Math.random() * this.canvas.height;
+            p.vx = 0; p.vy = 0;
+            p.size = 0.5 + Math.random() * 1.5;
+            p.color = particleColor;
+            p.originalColor = particleColor;
 
-                isAntimatter: false,
-                antimatterEndTime: 0,
-                originalColorBeforeAntimatter: null,
-                antimatterTransformationStartTime: 0
-            });
+            p.isTransformed = false;
+            p.transformEndTime = 0;
+            p.gravityImmunityEndTime = 0;
+
+            p.isAntimatter = false;
+            p.antimatterEndTime = 0;
+            p.originalColorBeforeAntimatter = null;
+            p.antimatterTransformationStartTime = 0;
+            p.antimatterStartRgb = null;
+            p.antimatterEndRgb = null;
+            p.id = i;
+        }
+        this.particles = this.particlePool.slice(0, count);
+        if (this.particlePool.length > count) {
+             this.particlePool.length = count;
+        }
+    }
+
+    _processSupernovaEffects(now) {
+        if (this.supernovaEffectQueue.length === 0) return;
+
+        for (let i = this.supernovaEffectQueue.length - 1; i >= 0; i--) {
+            const effect = this.supernovaEffectQueue[i];
+            let particlesProcessedThisFrame = 0;
+
+            while (effect.processedIndex < effect.candidates.length && particlesProcessedThisFrame < effect.particlesToTransformPerFrame) {
+                if (!effect.candidates || effect.processedIndex >= effect.candidates.length) {
+                    console.warn("[StellarNurseryRenderer._processSupernovaEffects] Invalid state in supernova queue (candidates list or index out of bounds). Effect aborted.");
+                    effect.processedIndex = effect.candidates ? effect.candidates.length : 0;
+                    break;
+                }
+                const p = effect.candidates[effect.processedIndex];
+
+                if (!p) {
+                    console.warn(`[StellarNurseryRenderer._processSupernovaEffects] Undefined particle in supernova queue at index ${effect.processedIndex}. Effect:`, effect);
+                    effect.processedIndex++;
+                    particlesProcessedThisFrame++;
+                    continue;
+                }
+
+                if (p.isAntimatter || p.isTransformed) {
+                    effect.processedIndex++;
+                    particlesProcessedThisFrame++;
+                    continue;
+                }
+
+                if (!effect.amTransformSettings || typeof effect.conversionRadius === 'undefined' || typeof effect.antimatterColorString === 'undefined') {
+                    console.error("[StellarNurseryRenderer._processSupernovaEffects] Missing critical effect settings. Effect aborted.", effect);
+                    effect.processedIndex = effect.candidates.length;
+                    break;
+                }
+
+                const originalColor = p.color;
+                const startRgb = this._getRgbComponents(effect.antimatterColorString);
+                const endRgb = this._getRgbComponents(originalColor);
+
+                if (!startRgb || !endRgb) {
+                    console.warn(`[StellarNurseryRenderer._processSupernovaEffects] Failed to parse RGB for AM transform. Skipping particle. Start: ${effect.antimatterColorString}, End: ${originalColor}`);
+                    effect.processedIndex++;
+                    particlesProcessedThisFrame++;
+                    continue;
+                }
+
+                p.isAntimatter = true;
+                p.originalColorBeforeAntimatter = originalColor;
+                p.color = effect.antimatterColorString;
+                p.antimatterEndTime = now + (effect.amTransformSettings.durationMs || 2000);
+                p.antimatterTransformationStartTime = now;
+                p.antimatterStartRgb = startRgb;
+                p.antimatterEndRgb = endRgb;
+
+                const dx = p.x - effect.sourceStarX;
+                const dy = p.y - effect.sourceStarY;
+                const distSq = dx * dx + dy * dy;
+                const dist = Math.sqrt(distSq) || 1;
+
+                const speed = (effect.amTransformSettings.impulseFactor || 1.0) *
+                              (1 + effect.sourceStarMass / 15) *
+                              (1 - dist / effect.conversionRadius);
+
+                p.vx = effect.sourceStarVx * 0.05 + (dx / dist) * speed;
+                p.vy = effect.sourceStarVy * 0.05 + (dy / dist) * speed;
+
+                p.isTransformed = false;
+                p.transformEndTime = 0;
+                p.gravityImmunityEndTime = 0;
+
+                effect.processedIndex++;
+                particlesProcessedThisFrame++;
+            }
+
+            if (effect.processedIndex >= effect.candidates.length) {
+                this.supernovaEffectQueue.splice(i, 1);
+            }
         }
     }
 
@@ -210,7 +357,7 @@ class StellarNurseryRenderer {
         if (!touchData || !this.canvas || !this.globalVisualizerRef || !this.settings.touchCores) return;
         const coreSettings = this.settings.touchCores;
 
-        let coreColor = this.themeColors.accent || '#FFD54F';
+        let coreColor = (this.themeColors && this.themeColors.accent) ? this.themeColors.accent : '#FFD54F';
         if (touchData.noteInfo?.midiNote !== undefined && this.globalVisualizerRef.noteColors?.length > 0) {
             coreColor = this.globalVisualizerRef.noteColors[touchData.noteInfo.midiNote % 12];
         }
@@ -271,7 +418,6 @@ class StellarNurseryRenderer {
         if (!this.settings.stars?.supernova || !this.settings.backgroundParticles?.antimatterTransformation) return;
         const supernovaSettings = this.settings.stars.supernova;
         const amTransformSettings = this.settings.backgroundParticles.antimatterTransformation;
-        const now = performance.now();
 
         this.stars.forEach(otherStar => {
             if (otherStar.id === star.id) return;
@@ -286,17 +432,15 @@ class StellarNurseryRenderer {
             }
         });
 
-        let transformedCount = 0;
+        if (this.supernovaEffectQueue.length >= (supernovaSettings.maxQueueLength || 5)) {
+            return;
+        }
+
+        const candidates = [];
         const conversionRadius = star.size * (supernovaSettings.antimatterConversionRadiusFactor || 1);
         const conversionRadiusSq = conversionRadius * conversionRadius;
 
-        let antimatterColorString = amTransformSettings.color;
-        if (antimatterColorString === "themeError" || antimatterColorString === "error") {
-            antimatterColorString = this.themeColors.error || '#FF1744';
-        }
-
         this.particles.forEach(p => {
-            if (transformedCount >= (supernovaSettings.maxParticlesToTransform || 10)) return;
             if (p.isAntimatter || p.isTransformed) return;
 
             const dx = p.x - star.x;
@@ -304,24 +448,39 @@ class StellarNurseryRenderer {
             const distSq = dx * dx + dy * dy;
 
             if (distSq < conversionRadiusSq) {
-                p.isAntimatter = true;
-                p.originalColorBeforeAntimatter = p.color;
-                p.color = antimatterColorString;
-                p.antimatterEndTime = now + (amTransformSettings.durationMs || 2000);
-                p.antimatterTransformationStartTime = now;
-
-                const dist = Math.sqrt(distSq) || 1;
-                const speed = (amTransformSettings.impulseFactor || 1.0) * (1 + star.mass / 15) * (1 - dist / conversionRadius);
-                p.vx = star.vx * 0.05 + (dx / dist) * speed;
-                p.vy = star.vy * 0.05 + (dy / dist) * speed;
-
-                p.isTransformed = false;
-                p.transformEndTime = 0;
-                p.gravityImmunityEndTime = 0;
-
-                transformedCount++;
+                candidates.push(p);
             }
         });
+
+        if (candidates.length > 0) {
+            candidates.sort((a, b) => {
+                const distSqA = Math.pow(a.x - star.x, 2) + Math.pow(a.y - star.y, 2);
+                const distSqB = Math.pow(b.x - star.x, 2) + Math.pow(b.y - star.y, 2);
+                return distSqA - distSqB;
+            });
+
+            const particlesToTake = Math.min(candidates.length, supernovaSettings.maxParticlesToTransform || 10);
+            const selectedCandidates = candidates.slice(0, particlesToTake);
+
+            let amColorString = amTransformSettings.color;
+            if (amColorString === "themeError" || amColorString === "error") {
+                amColorString = (this.themeColors && this.themeColors.error) ? this.themeColors.error : '#FF1744';
+            }
+
+            this.supernovaEffectQueue.push({
+                sourceStarX: star.x,
+                sourceStarY: star.y,
+                sourceStarMass: star.mass,
+                sourceStarVx: star.vx,
+                sourceStarVy: star.vy,
+                conversionRadius: conversionRadius,
+                candidates: selectedCandidates,
+                processedIndex: 0,
+                particlesToTransformPerFrame: 5,
+                amTransformSettings: { ...amTransformSettings },
+                antimatterColorString: amColorString
+            });
+        }
     }
 
     _transformNearbyParticles(sourceObject, eventType = "collision") {
@@ -347,26 +506,15 @@ class StellarNurseryRenderer {
                 const speedBoostFactor = (1 - dist / radius);
                 p.vx += (dx / dist) * transformSettings.initialSpeedBoost * speedBoostFactor;
                 p.vy += (dy / dist) * transformSettings.initialSpeedBoost * speedBoostFactor;
-                p.color = this.themeColors.accent || '#FFFFFF';
+                p.color = (this.themeColors && this.themeColors.accent) ? this.themeColors.accent : '#FFFFFF';
             }
         });
     }
 
     _getColorDifference(color1, color2) {
         if (color1 === color2) return 0;
-        let rgb1, rgb2;
-
-        if (typeof color1 === 'string' && color1.startsWith('hsl')) {
-            rgb1 = this._hslToRgb(color1);
-        } else {
-            rgb1 = this.globalVisualizerRef.hexToRgb(color1);
-        }
-
-        if (typeof color2 === 'string' && color2.startsWith('hsl')) {
-            rgb2 = this._hslToRgb(color2);
-        } else {
-            rgb2 = this.globalVisualizerRef.hexToRgb(color2);
-        }
+        const rgb1 = this._getRgbComponents(color1);
+        const rgb2 = this._getRgbComponents(color2);
 
         if (!rgb1 || !rgb2) {
             return 0.5;
@@ -435,10 +583,8 @@ class StellarNurseryRenderer {
 
                 core.vx *= globalFriction;
                 core.vy *= globalFriction;
-                 // Проверка на NaN/Infinity для скоростей ядер
                 if (isNaN(core.vx) || isNaN(core.vy) || !isFinite(core.vx) || !isFinite(core.vy)) {
-                    core.vx = 0;
-                    core.vy = 0;
+                    core.vx = 0; core.vy = 0;
                 }
             } else {
                 this.onTouchDown(touch);
@@ -454,11 +600,6 @@ class StellarNurseryRenderer {
         const amTransformSettings = bgSettings.antimatterTransformation;
         const globalFriction = this.settings.globalFriction;
 
-        let antimatterColorString = amTransformSettings.color;
-         if (antimatterColorString === "themeError" || antimatterColorString === "error") {
-            antimatterColorString = this.themeColors.error || '#FF1744';
-        }
-
         this.particles.forEach(p => {
             let totalForceX = 0;
             let totalForceY = 0;
@@ -470,34 +611,32 @@ class StellarNurseryRenderer {
 
                 if (amTimeLeft <= 0) {
                     const coolDownProgress = Math.min(1, (now - p.antimatterEndTime) / (amTransformSettings.coolDownMs || 1));
-
-                    const startColor = antimatterColorString;
-                    const endColor = p.originalColorBeforeAntimatter;
-
-                    let startRGB = this._isObject(startColor) ? startColor : ( (typeof startColor === 'string' && startColor.startsWith('hsl')) ? this._hslToRgb(startColor) : this.globalVisualizerRef.hexToRgb(startColor));
-                    let endRGB = this._isObject(endColor) ? endColor : ( (typeof endColor === 'string' && endColor.startsWith('hsl')) ? this._hslToRgb(endColor) : this.globalVisualizerRef.hexToRgb(endColor) );
-
-                    const targetAlpha = this._extractAlphaFromColor(p.originalColorBeforeAntimatter || p.originalColor) || 0.5;
+                    const startRGB = p.antimatterStartRgb;
+                    const endRGB = p.antimatterEndRgb;
 
                     if (startRGB && endRGB) {
+                        const targetAlpha = this._extractAlphaFromColor(p.originalColorBeforeAntimatter || p.originalColor) || 0.5;
                         const r = Math.floor(startRGB.r + (endRGB.r - startRGB.r) * coolDownProgress);
                         const g = Math.floor(startRGB.g + (endRGB.g - startRGB.g) * coolDownProgress);
                         const b = Math.floor(startRGB.b + (endRGB.b - startRGB.b) * coolDownProgress);
                         p.color = `rgba(${r},${g},${b},${targetAlpha})`;
+                    } else {
+                        p.color = p.originalColorBeforeAntimatter || p.originalColor || '#FFFFFF';
                     }
 
                     if (coolDownProgress >= 1) {
                         p.isAntimatter = false;
                         p.color = p.originalColorBeforeAntimatter || p.originalColor;
                         p.originalColorBeforeAntimatter = null;
+                        p.antimatterStartRgb = null;
+                        p.antimatterEndRgb = null;
                         immunityActive = false;
                     }
                 }
-                // Взаимодействия для p, когда p.isAntimatter == true:
                 this.stars.forEach(star => {
                     const dx = p.x - star.x; const dy = p.y - star.y;
                     const distSq = dx * dx + dy * dy;
-                    if (distSq > 1) { // Пропускаем если distSq=0 или очень мало
+                    if (distSq > 1) {
                         const dist = Math.sqrt(distSq);
                         const force = (amTransformSettings.repulsionFromStarsFactor || 0) * star.mass / (distSq * 0.01 + 1);
                         totalForceX += (dx / dist) * force; totalForceY += (dy / dist) * force;
@@ -512,68 +651,59 @@ class StellarNurseryRenderer {
                         totalForceX += (dx / dist) * force; totalForceY += (dy / dist) * force;
                     }
                 });
-            }
-            else if (p.isTransformed) {
+
+            } else if (p.isTransformed) {
                 immunityActive = now < p.gravityImmunityEndTime;
                 const timeLeft = p.transformEndTime - now;
+
                 if (timeLeft <= 0) {
                     p.isTransformed = false;
                     p.color = p.originalColor;
+                    immunityActive = false;
                 } else if (timeLeft <= transformSettings.coolDownMs) {
                     const coolDownProgress = 1 - (timeLeft / transformSettings.coolDownMs);
-                    const startColorHex = this.themeColors.accent || '#FFFFFF';
-                    const endColorHex = p.originalColor;
-                    const startRGB = this.globalVisualizerRef.hexToRgb(startColorHex);
-                    const endRGB = this.globalVisualizerRef.hexToRgb(this.globalVisualizerRef.extractBaseColor(endColorHex));
-                    const originalAlpha = this._extractAlphaFromColor(endColorHex) || 0.3;
+                    const startColorHex = (this.themeColors && this.themeColors.accent) ? this.themeColors.accent : '#FFFFFF';
+                    const endColorString = p.originalColor;
+
+                    const startRGB = this._getRgbComponents(startColorHex);
+                    // ***** Исправленная строка *****
+                    const endRGB = this._getRgbComponents(endColorString);
+                    // *****************************
+                    const originalAlpha = this._extractAlphaFromColor(endColorString) || 0.3;
 
                     if (startRGB && endRGB) {
                         const r = Math.floor(startRGB.r + (endRGB.r - startRGB.r) * coolDownProgress);
                         const g = Math.floor(startRGB.g + (endRGB.g - startRGB.g) * coolDownProgress);
                         const b = Math.floor(startRGB.b + (endRGB.b - startRGB.b) * coolDownProgress);
                         p.color = `rgba(${r},${g},${b},${originalAlpha})`;
-                    } else if (timeLeft <= 0) {
+                    } else if (timeLeft <=0) {
                          p.color = p.originalColor;
                     }
                 }
             }
 
             if (!immunityActive) {
-                 totalForceX += windX;
-                 totalForceY += windY;
+                 totalForceX += windX * (bgSettings.windStrength || 0.1);
+                 totalForceY += windY * (bgSettings.windStrength || 0.1);
             }
 
-            this.particles.forEach(otherP => {
-                if (p === otherP) return;
-                const dx = p.x - otherP.x;
-                const dy = p.y - otherP.y;
-                const distSq = dx * dx + dy * dy;
+            if (bgSettings.repulsionActive && (bgSettings.repulsionFactor || 0) > 0 && !p.isAntimatter && !p.isTransformed) {
+                for (let j = 0; j < this.particles.length; j++) {
+                    const otherP = this.particles[j];
+                    if (p === otherP || otherP.isAntimatter || otherP.isTransformed) continue;
 
-                if (distSq > 0.1) { // Только если не слишком близко
-                    let dist = 0;
-                    let interactionOccurred = false;
+                    const dx = p.x - otherP.x;
+                    const dy = p.y - otherP.y;
+                    const distSq = dx * dx + dy * dy;
 
-                    if (!p.isAntimatter && otherP.isAntimatter) {
-                         if (distSq < ((bgSettings.repulsionRadiusSq || 2500) * 4)) {
-                            dist = dist || Math.sqrt(distSq);
-                            const force = (bgSettings.attractionToTransformedAntimatter || 0) / (distSq * 0.001 + 50);
-                            totalForceX += (otherP.x - p.x) / dist * force;
-                            totalForceY += (otherP.y - p.y) / dist * force;
-                            interactionOccurred = true;
-                        }
-                    } else if (!p.isAntimatter && !otherP.isAntimatter &&
-                               !p.isTransformed && !otherP.isTransformed &&
-                               bgSettings.repulsionActive && (bgSettings.repulsionFactor || 0) > 0) {
-                        if (distSq < (bgSettings.repulsionRadiusSq || 2500)) {
-                            dist = dist || Math.sqrt(distSq);
-                            const force = bgSettings.repulsionFactor / dist;
-                            totalForceX += (dx / dist) * force;
-                            totalForceY += (dy / dist) * force;
-                            interactionOccurred = true;
-                        }
+                    if (distSq > 0.1 && distSq < (bgSettings.repulsionRadiusSq || 2500)) {
+                        const dist = Math.sqrt(distSq);
+                        const force = bgSettings.repulsionFactor / dist;
+                        totalForceX += (dx / dist) * force;
+                        totalForceY += (dy / dist) * force;
                     }
                 }
-            });
+            }
 
             if (!immunityActive && !p.isAntimatter) {
                 this.touchCores.forEach(core => {
@@ -588,10 +718,24 @@ class StellarNurseryRenderer {
                     const dxStar = star.x - p.x; const dyStar = star.y - p.y;
                     const distSqStar = dxStar * dxStar + dyStar * dyStar;
                     if (distSqStar > 1) {
-                        const distStar = Math.sqrt(distSqStar); // Нужен для нормализации
+                        const distStar = Math.sqrt(distSqStar);
                         const force = (star.mass * (this.settings.stars?.gravityFactor || 0)) / (distSqStar + 1000);
-                        totalForceX += dxStar / distStar * force;
-                        totalForceY += dyStar / distStar * force;
+                        totalForceX += (dxStar / distStar) * force;
+                        totalForceY += (dyStar / distStar) * force;
+                    }
+                });
+                this.particles.forEach(otherP => {
+                    if (p === otherP || !otherP.isAntimatter) return;
+
+                    const dx = otherP.x - p.x;
+                    const dy = otherP.y - p.y;
+                    const distSq = dx * dx + dy * dy;
+
+                    if (distSq > 0.1 && distSq < ((bgSettings.repulsionRadiusSq || 2500) * 4)) {
+                        const dist = Math.sqrt(distSq);
+                        const force = (bgSettings.attractionToTransformedAntimatter || 0) / (distSq * 0.001 + 50);
+                        totalForceX += (dx / dist) * force;
+                        totalForceY += (dy / dist) * force;
                     }
                 });
             }
@@ -600,16 +744,13 @@ class StellarNurseryRenderer {
             p.vy = (p.vy + totalForceY) * globalFriction;
 
             if (isNaN(p.vx) || isNaN(p.vy) || !isFinite(p.vx) || !isFinite(p.vy)) {
-                p.vx = (Math.random() - 0.5) * 0.1;
-                p.vy = (Math.random() - 0.5) * 0.1;
+                p.vx = (Math.random() - 0.5) * 0.1; p.vy = (Math.random() - 0.5) * 0.1;
             }
 
-            p.x += p.vx;
-            p.y += p.vy;
+            p.x += p.vx; p.y += p.vy;
 
             if (isNaN(p.x) || isNaN(p.y) || !isFinite(p.x) || !isFinite(p.y)) {
-                p.x = Math.random() * this.canvas.width;
-                p.y = Math.random() * this.canvas.height;
+                p.x = Math.random() * this.canvas.width; p.y = Math.random() * this.canvas.height;
                 p.vx = 0; p.vy = 0;
             }
 
@@ -649,33 +790,41 @@ class StellarNurseryRenderer {
                     else { biggerStar = starB; smallerStar = starA; }
 
                     biggerStar.mass += smallerStar.mass * 0.75;
-                    biggerStar.size = Math.min(biggerStar.size + smallerStar.size * 0.15, coreSettings.maxSize * 1.5);
+                    biggerStar.size = Math.min(biggerStar.size + smallerStar.size * 0.15, (coreSettings.maxSize || 45) * 1.5);
                     biggerStar.life = Math.min(biggerStar.life + smallerStar.life * 0.2, 1.2);
                     this._transformNearbyParticles(smallerStar, "collision");
 
-                    if (smallerStar === starA) { this.stars.splice(i, 1); break; }
-                    else { this.stars.splice(j, 1); if (j < i) i--; continue; }
+                    if (smallerStar === starA) {
+                        this.stars.splice(i, 1);
+                        break;
+                    } else {
+                        this.stars.splice(j, 1);
+                    }
+                    continue;
                 }
 
                 if (distSq > 1) {
                     const dist = Math.sqrt(distSq);
                     const colorDiff = this._getColorDifference(starA.color, starB.color);
-                    const polarityFactor = (colorDiff * starSettings.polarityStrength) - (starSettings.polarityStrength / 2);
-                    const forceMagnitude = polarityFactor * starSettings.gravityFactor * starA.mass * starB.mass / (distSq + 100);
+                    const polarityFactor = (colorDiff * (starSettings.polarityStrength || 0)) - ((starSettings.polarityStrength || 0) / 2);
+                    const forceMagnitude = polarityFactor * (starSettings.gravityFactor || 0) * starA.mass * starB.mass / (distSq + 100);
+
                     const fx = (dx / dist) * forceMagnitude;
                     const fy = (dy / dist) * forceMagnitude;
+
                     starA.vx += fx / starA.mass; starA.vy += fy / starA.mass;
                     starB.vx -= fx / starB.mass; starB.vy -= fy / starB.mass;
                 }
             }
-            if (!this.stars.includes(starA)) continue;
+             if (!this.stars.includes(starA)) continue;
+
 
             this.particles.forEach(p => {
                 if (p.isAntimatter) {
                     const dx = starA.x - p.x;
                     const dy = starA.y - p.y;
                     const distSq = dx * dx + dy * dy;
-                    if (distSq > 1 && distSq < (starA.size + p.size + 150) * (starA.size + p.size + 150)) {
+                    if (distSq > 1 && distSq < (starA.size * starA.life + p.size + 200) * (starA.size * starA.life + p.size + 200) ) {
                         const dist = Math.sqrt(distSq);
                         const force = (amTransformSettings.repulsionFromStarsFactor || 0) * p.size / (distSq * 0.005 + 1);
                         starA.vx += (dx / dist) * force / starA.mass;
@@ -688,15 +837,12 @@ class StellarNurseryRenderer {
             starA.vy = (starA.vy + windY) * globalFriction;
 
             if (isNaN(starA.vx) || isNaN(starA.vy) || !isFinite(starA.vx) || !isFinite(starA.vy)) {
-                starA.vx = (Math.random() - 0.5) * 0.1;
-                starA.vy = (Math.random() - 0.5) * 0.1;
+                starA.vx = (Math.random() - 0.5) * 0.1; starA.vy = (Math.random() - 0.5) * 0.1;
             }
             starA.x += starA.vx; starA.y += starA.vy;
             if (isNaN(starA.x) || isNaN(starA.y) || !isFinite(starA.x) || !isFinite(starA.y)) {
-                starA.x = Math.random() * this.canvas.width;
-                starA.y = Math.random() * this.canvas.height;
+                starA.x = Math.random() * this.canvas.width; starA.y = Math.random() * this.canvas.height;
             }
-
 
             const damp = starSettings.bounceDamping;
             const currentVisualSize = starA.size * starA.life;
@@ -706,8 +852,12 @@ class StellarNurseryRenderer {
             if (starA.y > this.canvas.height - currentVisualSize) { starA.y = this.canvas.height - currentVisualSize; starA.vy *= damp; }
 
             if (starA.size >= starSettings.fadeStartSize) {
-                starA.life -= starSettings.defaultDecay;
+                starA.life -= (starSettings.defaultDecay || 0.001);
+            } else {
+                 starA.life -= (starSettings.defaultDecay || 0.001) * 0.5;
             }
+            starA.life = Math.max(0, starA.life);
+
 
             if (starA.life <= 0) {
                 this._triggerSupernova(starA);
@@ -721,7 +871,7 @@ class StellarNurseryRenderer {
         const now = performance.now();
 
         this.ctx.globalCompositeOperation = 'source-over';
-        this.ctx.fillStyle = this.globalVisualizerRef.getColorWithAlpha(this.themeColors.background || '#00000A', this.settings.fadeSpeed);
+        this.ctx.fillStyle = this.globalVisualizerRef.getColorWithAlpha((this.themeColors && this.themeColors.background) ? this.themeColors.background : '#00000A', this.settings.fadeSpeed);
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
         const windX = (deviceTilt.roll / 90) * (this.settings.windStrength || 0);
@@ -730,23 +880,32 @@ class StellarNurseryRenderer {
         this._updateCores(activeTouchStates, windX, windY, now);
         this._updateBackgroundParticles(windX, windY, now);
         this._updateStars(windX, windY, now);
+        this._processSupernovaEffects(now);
 
         this.ctx.globalCompositeOperation = 'lighter';
 
         this.particles.forEach(p => {
             let displayColor = p.color;
-            const alphaForEffect = 0.95;
             const defaultParticleAlpha = this._extractAlphaFromColor(p.originalColor) || 0.6;
+            const effectAlphaBoost = 0.95;
 
-            const baseAlpha = (p.isAntimatter || p.isTransformed) ? alphaForEffect : defaultParticleAlpha;
+            let baseAlpha;
+            if (p.isAntimatter || p.isTransformed) {
+                baseAlpha = effectAlphaBoost;
+                const currentAlphaInColor = this._extractAlphaFromColor(displayColor);
+                if (currentAlphaInColor < 1.0 && currentAlphaInColor > 0) {
+                    baseAlpha = currentAlphaInColor;
+                }
+            } else {
+                baseAlpha = this._extractAlphaFromColor(displayColor);
+                 if (baseAlpha === 1.0 && defaultParticleAlpha < 1.0) { // Если цвет HEX/HSL, а originalColor был с альфой
+                    baseAlpha = defaultParticleAlpha;
+                }
+            }
 
             const grad = this.ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2.5);
-
-            let colorForGradient = this.globalVisualizerRef.getColorWithAlpha(displayColor, baseAlpha * 0.8, true);
-            let colorForEdge = this.globalVisualizerRef.getColorWithAlpha(displayColor, 0, true);
-
-            grad.addColorStop(0, colorForGradient);
-            grad.addColorStop(1, colorForEdge);
+            grad.addColorStop(0, this.globalVisualizerRef.getColorWithAlpha(displayColor, baseAlpha * 0.8, true));
+            grad.addColorStop(1, this.globalVisualizerRef.getColorWithAlpha(displayColor, 0, true));
             this.ctx.fillStyle = grad;
             this.ctx.beginPath(); this.ctx.arc(p.x, p.y, p.size * 2.5, 0, Math.PI * 2); this.ctx.fill();
         });
@@ -754,9 +913,9 @@ class StellarNurseryRenderer {
         this.touchCores.forEach(core => {
             if (!this.settings.touchCores) return;
             const grad = this.ctx.createRadialGradient(core.x, core.y, 0, core.x, core.y, core.size);
-            grad.addColorStop(0, this.globalVisualizerRef.getColorWithAlpha(core.color, core.energy * 0.9));
-            grad.addColorStop(0.3, this.globalVisualizerRef.getColorWithAlpha(core.color, core.energy * 0.5));
-            grad.addColorStop(1, this.globalVisualizerRef.getColorWithAlpha(core.color, 0));
+            grad.addColorStop(0, this.globalVisualizerRef.getColorWithAlpha(core.color, core.energy * 0.9, true));
+            grad.addColorStop(0.3, this.globalVisualizerRef.getColorWithAlpha(core.color, core.energy * 0.5, true));
+            grad.addColorStop(1, this.globalVisualizerRef.getColorWithAlpha(core.color, 0, true));
             this.ctx.fillStyle = grad;
             this.ctx.beginPath(); this.ctx.arc(core.x, core.y, core.size, 0, Math.PI * 2); this.ctx.fill();
         });
@@ -766,9 +925,9 @@ class StellarNurseryRenderer {
             const currentVisualSize = star.size * star.life;
             if (currentVisualSize < 0.1) return;
             const grad = this.ctx.createRadialGradient(star.x, star.y, 0, star.x, star.y, currentVisualSize);
-            grad.addColorStop(0, this.globalVisualizerRef.getColorWithAlpha(star.color, star.life));
-            grad.addColorStop(0.5, this.globalVisualizerRef.getColorWithAlpha(star.color, star.life * 0.5));
-            grad.addColorStop(1, this.globalVisualizerRef.getColorWithAlpha(star.color, 0));
+            grad.addColorStop(0, this.globalVisualizerRef.getColorWithAlpha(star.color, star.life, true));
+            grad.addColorStop(0.5, this.globalVisualizerRef.getColorWithAlpha(star.color, star.life * 0.5, true));
+            grad.addColorStop(1, this.globalVisualizerRef.getColorWithAlpha(star.color, 0, true));
             this.ctx.fillStyle = grad;
             this.ctx.beginPath(); this.ctx.arc(star.x, star.y, currentVisualSize, 0, Math.PI * 2); this.ctx.fill();
         });
@@ -777,10 +936,28 @@ class StellarNurseryRenderer {
     }
 
     dispose() {
+        console.log("[StellarNurseryRenderer v6.2.1] Disposing...");
         this.particles = [];
+        this.particlePool = [];
         this.stars = [];
         this.touchCores.clear();
-        console.log("[StellarNurseryRenderer v6.1] Disposed.");
+        this.supernovaEffectQueue = [];
+
+        this.hslToRgbCache.clear();
+        this.extractAlphaCache.clear();
+        this.rgbComponentsCache.clear();
+
+        if (this.canvas) {
+            this.canvas.width = 1;
+            this.canvas.height = 1;
+        }
+        this.ctx = null;
+        this.canvas = null;
+        this.settings = null;
+        this.themeColors = null;
+        this.globalVisualizerRef = null;
+
+        console.log("[StellarNurseryRenderer v6.2.1] Disposed.");
     }
 }
 

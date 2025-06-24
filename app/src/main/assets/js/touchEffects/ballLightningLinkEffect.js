@@ -29,9 +29,10 @@ class BallLightningLinkEffect {
         this.ballLightnings = new Map();
 
         // activeLinks: Map<linkKey, LinkObject>
-        // LinkObject: { key, id1, id2, points: [], branches: [], secondarySparks: [], thickness,
+        // LinkObject: { key, id1, id2, /* points: [], */ branches: [], secondarySparks: [], thickness,
         //               color1, color2, isActive, fadeStartTime, fadeProgress,
         //               lastSecondarySparkTime, lastX1, lastY1, lastX2, lastY2 }
+        // Удалены controlPointX, controlPointY, baseControlOffsetX, baseControlOffsetY
         this.activeLinks = new Map();
         this.lastDrawTime = performance.now();
 
@@ -53,12 +54,12 @@ class BallLightningLinkEffect {
         // >>> OPTIMIZATION: Инициализация пула объектов <<<
         this.sparkPool = []; // Ensure pool is clean for init
         // Используем this.poolSize, который теперь является свойством класса
-        const currentPoolSize = this.settings.sparkPoolSize || this.poolSize; 
+        const currentPoolSize = this.settings.sparkPoolSize || this.poolSize;
         for (let i = 0; i < currentPoolSize; i++) {
             this.sparkPool.push({ isActive: false }); // Все объекты в пуле изначально неактивны
         }
         this.poolSize = currentPoolSize; // Обновляем this.poolSize, если он был взят из настроек
-        
+
         console.log(`[BallLightningLinkEffect] Initialized with spark pool size: ${this.poolSize}`);
     }
 
@@ -178,33 +179,7 @@ class BallLightningLinkEffect {
         return true;
     }
 
-    _generateLinkPoints(pointsArray, x1, y1, x2, y2, segments, jitter) {
-        // Убедимся, что pointsArray существует и имеет правильную длину.
-        // Если segments изменились, массив должен быть пересоздан вовне.
-        // Здесь мы просто проверяем, что он готов к использованию.
-        if (!pointsArray || pointsArray.length !== segments + 1) {
-            // Это аварийная ситуация, массив должен быть подготовлен заранее.
-            // Можно либо создать его здесь, либо просто выйти, предполагая, что это ошибка.
-            // Для безопасности, если он не готов, мы не будем его заполнять.
-            console.warn("[BallLightningLinkEffect] _generateLinkPoints called with improperly sized pointsArray.");
-            return; // или throw new Error("pointsArray not initialized correctly");
-        }
-
-        pointsArray[0].x = x1;
-        pointsArray[0].y = y1;
-
-        for (let i = 1; i < segments; i++) {
-            const t = i / segments;
-            const currentJitter = jitter * Math.sin(Math.PI * t);
-            const point = pointsArray[i]; // Получаем существующий объект
-            point.x = x1 + (x2 - x1) * t + (Math.random() - 0.5) * currentJitter;
-            point.y = y1 + (y2 - y1) * t + (Math.random() - 0.5) * currentJitter;
-        }
-
-        pointsArray[segments].x = x2;
-        pointsArray[segments].y = y2;
-        // Массив модифицируется по ссылке, возвращать не нужно
-    }
+    // _generateLinkPoints - УДАЛЕН
 
     _drawLinkSecondaryEffects(link, now, linkOpacity) {
         // Вторичные искры вдоль дуги
@@ -214,15 +189,22 @@ class BallLightningLinkEffect {
                 if (!link.secondarySparks) link.secondarySparks = [];
 
                 for (let i = 0; i < this.settings.linkSecondarySparkCount; i++) {
-                    if (link.points.length < 2) continue;
-                    const pIndex = Math.floor(Math.random() * (link.points.length - 1));
-                    const p1 = link.points[pIndex];
-                    const p2 = link.points[pIndex + 1];
-                    const startX = (p1.x + p2.x) / 2;
-                    const startY = (p1.y + p2.y) / 2;
+                    // Для определения точки на кривой Безье для вторичных искр,
+                    // Для генерации вторичных искр на ломаной линии, выберем случайный сегмент
+                    // и случайную точку на этом сегменте.
+                    // Предполагаем, что link.pointsForDrawing уже сгенерирован в _drawLinkArc
+                    if (!link.pointsForDrawing || link.pointsForDrawing.length < 2) continue;
+
+                    const segmentIndex = Math.floor(Math.random() * (link.pointsForDrawing.length - 1));
+                    const p1 = link.pointsForDrawing[segmentIndex];
+                    const p2 = link.pointsForDrawing[segmentIndex + 1];
+
+                    const tSeg = Math.random(); // Параметр на сегменте
+                    const startX = p1.x + (p2.x - p1.x) * tSeg;
+                    const startY = p1.y + (p2.y - p1.y) * tSeg;
 
                     const tangentAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-                    const angle = tangentAngle + (Math.PI / 2) * (Math.random() < 0.5 ? 1 : -1) + (Math.random()-0.5)*0.5;
+                    const angle = tangentAngle + (Math.PI / 2) * (Math.random() < 0.5 ? 1 : -1) + (Math.random() - 0.5) * 0.5;
                     const length = (this.settings.sparkBaseLength || 15) * 0.6 * (0.5 + Math.random() * 0.5);
                     const sparkColor = Math.random() < 0.5 ? link.color1 : link.color2;
 
@@ -264,24 +246,24 @@ class BallLightningLinkEffect {
         // Ответвления от основной дуги (mainBranches)
         if (this.settings.linkBranchChance > 0 && link.isActive && Math.random() < this.settings.linkBranchChance) {
             if (!link.mainBranches) link.mainBranches = [];
-            if (link.points.length < 2) return; // Нет точек для ветвления
+            // Выбираем случайную точку на ломаной линии для начала ветки
+            if (!link.pointsForDrawing || link.pointsForDrawing.length < 2) return;
 
-            const pIndex = Math.floor(Math.random() * (link.points.length - 1));
-            const p1 = link.points[pIndex];
-            const startX = p1.x;
-            const startY = p1.y;
-            const angle = Math.random() * Math.PI * 2;
+            const pointIndex = Math.floor(Math.random() * link.pointsForDrawing.length);
+            const startX = link.pointsForDrawing[pointIndex].x;
+            const startY = link.pointsForDrawing[pointIndex].y;
+
+            const angle = Math.random() * Math.PI * 2; // Случайный угол для ветки
             const length = (this.settings.sparkBaseLength || 15) * (0.7 + Math.random() * 0.6);
             const branchColor = Math.random() < 0.5 ? link.color1 : link.color2;
 
-            // >>> OPTIMIZATION: Используем пул для mainBranches <<<
             const newBranchSpark = this._getSparkFromPool();
             if (newBranchSpark) {
                 Object.assign(newBranchSpark, {
                     startX: startX, startY: startY,
                     basePoints: this._generateSparkBasePoints(length, this.settings.sparkSegments, this.settings.sparkJitter, angle),
                     length: length,
-                    lifetime: (this.settings.sparkMaxLifetime || 400) * 0.7, // Ветки могут жить дольше
+                    lifetime: (this.settings.sparkMaxLifetime || 400) * 0.7,
                     startTime: now,
                     color: branchColor
                 });
@@ -341,48 +323,104 @@ class BallLightningLinkEffect {
         link.lastX1 = x1; link.lastY1 = y1;
         link.lastX2 = x2; link.lastY2 = y2;
 
-    // Убедимся, что link.points имеет правильный размер, если linkSegments изменились динамически
-    // (хотя в текущем коде они не меняются после инициализации эффекта)
-    const expectedNumPoints = (this.settings.linkSegments || 7) + 1;
-    if (!link.points || link.points.length !== expectedNumPoints) {
-        link.points = Array.from({ length: expectedNumPoints }, () => ({ x: 0, y: 0 }));
-        console.warn("[BallLightningLinkEffect] link.points was re-initialized in _drawLinkArc. This should ideally not happen frequently.");
-    }
-
-    this._generateLinkPoints(link.points, x1, y1, x2, y2, this.settings.linkSegments, this.settings.linkJitter);
-    const points = link.points; // Используем обновленный массив
-    // Проверка на points.length < 2 не так актуальна, если segments > 0, но оставим на всякий случай
-    if (!points || points.length < 2) return true;
-
         const color1 = bl1 ? bl1.auraColor : link.color1;
         const color2 = bl2 ? bl2.auraColor : link.color2;
-
         this.ctx.lineCap = 'round';
+
+        // Генерация точек для ломаной линии "на лету"
+        const segments = this.settings.linkSegments || 7;
+        const jitter = this.settings.linkJitter || 15;
+
+        // Сохраняем точки для использования в _drawLinkSecondaryEffects
+        if (!link.pointsForDrawing || link.pointsForDrawing.length !== segments + 1) {
+            link.pointsForDrawing = Array.from({ length: segments + 1 }, () => ({ x: 0, y: 0 }));
+        }
+        const currentPoints = link.pointsForDrawing;
+
+        currentPoints[0].x = x1;
+        currentPoints[0].y = y1;
+
+        const dxTotal = x2 - x1;
+        const dyTotal = y2 - y1;
+        const totalDist = Math.sqrt(dxTotal * dxTotal + dyTotal * dyTotal);
+        const normalX = -dyTotal / (totalDist || 1); // Нормаль для смещения
+        const normalY = dxTotal / (totalDist || 1);
+
+        for (let i = 1; i < segments; i++) {
+            const t = i / segments;
+            const currentBaseX = x1 + dxTotal * t;
+            const currentBaseY = y1 + dyTotal * t;
+
+            // Анимированный jitter: множитель синуса для плавного "дыхания" + случайное смещение
+            const timeFactor = now * 0.002 * (this.settings.linkJitterSpeedFactor || 0.7);
+            const animatedJitterAmount = jitter * Math.sin(Math.PI * t) * (0.6 + 0.4 * Math.sin(timeFactor + i * 0.5));
+
+            currentPoints[i].x = currentBaseX + (Math.random() - 0.5) * animatedJitterAmount * normalX;
+            currentPoints[i].y = currentBaseY + (Math.random() - 0.5) * animatedJitterAmount * normalY;
+        }
+        currentPoints[segments].x = x2;
+        currentPoints[segments].y = y2;
+
+        // --- Отрисовка с кешированием градиента ---
         // Свечение дуги
         this.ctx.beginPath();
-        this.ctx.moveTo(points[0].x, points[0].y);
-        for(let i=1; i < points.length; i++) this.ctx.lineTo(points[i].x, points[i].y);
-        const grad = this.ctx.createLinearGradient(x1, y1, x2, y2);
-        grad.addColorStop(0, this.globalVisualizerRef.getColorWithAlpha(color1, currentOpacity));
-        grad.addColorStop(0.5, this.globalVisualizerRef.getColorWithAlpha(this.globalVisualizerRef.mixColors(color1, color2, 0.5), currentOpacity * 0.8)); // Центр чуть тусклее для глубины
-        grad.addColorStop(1, this.globalVisualizerRef.getColorWithAlpha(color2, currentOpacity));
+        this.ctx.moveTo(currentPoints[0].x, currentPoints[0].y);
+        for (let i = 1; i < currentPoints.length; i++) {
+            this.ctx.lineTo(currentPoints[i].x, currentPoints[i].y);
+        }
+
+        let grad;
+        if (link.cachedGradient &&
+            link.cachedGradientColor1 === color1 &&
+            link.cachedGradientColor2 === color2 &&
+            link.cachedGradientOpacity === currentOpacity &&
+            link.cachedGradientThickness === currentThickness) {
+            grad = link.cachedGradient;
+        } else {
+            grad = this.ctx.createLinearGradient(x1, y1, x2, y2); // Градиент по-прежнему между конечными точками
+            grad.addColorStop(0, this.globalVisualizerRef.getColorWithAlpha(color1, currentOpacity));
+            grad.addColorStop(0.5, this.globalVisualizerRef.getColorWithAlpha(this.globalVisualizerRef.mixColors(color1, color2, 0.5), currentOpacity * 0.8));
+            grad.addColorStop(1, this.globalVisualizerRef.getColorWithAlpha(color2, currentOpacity));
+            link.cachedGradient = grad;
+            link.cachedGradientColor1 = color1;
+            link.cachedGradientColor2 = color2;
+            link.cachedGradientOpacity = currentOpacity;
+            link.cachedGradientThickness = currentThickness;
+        }
         this.ctx.strokeStyle = grad;
         this.ctx.lineWidth = currentThickness * (this.settings.linkGlowThicknessFactor || 1.8);
         this.ctx.stroke();
 
         // Ядро дуги
         this.ctx.beginPath();
-        this.ctx.moveTo(points[0].x, points[0].y);
-        for(let i=1; i < points.length; i++) this.ctx.lineTo(points[i].x, points[i].y);
-        const coreGrad = this.ctx.createLinearGradient(x1, y1, x2, y2);
-        coreGrad.addColorStop(0, this.globalVisualizerRef.getColorWithAlpha(this.settings.linkCoreColorStart, currentOpacity * 1.1)); // Ярче
-        coreGrad.addColorStop(1, this.globalVisualizerRef.getColorWithAlpha(this.settings.linkCoreColorEnd, currentOpacity * 1.1)); // Ярче
+        this.ctx.moveTo(currentPoints[0].x, currentPoints[0].y);
+        for (let i = 1; i < currentPoints.length; i++) {
+            this.ctx.lineTo(currentPoints[i].x, currentPoints[i].y);
+        }
+
+        let coreGrad;
+        if (link.cachedCoreGradient &&
+            link.cachedGradientLinkCoreColorStart === this.settings.linkCoreColorStart &&
+            link.cachedGradientLinkCoreColorEnd === this.settings.linkCoreColorEnd &&
+            link.cachedGradientOpacity === currentOpacity &&
+            link.cachedGradientThickness === currentThickness) {
+            coreGrad = link.cachedCoreGradient;
+        } else {
+            coreGrad = this.ctx.createLinearGradient(x1, y1, x2, y2); // Градиент по-прежнему между конечными точками
+            coreGrad.addColorStop(0, this.globalVisualizerRef.getColorWithAlpha(this.settings.linkCoreColorStart, currentOpacity * 1.1));
+            coreGrad.addColorStop(1, this.globalVisualizerRef.getColorWithAlpha(this.settings.linkCoreColorEnd, currentOpacity * 1.1));
+            link.cachedCoreGradient = coreGrad;
+            link.cachedGradientLinkCoreColorStart = this.settings.linkCoreColorStart;
+            link.cachedGradientLinkCoreColorEnd = this.settings.linkCoreColorEnd;
+            link.cachedGradientOpacity = currentOpacity; // Обновляем, так как используется для ключа кеша
+            link.cachedGradientThickness = currentThickness; // Обновляем
+        }
         this.ctx.strokeStyle = coreGrad;
         this.ctx.lineWidth = currentThickness;
         this.ctx.stroke();
 
-        if (link.isActive || link.fadeProgress < 0.7) { // Вторичные эффекты только для активных или не сильно затухших дуг
-             this._drawLinkSecondaryEffects(link, now, currentOpacity);
+        if (link.isActive || link.fadeProgress < 0.7) {
+             this._drawLinkSecondaryEffects(link, now, currentOpacity); // `link.pointsForDrawing` будет использован здесь
         }
         return true;
     }
@@ -482,20 +520,30 @@ class BallLightningLinkEffect {
                     bl2.activeLinkCount++;
 
                     let link = this.activeLinks.get(linkKey);
-                    if (!link || !link.isActive) { // Если линка нет ИЛИ он был неактивен (затухал)
-                        const numPoints = (this.settings.linkSegments || 7) + 1;
+                    if (!link || !link.isActive) {
+                        // const numPoints = (this.settings.linkSegments || 7) + 1; // Удалено, points больше не нужны
                         link = {
                             key: linkKey, id1: bl1.id, id2: bl2.id,
-                            points: Array.from({ length: numPoints }, () => ({ x: 0, y: 0 })), // Инициализируем массив точек
+                            // points: Array.from({ length: numPoints }, () => ({ x: 0, y: 0 })), // Удалено
                             branches: [], secondarySparks: [],
                             thickness: this.settings.linkBaseThickness + ((bl1.currentY + bl2.currentY) / 2) * this.settings.linkThicknessYMultiplier,
                             color1: bl1.auraColor, color2: bl2.auraColor,
-                            isActive: true, fadeStartTime: 0, fadeProgress: -1, // -1 чтобы показать, что затухание не началось
+                            isActive: true, fadeStartTime: 0, fadeProgress: -1,
                             lastSecondarySparkTime: 0,
-                            lastX1: bl1.x, lastY1: bl1.y, lastX2: bl2.x, lastY2: bl2.y
+                            lastX1: bl1.x, lastY1: bl1.y, lastX2: bl2.x, lastY2: bl2.y,
+                            // Новые свойства для контрольной точки кривой Безье
+                            // Свойства для кеширования градиентов
+                            cachedGradient: null,
+                            cachedCoreGradient: null,
+                            cachedGradientColor1: null,
+                            cachedGradientColor2: null,
+                            cachedGradientLinkCoreColorStart: null,
+                            cachedGradientLinkCoreColorEnd: null,
+                            cachedGradientOpacity: -1, // Используем -1, чтобы первая отрисовка всегда создавала градиент
+                            cachedGradientThickness: -1
                         };
                         this.activeLinks.set(linkKey, link);
-                    } else { // Линк уже существует и активен, просто обновляем цвета и толщину
+                    } else {
                         link.color1 = bl1.auraColor;
                         link.color2 = bl2.auraColor;
                         link.thickness = this.settings.linkBaseThickness + ((bl1.currentY + bl2.currentY) / 2) * this.settings.linkThicknessYMultiplier;

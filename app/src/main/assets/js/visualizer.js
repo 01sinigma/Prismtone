@@ -43,8 +43,10 @@ const visualizer = {
     _padHintsToDraw: [], // --- НОВОЕ СВОЙСТВО ДЛЯ ПОДСКАЗОК ПЭДА ---
     _prevPadHintsToDraw: null,
     _fadingPadHints: [],
-     debugMode: true, // Set to true for verbose logging
+    debugMode: true, // Set to true for verbose logging
     fpsManager: null,
+    _hexToRgbCache: {}, // Глобальный кеш для hexToRgb
+    _colorWithAlphaCache: {}, // Глобальный кеш для getColorWithAlpha
 
     /**
      * Initializes the visualizer module.
@@ -537,10 +539,10 @@ omaly in received structure.`);
 
         const audioData = (this.analyser && this.isReady) ? this.analyser.getValue() : null;
         const activeTouchStates = (typeof pad !== 'undefined' && pad.getActiveTouchStates) ? pad.getActiveTouchStates() : [];
-        
+
         // >>> NEW: Получаем данные о наклоне из app.state <<<
         const deviceTilt = (app && app.state && app.state.deviceTilt) ? app.state.deviceTilt : { pitch: 0, roll: 0 };
-        
+
         this.ctx.save();
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -926,34 +928,45 @@ omaly in received structure.`);
      * @returns {string} The rgba color string (e.g., "rgba(255,0,0,0.5)").
      */
     getColorWithAlpha(colorString, alpha) {
-        const clampedAlpha = Math.max(0, Math.min(1, parseFloat(alpha.toFixed(3))));
-        let effectiveColorString = colorString || this.themeColors.primary;
+        const clampedAlpha = Math.max(0, Math.min(1, parseFloat(alpha.toFixed(3)))); // alpha округляется для консистентности ключа
+        const cacheKey = `${colorString}_${clampedAlpha}`;
 
+        if (this._colorWithAlphaCache[cacheKey]) {
+            return this._colorWithAlphaCache[cacheKey];
+        }
+
+        let effectiveColorString = colorString || this.themeColors.primary;
         const themeColorValue = this.themeColors[effectiveColorString];
         if (themeColorValue && (themeColorValue.startsWith('#') || themeColorValue.startsWith('rgb') || themeColorValue.startsWith('hsl'))) {
             effectiveColorString = themeColorValue;
         }
 
+        let result;
         if (typeof effectiveColorString === 'string') {
             if (effectiveColorString.startsWith('#')) {
-                const rgb = this.hexToRgb(effectiveColorString);
-                return rgb ? `rgba(${rgb.r},${rgb.g},${rgb.b},${clampedAlpha})` : `rgba(0,0,0,${clampedAlpha})`;
+                const rgb = this.hexToRgb(effectiveColorString); // hexToRgb уже использует свой кеш
+                result = rgb ? `rgba(${rgb.r},${rgb.g},${rgb.b},${clampedAlpha})` : `rgba(0,0,0,${clampedAlpha})`;
             } else if (effectiveColorString.startsWith('rgba')) {
-                return effectiveColorString.replace(/[\d\.]+\)$/g, `${clampedAlpha})`);
+                result = effectiveColorString.replace(/[\d\.]+\)$/g, `${clampedAlpha})`);
             } else if (effectiveColorString.startsWith('rgb')) {
-                return effectiveColorString.replace('rgb', 'rgba').replace(')', `, ${clampedAlpha})`);
+                result = effectiveColorString.replace('rgb', 'rgba').replace(')', `, ${clampedAlpha})`);
             } else if (effectiveColorString.startsWith('hsla')) {
-                return effectiveColorString.replace(/[\d\.]+\)$/g, `${clampedAlpha})`);
+                result = effectiveColorString.replace(/[\d\.]+\)$/g, `${clampedAlpha})`);
             } else if (effectiveColorString.startsWith('hsl')) {
-                return effectiveColorString.replace('hsl', 'hsla').replace(')', `, ${clampedAlpha})`);
+                result = effectiveColorString.replace('hsl', 'hsla').replace(')', `, ${clampedAlpha})`);
             }
         }
 
-        if (this.debugMode) console.warn(`[Visualizer getColorWithAlpha] Unknown color format: ${colorString} (effective: ${effectiveColorString}). Using fallback.`);
-        const fallbackRgb = this.hexToRgb(this.themeColors.primary); // Ensure primary is a hex
-        return fallbackRgb ? `rgba(${fallbackRgb.r},${fallbackRgb.g},${fallbackRgb.b},${clampedAlpha})` : `rgba(0,0,255,${clampedAlpha})`; // Fallback to blue if primary is also bad
+        if (!result) {
+            if (this.debugMode) console.warn(`[Visualizer getColorWithAlpha] Unknown color format: ${colorString} (effective: ${effectiveColorString}). Using fallback.`);
+            const fallbackRgb = this.hexToRgb(this.themeColors.primary);
+            result = fallbackRgb ? `rgba(${fallbackRgb.r},${fallbackRgb.g},${fallbackRgb.b},${clampedAlpha})` : `rgba(0,0,255,${clampedAlpha})`;
+        }
+
+        this._colorWithAlphaCache[cacheKey] = result;
+        return result;
     },
-    
+
     /**
      * Converts a hex color string to an RGB object or array.
      * @param {string} hexInput - The hex color string (e.g., "#FF0000" or "FF0000").
@@ -961,6 +974,11 @@ omaly in received structure.`);
      * @returns {{r: number, g: number, b: number} | [number, number, number] | null} RGB object/array or null if invalid hex.
      */
     hexToRgb(hexInput, asArray = false) {
+        const cacheKey = `${hexInput}_${asArray}`;
+        if (this._hexToRgbCache[cacheKey]) {
+            return this._hexToRgbCache[cacheKey];
+        }
+
         if (!hexInput || typeof hexInput !== 'string') {
             if (this.debugMode) console.warn(`[Visualizer hexToRgb] Invalid hex input: ${hexInput}`);
             return null;
@@ -992,7 +1010,9 @@ omaly in received structure.`);
             if (this.debugMode) console.warn(`[Visualizer hexToRgb] Failed to parse hex components: ${hex}`);
             return null;
         }
-        return asArray ? [r, g, b] : { r, g, b };
+        const result = asArray ? [r, g, b] : { r, g, b };
+        this._hexToRgbCache[cacheKey] = result;
+        return result;
     },
 
     /**
