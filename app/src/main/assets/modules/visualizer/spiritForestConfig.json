@@ -1,0 +1,22 @@
+{
+  "id": "spirit_forest",
+  "type": "visualizer",
+  "name": "Spirit Forest",
+  "version": "2.0",
+  "description": "An interactive forest with energy spirits reacting to sound, touch and wind.",
+  "active": false,
+  "data": {
+    "rendererScript": "js/visualizers/SpiritForestRenderer.js",
+    "settings": {
+      "spiritCount": 200,
+      "treeLayers": 5,
+      "treeRepulsion": 1.5,
+      "windStrength": 0.2,
+      "touchAttraction": 0.8,
+      "touchRadius": 200,
+      "tapRepulsion": 10,
+      "energyGainRate": 0.15,
+      "energyDecayRate": 0.99
+    }
+  }
+}

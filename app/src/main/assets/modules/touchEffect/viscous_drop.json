@@ -1,0 +1,20 @@
+{
+  "id": "viscous_drop",
+  "type": "touchEffect",
+  "name": "Viscous Drop",
+  "version": "1.0",
+  "description": "A viscous, metallic drop that follows touch and reacts to gravity, leaving a trail.",
+  "active": false,
+  "data": {
+    "rendererScript": "js/touchEffects/ViscousDropEffect.js",
+    "settings": {
+      "colorSource": "note",
+      "baseRadius": 15,
+      "radiusYMultiplier": 20,
+      "gravityStrength": 0.5,
+      "friction": 0.94,
+      "elasticity": 0.1,
+      "trailLength": 50
+    }
+  }
+}

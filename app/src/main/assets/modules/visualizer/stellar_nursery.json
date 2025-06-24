@@ -2,47 +2,65 @@
   "id": "stellar_nursery",
   "type": "visualizer",
   "name": "Stellar Nursery",
-  "version": "4.1.4",
-  "description": "An interactive nebula configured for 'Cosmic Star Dance' preset, emphasizing star interactions, with staggered transformed particle color change.",
+  "version": "6.0.0",
+  "description": "Interactive cosmic ecosystem with stars, nebulas, and antimatter particles. Version 6.0.",
   "active": true,
   "data": {
     "rendererScript": "js/visualizers/StellarNurseryRenderer.js",
     "settings": {
       "fadeSpeed": 0.25,
-      "particleCount": 600,
-      "coreMinSize": 8,
-      "coreMaxSize": 45,
-      "timeToMaxSizeMs": 2000,
-      "maxMassFactor": 10,
-      "energyGain": 0.015,
       "windStrength": 0.3,
-      "friction": 0.97,
-      "attraction": 50,
-      "inertiaDamping": 30,
-      "touchHistoryLength": 5,
+      "globalFriction": 0.97,
 
-      "maxStars": 12,
-      "starGravityFactor": 1200,
-      "starPolarityStrength": 2.2,
-      "starBounceDamping": -0.6,
-      "starDefaultDecay": 0.0009,
-
-      "explosion": {
-        "particleCount": 40,
-        "maxSpeed": 3.5,
-        "lifeMs": 600,
-        "size": 2.5
+      "backgroundParticles": {
+        "count": 800,
+        "attractionToCores": 50,
+        "repulsionFactor": 0.005,
+        "repulsionActive": true,
+        "repulsionRadiusSq": 2500,
+        "attractionToAntimatter": 75,
+        "transformed": {
+          "lifeMs": 3000,
+          "initialSpeedBoost": 1.5,
+          "gravityImmunityDurationMs": 1500,
+          "coolDownMs": 1000
+        }
       },
 
-      "particleRepulsionActive": true,
-      "particleRepulsion": 0.01,
-      "particleRepulsionRadiusSq": 2500,
-      "transformedParticle": {
-        "lifeMs": 4000,
-        "initialSpeedBoost": 2.0,
-        "gravityImmunityDurationMs": 1500,
-        "coolDownMs": 1500,
-        "maxColorChangeDelayMs": 500
+      "touchCores": {
+        "minSize": 8,
+        "maxSize": 45,
+        "timeToMaxSizeMs": 2000,
+        "maxMassFactor": 10,
+        "energyGain": 0.015,
+        "inertiaDamping": 30,
+        "historyLength": 5,
+        "repulsionFromAntimatter": 0.1,
+        "windInfluence": 0.5
+      },
+
+      "stars": {
+        "maxCount": 15,
+        "gravityFactor": 800,
+        "polarityStrength": 2.0,
+        "bounceDamping": -0.6,
+        "defaultDecay": 0.001,
+        "fadeStartSize": 15,
+        "repulsionFromAntimatter": 0.1,
+        "supernova": {
+          "starPushForce": 5,
+          "antimatterConversionRadiusFactor": 5,
+          "maxAntimatterParticles": 50,
+          "antimatterInitialSpeedFactor": 2.0
+        }
+      },
+
+      "antimatterSystem": {
+        "poolSize": 200,
+        "particleDefaultSize": 2,
+        "particleLifeMs": 5000,
+        "particleFriction": 0.98,
+        "windInfluence": 1.0
       }
     }
   }

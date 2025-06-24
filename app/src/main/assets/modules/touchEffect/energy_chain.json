@@ -1,0 +1,20 @@
+{
+  "id": "energy_chain",
+  "type": "touchEffect",
+  "name": "Energy Chain",
+  "version": "1.0",
+  "description": "Connects active touch points with glowing, gravity-affected energy chains.",
+  "active": false,
+  "data": {
+    "rendererScript": "js/touchEffects/EnergyChainEffect.js",
+    "settings": {
+      "lineBaseColor": "note",
+      "lineBaseWidth": 1.5,
+      "lineWidthYMultiplier": 4,
+      "glowWidthFactor": 3.5,
+      "glowOpacity": 0.4,
+      "gravityStrength": 0.6,
+      "jitterAmount": 1.5
+    }
+  }
+}

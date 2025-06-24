@@ -1,0 +1,79 @@
+{
+  "id": "ink_in_zero_g",
+  "type": "visualizer",
+  "name": "Антигравитационные Чернила",
+  "version": "1.0",
+  "description": "Имитация жидкости в невесомости, капли реагируют на звук, наклон и касания.",
+  "active": false,
+  "data": {
+    "rendererScript": "js/visualizers/InkInZeroGRenderer.js",
+    "settings": {
+      "backgroundColor": "rgba(10, 10, 20, 1)",
+      "maxDrops": 30,
+      "minDropSize": 20,
+      "maxDropSize": 100,
+      "dropColors": [
+        "rgba(255, 0, 80, 0.7)",
+        "rgba(0, 150, 255, 0.7)",
+        "rgba(255, 220, 0, 0.7)",
+        "rgba(0, 200, 100, 0.7)",
+        "rgba(255, 100, 0, 0.7)",
+        "rgba(180, 0, 255, 0.7)"
+      ],
+      "initialDropsCount": 5,
+      "dropPointCountFactor": 0.5,
+      "dropPointRandomRadiusFactor": 0.2,
+      "dropAmorphousMovementFactor": 0.1,
+      "dropVelocityDamping": 0.98,
+      "wallBounceFactor": -0.7,
+      "soundReaction": {
+        "enabled": true,
+        "peakIntensityThreshold": 0.7,
+        "spawnChance": 0.1,
+        "newDropSizeFactor": 0.5
+      },
+      "accelerometerAntiGravity": {
+        "enabled": true,
+        "forceFactor": -0.03,
+        "tiltThreshold": 0.2
+      },
+      "touchAttraction": {
+        "enabled": true,
+        "attractionForce": 0.025,
+        "minDistance": 1,
+        "maxDistance": 200
+      },
+      "dropMerging": {
+        "enabled": true,
+        "mergeDistanceFactor": 0.8,
+        "maxMergedSizeFactor": 1.5
+      },
+      "swipeCut": {
+        "enabled": true,
+        "minSizeToCutFactor": 2.0,
+        "numNewDropsMin": 2,
+        "numNewDropsMax": 3,
+        "newDropSizeFactor": 1.2,
+        "cutDetectionRadiusFactor": 0.5,
+        "spreadVelocity": 2.0
+      },
+      "multiTouchStretch": {
+        "enabled": false,
+        "stretchForce": 0.1,
+        "breakThreshold": 2.5
+      },
+      "dropShadow": {
+        "enabled": true,
+        "blurFactor": 0.3,
+        "offsetX": 0,
+        "offsetY": 0,
+        "color": null
+      },
+      "dropStroke": {
+        "enabled": false,
+        "lineWidth": 2,
+        "color": null
+      }
+    }
+  }
+}
