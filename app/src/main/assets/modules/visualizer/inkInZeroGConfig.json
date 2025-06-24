@@ -26,6 +26,15 @@
       "dropAmorphousMovementFactor": 0.1,
       "dropVelocityDamping": 0.98,
       "wallBounceFactor": -0.7,
+
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": true,
+        "strength": 0.03,    // From existing accelerometerAntiGravity.forceFactor (abs value)
+        "invertPitch": false, // Might need to be true if -0.03 meant specific direction
+        "invertRoll": false   // Might need to be true if -0.03 meant specific direction
+      },
+
       "soundReaction": {
         "enabled": true,
         "peakIntensityThreshold": 0.7,

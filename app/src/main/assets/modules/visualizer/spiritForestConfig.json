@@ -29,6 +29,14 @@
           "audioEnergyMultiplier": 3.0
         },
 
+        "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+        "tiltPhysics": {
+          "enabled": true,
+          "strength": 1, // From existing physics.windStrength
+          "invertPitch": false,
+          "invertRoll": false
+        },
+
         "interaction": {
           "touchAttraction": 0.15,
           "touchRadius": 180,

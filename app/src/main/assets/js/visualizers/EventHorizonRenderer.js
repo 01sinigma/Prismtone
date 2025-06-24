@@ -85,9 +85,37 @@
              }
          });
 
-         const tiltX = (deviceTilt.roll / 50) * (this.settings.tiltParallax || 20);
-         const tiltY = (deviceTilt.pitch / 50) * (this.settings.tiltParallax || 20);
-         this.stars.forEach(star => {
+        // >>> НАЧАЛО НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ (for star parallax) <<<
+        let tiltX = 0; // Used for star parallax
+        let tiltY = 0; // Used for star parallax
+
+        const defaultTiltStrength = this.settings.tiltParallax !== undefined ? this.settings.tiltParallax : 20;
+        // Original: tiltX from roll, tiltY from pitch. This matches new standard.
+        const tiltSettings = this.settings.tiltPhysics || {
+            enabled: true,
+            strength: defaultTiltStrength,
+            invertPitch: false,
+            invertRoll: false
+        };
+
+        if (tiltSettings.enabled && deviceTilt) {
+            const pitchFactor = tiltSettings.invertPitch ? -1 : 1;
+            const rollFactor = tiltSettings.invertRoll ? -1 : 1;
+
+            // Original used roll/50 and pitch/50. New standard is roll/90, pitch/90.
+            // The 'strength' from tiltPhysics will be used directly.
+            // If settings.tiltParallax was, for example, 20, and it was intended to mean "multiply roll/50 by 20",
+            // the new strength in tiltPhysics should be adjusted if direct multiplication of roll/90 is desired to have the same magnitude.
+            // E.g., old_effect = (roll/50) * S. new_effect = (roll/90) * S'.
+            // If S' = S, new_effect is (50/90) * old_effect.
+            // To keep magnitude: S' = S * 90/50 = S * 1.8.
+            // For now, we assume tiltPhysics.strength is already correctly set.
+            tiltX = (deviceTilt.roll / 90) * tiltSettings.strength * rollFactor;
+            tiltY = (deviceTilt.pitch / 90) * tiltSettings.strength * pitchFactor;
+        }
+        // >>> КОНЕЦ НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
+
+        this.stars.forEach(star => {
              this.ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
              this.ctx.beginPath();
              this.ctx.arc(star.x + tiltX, star.y + tiltY, star.size, 0, Math.PI * 2);

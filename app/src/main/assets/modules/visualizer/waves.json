@@ -8,6 +8,13 @@
   "data": {
     "rendererScript": "js/visualizers/wavesRenderer.js",
     "settings": {
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": false, // Default to false for waveform
+        "strength": 0.3,
+        "invertPitch": false,
+        "invertRoll": false
+      },
       "lineWidth": 2,
       "lineColor": "primary",
       "opacity": 0.7,

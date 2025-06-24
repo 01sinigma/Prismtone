@@ -145,8 +145,27 @@ class SpiritForestRenderer {
         const phys = this.settings.physics;
         const inter = this.settings.interaction;
 
-        const windX = (deviceTilt.roll / 90) * phys.windStrength;
-        const windY = (deviceTilt.pitch / 90) * phys.windStrength;
+        // >>> НАЧАЛО НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
+        let windX = 0;
+        let windY = 0;
+
+        const defaultTiltStrength = phys.windStrength !== undefined ? phys.windStrength : 1.0;
+        // Original: windX from roll, windY from pitch. This matches new standard.
+        const tiltSettings = this.settings.tiltPhysics || {
+            enabled: true,
+            strength: defaultTiltStrength,
+            invertPitch: false,
+            invertRoll: false
+        };
+
+        if (tiltSettings.enabled && deviceTilt) {
+            const pitchFactor = tiltSettings.invertPitch ? -1 : 1;
+            const rollFactor = tiltSettings.invertRoll ? -1 : 1;
+
+            windX = (deviceTilt.roll / 90) * tiltSettings.strength * rollFactor;
+            windY = (deviceTilt.pitch / 90) * tiltSettings.strength * pitchFactor;
+        }
+        // >>> КОНЕЦ НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
 
         let audioLevel = 0;
         if (this.analyserNodeRef && audioData) {

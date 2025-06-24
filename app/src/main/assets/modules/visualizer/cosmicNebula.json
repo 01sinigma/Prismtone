@@ -9,7 +9,15 @@
     "starMaxRadius": 8,
     "starBrightness": 0.8,
     "starFadeSpeed": 0.02,
-    "tiltEffectStrength": 50,
+
+    "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+    "tiltPhysics": {
+      "enabled": true,
+      "strength": 50,     // Existing tiltEffectStrength was 50
+      "invertPitch": false,
+      "invertRoll": false
+    },
+    "tiltEffectStrength": 50, // Keeping old key for compatibility
     "nebulaBaseAlpha": 0.6,
     "noiseDetail": 0.03,
     "noiseSpeed": 0.0005,

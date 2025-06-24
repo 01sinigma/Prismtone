@@ -9,6 +9,15 @@
     "rendererScript": "js/visualizers/CrystalGrottoRenderer.js",
     "settings": {
       "backgroundColor": "rgba(10, 10, 20, 1)",
+
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": true,
+        "strength": 0.3,      // Default strength, adjust as needed
+        "invertPitch": false,
+        "invertRoll": false
+      },
+
       "maxCrystalGroups": 8,
       "maxCrystalsPerGroup": 2,
       "minCrystalSize": 25,

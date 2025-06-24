@@ -73,9 +73,30 @@ class GravityMatrixRenderer {
         this.ctx.fillStyle = `rgba(0, 0, 0, ${this.settings.fadeSpeed || 0.25})`;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        const gravityStrength = this.settings.gravityStrength || 0.2;
-        const gravityX = (deviceTilt.roll / 90) * gravityStrength * -1;
-        const gravityY = (deviceTilt.pitch / 90) * gravityStrength;
+        // >>> НАЧАЛО НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
+        let gravityX = 0; // Renamed from windX to match existing
+        let gravityY = 0; // Renamed from windY to match existing
+
+        const defaultTiltStrength = this.settings.gravityStrength !== undefined ? this.settings.gravityStrength : 0.2;
+        // Original: gravityX from roll*-1, gravityY from pitch.
+        // New standard: windX from roll, windY from pitch.
+        // So, gravityX (new windX) needs invertRoll = true.
+        // gravityY (new windY) needs invertPitch = false.
+        const tiltSettings = this.settings.tiltPhysics || {
+            enabled: true,
+            strength: defaultTiltStrength,
+            invertPitch: false,
+            invertRoll: true // Because original gravityX used roll * -1
+        };
+
+        if (tiltSettings.enabled && deviceTilt) {
+            const pitchFactor = tiltSettings.invertPitch ? -1 : 1;
+            const rollFactor = tiltSettings.invertRoll ? -1 : 1;
+
+            gravityX = (deviceTilt.roll / 90) * tiltSettings.strength * rollFactor;
+            gravityY = (deviceTilt.pitch / 90) * tiltSettings.strength * pitchFactor;
+        }
+        // >>> КОНЕЦ НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
 
         const friction = this.settings.friction || 0.98;
 

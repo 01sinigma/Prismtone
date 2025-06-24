@@ -13,6 +13,14 @@
       "windStrength": 1,
       "friction": 0.80,
 
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": true,
+        "strength": 0.3,       // Общий множитель силы "ветра"
+        "invertPitch": false,  // Инвертировать вертикальную ось? (false = наклон "на себя" двигает объекты вверх)
+        "invertRoll": false    // Инвертировать горизонтальную ось? (false = наклон вправо двигает объекты вправо)
+      },
+
       "coreMinSize": 8,
       "coreMaxSize": 45,
       "timeToMaxSizeMs": 2000,

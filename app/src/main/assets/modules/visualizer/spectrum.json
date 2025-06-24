@@ -8,6 +8,13 @@
   "data": {
     "rendererScript": "js/visualizers/spectrumRenderer.js",
     "settings": {
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": false, // Default to false for spectrum
+        "strength": 0.3,
+        "invertPitch": false,
+        "invertRoll": false
+      },
       "barWidthMultiplier": 2.2,
       "barSpacing": 1,
       "maxHeightMultiplier": 0.9,

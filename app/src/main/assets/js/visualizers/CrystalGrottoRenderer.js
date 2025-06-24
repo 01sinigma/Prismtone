@@ -686,7 +686,33 @@ class CrystalGrottoRenderer {
             });}
         }
 
-        const psConf=this.config.particleSystem; const pWindX=this.accelerometerData.x*psConf.particleWindFactor; const pWindY=this.accelerometerData.y*psConf.particleWindFactor;
+        const psConf=this.config.particleSystem;
+
+        // >>> НАЧАЛО НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ (for particle wind) <<<
+        let pWindX = 0;
+        let pWindY = 0;
+
+        const defaultTiltStrength = psConf.particleWindFactor !== undefined ? psConf.particleWindFactor : 0.25;
+        // Original: pWindX from accelerometerData.x (gamma/roll), pWindY from accelerometerData.y (beta/pitch)
+        // New standard: windX from roll, windY from pitch.
+        // So, pWindX should use new windX (roll-based).
+        // And pWindY should use new windY (pitch-based).
+        const tiltSettings = this.settings.tiltPhysics || {
+            enabled: true,
+            strength: defaultTiltStrength,
+            invertPitch: false, // Original pWindY used beta (pitch) directly
+            invertRoll: false   // Original pWindX used gamma (roll) directly
+        };
+
+        if (tiltSettings.enabled && deviceTilt) {
+            const pitchFactor = tiltSettings.invertPitch ? -1 : 1;
+            const rollFactor = tiltSettings.invertRoll ? -1 : 1;
+
+            pWindX = (deviceTilt.roll / 90) * tiltSettings.strength * rollFactor;
+            pWindY = (deviceTilt.pitch / 90) * tiltSettings.strength * pitchFactor;
+        }
+        // >>> КОНЕЦ НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
+
         for(let i=this.particles.length-1;i>=0;i--){
             const p=this.particles[i]; if(!p.active)continue;
             p.vx+=pWindX; p.vy+=pWindY+(p.type==='dust_fall'?psConf.particleGravity*1.5:psConf.particleGravity);

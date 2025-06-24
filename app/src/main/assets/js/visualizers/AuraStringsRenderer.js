@@ -161,12 +161,50 @@ class AuraStringsRenderer {
         this.ctx.fillStyle = `rgba(0, 0, 0, ${this.fadeSpeed})`; // Use this.fadeSpeed
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // --- ИСПРАВЛЕНИЕ ОСЕЙ (v4 - Финальная версия) ---
-        // Горизонтальный ветер (X) -> от наклона ВПЕРЕД/НАЗАД (pitch)
-        const windForceX = (deviceTilt.pitch / 90) * this.tiltWindForce * -1; // Use this.tiltWindForce
-        // Вертикальный ветер (Y) -> от наклона ВЛЕВО/ВПРАВО (roll)
-        const windForceY = (deviceTilt.roll / 90) * this.tiltWindForce * -1; // Use this.tiltWindForce
-        // ---------------------------------------------
+        // >>> НАЧАЛО НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
+        let windForceX = 0; // Renamed from windX to match existing variable
+        let windForceY = 0; // Renamed from windY to match existing variable
+
+        const defaultTiltStrength = this.settings.tiltWindForce !== undefined ? this.settings.tiltWindForce : 0.2;
+        // Original logic: windForceX from pitch*-1, windForceY from roll*-1
+        // New standard: windX from roll, windY from pitch
+        // To match: new windX (roll) should become old windForceY (roll*-1) -> invertRoll = true
+        //           new windY (pitch) should become old windForceX (pitch*-1) -> invertPitch = true
+        // However, the variable names are swapped in old code: old windForceX is new Y, old windForceY is new X.
+        // So, if new block provides windX (roll-based) and windY (pitch-based):
+        // old windForceX (pitch-based) = new windY. To get *-1, invertPitch = true for windY.
+        // old windForceY (roll-based)  = new windX. To get *-1, invertRoll = true for windX.
+        const tiltSettings = this.settings.tiltPhysics || {
+            enabled: true,
+            strength: defaultTiltStrength,
+            invertPitch: true, // Because original windForceX (Y-axis effect) used pitch * -1
+            invertRoll: true   // Because original windForceY (X-axis effect) used roll * -1
+        };
+
+        if (tiltSettings.enabled && deviceTilt) {
+            const pitchFactor = tiltSettings.invertPitch ? -1 : 1;
+            const rollFactor = tiltSettings.invertRoll ? -1 : 1;
+
+            // New standard: windX from roll, windY from pitch.
+            // Original code used:
+            // windForceX (affects X position of nodes) = (deviceTilt.pitch / 90) * strength * -1;
+            // windForceY (affects Y position of nodes) = (deviceTilt.roll / 90) * strength * -1;
+            // So, the new windY (pitch-based) corresponds to the old windForceX.
+            // And the new windX (roll-based) corresponds to the old windForceY.
+            windForceX = (deviceTilt.pitch / 90) * tiltSettings.strength * pitchFactor; // This will affect X-position via node.vx
+            windForceY = (deviceTilt.roll / 90) * tiltSettings.strength * rollFactor;  // This will affect Y-position via node.vy
+        }
+        // >>> КОНЕЦ НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
+
+        // Note: The original code had comments indicating:
+        // "Горизонтальный ветер (X) -> от наклона ВПЕРЕД/НАЗАД (pitch)"
+        // "Вертикальный ветер (Y) -> от наклона ВЛЕВО/ВПРАВО (roll)"
+        // This matches how windForceX (pitch-based) and windForceY (roll-based) are calculated above.
+        // The new universal block calculates windX (roll) and windY (pitch).
+        // To maintain the *effect* on X and Y positions as before:
+        // Effect on X position (node.vx) should use pitch.
+        // Effect on Y position (node.vy) should use roll.
+        // The universal block above is now set up so that windForceX uses pitch and windForceY uses roll.
 
         const stiffness = this.stiffness; // Use this.stiffness
         const damping = this.damping;   // Use this.damping

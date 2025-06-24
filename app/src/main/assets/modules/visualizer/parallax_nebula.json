@@ -8,6 +8,13 @@
   "data": {
     "rendererScript": "js/visualizers/ParallaxNebulaRenderer.js",
     "settings": {
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": true,
+        "strength": 0.5, // General strength, JS to apply to layers
+        "invertPitch": false,
+        "invertRoll": false
+      },
       "starCount": 200,
       "starSize": 1.2,
       "starParallaxFactor": 1.0,

@@ -11,6 +11,15 @@
       "fadeSpeed": 0.25,
       "gravityStrength": 0.2,
       "friction": 0.97,
+
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": true,
+        "strength": 0.2,       // Сила гравитации
+        "invertPitch": false,  // false = наклон "на себя" заставляет падать "вниз" по экрану (к пользователю)
+        "invertRoll": false    // false = наклон вправо заставляет падать вправо
+      },
+
       "touchPushRadius": 150,
       "touchPushStrength": 1.5,
       "glitchColors": [

@@ -15,7 +15,15 @@
       "maxRadius": 70,
       "blurAmount": 35,
       "contrastAmount": 40,
-      "windStrength": 0.15
+
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": true,
+        "strength": 0.15, // From existing windStrength
+        "invertPitch": false,
+        "invertRoll": false
+      },
+      "windStrength": 0.15 // Keep old key for compatibility
     }
   }
 }

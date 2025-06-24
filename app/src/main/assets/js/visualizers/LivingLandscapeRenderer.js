@@ -86,13 +86,37 @@ class LivingLandscapeRenderer {
         this.ctx.fillStyle = skyGradient;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
+        // >>> НАЧАЛО НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ (for clouds) <<<
+        let cloudWindX = 0;
+        let cloudWindY = 0;
+
+        // Original used factor of /20 and -1. Strength should account for this.
+        // (tilt/20) * -1  vs (tilt/90) * strength * invertFactor
+        // If strength = 4.5 and invertFactor = -1, then (tilt/90) * 4.5 * -1 = (tilt/20) * -1.
+        const defaultTiltStrength = 4.5; // Approximates original /20 factor with new /90 base
+        const tiltSettings = this.settings.tiltPhysics || {
+            enabled: true,
+            strength: defaultTiltStrength,
+            invertPitch: true, // Original X effect used pitch * -1
+            invertRoll: true   // Original Y effect used roll * -1
+        };
+
+        if (tiltSettings.enabled && deviceTilt) {
+            const pitchFactor = tiltSettings.invertPitch ? -1 : 1;
+            const rollFactor = tiltSettings.invertRoll ? -1 : 1;
+
+            // Original: cloud.x affected by pitch*-1, cloud.y by roll*-1
+            // New standard: windX from roll, windY from pitch.
+            // So, effect on cloud.x must use new windY (pitch-based).
+            // And effect on cloud.y must use new windX (roll-based).
+            cloudWindX = (deviceTilt.pitch / 90) * tiltSettings.strength * pitchFactor; // This will be added to cloud.x
+            cloudWindY = (deviceTilt.roll / 90) * tiltSettings.strength * rollFactor;  // This will be added to cloud.y
+        }
+        // >>> КОНЕЦ НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
+
         this.clouds.forEach(cloud => {
-            // --- ИСПРАВЛЕНИЕ ОСЕЙ (v4 - Финальная версия) ---
-            // Горизонтальный ветер (X) -> от наклона ВПЕРЕД/НАЗАД (pitch)
-            cloud.x += cloud.speed + (deviceTilt.pitch / 20) * -1;
-            // Вертикальный ветер (Y) -> от наклона ВЛЕВО/ВПРАВО (roll)
-            cloud.y += (deviceTilt.roll / 20) * -1;
-            // --- КОНЕЦ ИСПРАВЛЕНИЙ ---
+            cloud.x += cloud.speed + cloudWindX; // cloudWindX is pitch-based, affecting X
+            cloud.y += cloudWindY;             // cloudWindY is roll-based, affecting Y
 
             if (cloud.x > this.canvas.width + cloud.size) cloud.x = -cloud.size;
             if (cloud.x < -cloud.size) cloud.x = this.canvas.width + cloud.size;

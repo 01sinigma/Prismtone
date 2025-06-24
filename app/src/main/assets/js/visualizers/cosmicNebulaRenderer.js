@@ -124,8 +124,31 @@ class CosmicNebulaRenderer {
         if (!this.noiseCtx || !this.noiseCanvas) return;
 
         this.noiseTime += this.noiseSpeed;
-        const tiltX = (deviceTilt && deviceTilt.roll) ? (deviceTilt.roll / 90) * this.settings.tiltEffectStrength : 0; // Max roll = 90 degrees
-        const tiltY = (deviceTilt && deviceTilt.pitch) ? (-deviceTilt.pitch / 90) * this.settings.tiltEffectStrength : 0; // Max pitch = 90 degrees
+
+        // >>> НАЧАЛО НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ (for nebula tilt effect) <<<
+        let tiltX = 0; // Used for nebula layer offset
+        let tiltY = 0; // Used for nebula layer offset
+
+        const defaultTiltStrength = this.settings.tiltEffectStrength !== undefined ? this.settings.tiltEffectStrength : 50;
+        // Original: tiltX from roll, tiltY from pitch * -1.
+        // New standard: windX from roll, windY from pitch.
+        // So, tiltX (new windX) needs invertRoll = false.
+        // tiltY (new windY) needs invertPitch = true (for the * -1 part).
+        const tiltSettings = this.settings.tiltPhysics || {
+            enabled: true,
+            strength: defaultTiltStrength,
+            invertPitch: true, // Because original tiltY used -pitch
+            invertRoll: false
+        };
+
+        if (tiltSettings.enabled && deviceTilt) {
+            const pitchFactor = tiltSettings.invertPitch ? -1 : 1;
+            const rollFactor = tiltSettings.invertRoll ? -1 : 1;
+
+            tiltX = (deviceTilt.roll / 90) * tiltSettings.strength * rollFactor;
+            tiltY = (deviceTilt.pitch / 90) * tiltSettings.strength * pitchFactor;
+        }
+        // >>> КОНЕЦ НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
 
         const baseAudioEffect = audioData ? Math.min(1, audioData.reduce((a, b) => a + Math.abs(b), 0) / audioData.length * 5) : 0;
 

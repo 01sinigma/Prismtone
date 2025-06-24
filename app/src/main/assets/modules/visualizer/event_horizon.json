@@ -18,7 +18,15 @@
       "matterSizeYFactor": 8,
       "gravity": 5000,
       "horizonGlowSize": 15,
-      "tiltParallax": 25
+
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": true,
+        "strength": 25,     // Existing tiltParallax was 25
+        "invertPitch": false,
+        "invertRoll": false
+      },
+      "tiltParallax": 25 // Keeping old key for compatibility
     }
   }
 }

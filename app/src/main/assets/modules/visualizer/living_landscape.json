@@ -8,6 +8,13 @@
   "data": {
     "rendererScript": "LivingLandscapeRenderer",
     "settings": {
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": true,
+        "strength": 0.3, // Default strength, adjust as needed
+        "invertPitch": false,
+        "invertRoll": false
+      },
       "analyserType": "fft",
       "touchStrength": 4.5,
       "cloudCount": 25,

@@ -26,7 +26,15 @@
       "connectionThreshold": 100,
       "connectionColor": "border",
       "connectionAlpha": 0.1,
-      "gravityStrength": 0.08,
+
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": true,
+        "strength": 0.08, // From existing gravityStrength
+        "invertPitch": false,
+        "invertRoll": false
+      },
+      "gravityStrength": 0.08, // Keep old key
       "repulsionStrength": 15,
       "gravityMinDistance": 15  ,
       "touchGravityStrength": 50.0,

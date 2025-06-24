@@ -8,6 +8,13 @@
   "data": {
     "rendererScript": "js/visualizers/GlitchEqualizerRenderer.js",
     "settings": {
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": true,
+        "strength": 0.3, // Default strength, adjust as needed for glitch intensity
+        "invertPitch": false,
+        "invertRoll": false
+      },
       "barCount": 64,
       "minDecibels": -90,
       "maxDecibels": -10,

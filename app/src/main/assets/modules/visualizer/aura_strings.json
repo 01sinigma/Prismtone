@@ -17,7 +17,16 @@
       "damping": 0.92,
       "touchAttractionForce": 0.5,
       "touchRadius": 120,
-      "tiltWindForce": 0.2,
+
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": true,
+        "strength": 0.2,       // Existing tiltWindForce was 0.2
+        "invertPitch": false,
+        "invertRoll": false
+      },
+
+      "tiltWindForce": 0.2, // Keeping old key for compatibility or if renderer isn't updated immediately
       "minWidth": 1.5,
       "widthAgitationFactor": 10,
       "glowAgitationFactor": 15,

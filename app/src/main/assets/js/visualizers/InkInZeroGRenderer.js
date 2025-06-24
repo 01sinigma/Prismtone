@@ -146,12 +146,73 @@ class InkInZeroGRenderer {
         }
 
         // 2. Реакция на акселерометр (антигравитация)
-        // Наклон телефона вниз (beta > 0) -> капли всплывают вверх (vy += antiGravityForce)
-        const verticalTiltEffect = (deviceTilt.beta / 90); // beta: вперед/назад
+
+        // >>> НАЧАЛО НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
+        let windX = 0; // Not used by original anti-gravity, but standard block provides it
+        let windY = 0; // This will become the basis for currentAntiGravity
+
+        // Original antiGravityForce was -0.03.
+        // Original logic: currentAntiGravity = antiGravityForce * ( (pitch/90) - 0.2 ) if (pitch/90) > 0.2
+        // This was added to vy. So pitch affects Y.
+        // If pitch > 0 (tilt forward/down), and (pitch/90) > 0.2, then (pitch/90) - 0.2 is positive.
+        // currentAntiGravity = (-0.03) * (positive) = negative value. Negative vy is upwards.
+        // So, positive pitch (tilt forward) -> upward force.
+        // New standard: windY from pitch. For upward force with positive pitch, windY should be negative.
+        // So, if strength is positive (e.g. 0.03), invertPitch should be true.
+        const defaultSettingsStrength = this.settings.accelerometerAntiGravity?.forceFactor !== undefined ? Math.abs(this.settings.accelerometerAntiGravity.forceFactor) : 0.03;
+        const tiltSettings = this.settings.tiltPhysics || {
+            enabled: this.settings.accelerometerAntiGravity?.enabled !== undefined ? this.settings.accelerometerAntiGravity.enabled : true,
+            strength: defaultSettingsStrength,
+            invertPitch: true, // to make positive pitch result in negative Y force (upwards)
+            invertRoll: false
+        };
+
         let currentAntiGravity = 0;
-        if (verticalTiltEffect > 0.2) { // Если наклон вниз достаточно сильный
-            currentAntiGravity = this.antiGravityForce * (verticalTiltEffect - 0.2);
+        if (tiltSettings.enabled && deviceTilt) {
+            const pitchFactor = tiltSettings.invertPitch ? -1 : 1;
+            // const rollFactor = tiltSettings.invertRoll ? -1 : 1; // roll not used for anti-gravity here
+
+            // windX = (deviceTilt.roll / 90) * tiltSettings.strength * rollFactor; // Available if needed
+            windY = (deviceTilt.pitch / 90) * tiltSettings.strength * pitchFactor;
+
+            // Apply original threshold logic
+            const verticalTiltEffect = deviceTilt.pitch / 90; // Raw normalized pitch
+            const threshold = this.settings.accelerometerAntiGravity?.tiltThreshold !== undefined ? this.settings.accelerometerAntiGravity.tiltThreshold : 0.2;
+
+            if ( (tiltSettings.invertPitch && verticalTiltEffect < -threshold) || // e.g. pitch is -30 (-0.33), -0.33 < -0.2. Upward tilt.
+                 (!tiltSettings.invertPitch && verticalTiltEffect > threshold) ) {  // e.g. pitch is 30 (0.33), 0.33 > 0.2. Downward tilt.
+                // The universal block already applied strength and inversion.
+                // If currentAntiGravity was simply windY, the (verticalTiltEffect - threshold) logic is tricky.
+                // Let's recalculate based on the *direction* of windY, but magnitude from raw tilt vs threshold.
+                // If windY is negative (upward force intended by positive pitch with invertPitch:true)
+                // and raw pitch effect > threshold, apply.
+                // This way, strength is from tiltPhysics, direction from invertPitch, and threshold is applied.
+
+                // Simpler: use the calculated windY but only if threshold is met.
+                // The magnitude of windY is already scaled by strength.
+                // The (verticalTiltEffect - threshold) was a way to scale magnitude *after* threshold.
+                // Let's keep it simple: if threshold met, use windY. Otherwise 0.
+                // This might change behavior slightly if forceFactor was meant to multiply the (diff from threshold).
+
+                // Option 1: Use calculated windY if threshold met
+                // currentAntiGravity = windY;
+
+                // Option 2: Try to replicate original magnitude scaling more closely
+                // Strength from tiltPhysics is applied. invertPitch handles direction.
+                // The original scaling was: strength * (abs_normalized_tilt - threshold)
+                // Current windY = (normalized_tilt * strength_from_json * inversion_factor)
+                // We want: sign(windY) * strength_from_json * (abs_normalized_tilt - threshold)
+                let baseForce = tiltSettings.strength;
+                if ( (verticalTiltEffect > threshold && !tiltSettings.invertPitch) || (verticalTiltEffect < -threshold && tiltSettings.invertPitch) ) {
+                     currentAntiGravity = (tiltSettings.invertPitch ? -1 : 1) * baseForce * (Math.abs(verticalTiltEffect) - threshold);
+                }
+
+
+            } else {
+                currentAntiGravity = 0;
+            }
         }
+        // >>> КОНЕЦ НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
 
 
         // 3. Реакция на касания

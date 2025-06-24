@@ -24,7 +24,15 @@
       "touchGlowColor": "accent",
       "touchGlowRadius": 50,
       "touchGlowDuration": 300,
-      "gravityStrength": 0.08,
+
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": true,
+        "strength": 0.08, // From existing gravityStrength
+        "invertPitch": false,
+        "invertRoll": false
+      },
+      "gravityStrength": 0.08, // Keep old key
       "touchGravityStrength": 8,
       "collisionShrinkFactor": 0.7,
       "starMinSpeed": 0.1,

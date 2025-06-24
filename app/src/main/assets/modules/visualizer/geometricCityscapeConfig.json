@@ -9,6 +9,15 @@
     "rendererScript": "js/visualizers/GeometricCityscapeRenderer.js",
     "settings": {
       "backgroundColor": "rgba(10, 15, 25, 1)",
+
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": true,
+        "strength": 0.5,      // Default strength, adjust as needed based on existing factors
+        "invertPitch": false, // May need to be true depending on how camera.tiltPitchFactor was used
+        "invertRoll": false   // May need to be true depending on how camera.tiltYawFactor was used
+      },
+
       "gridSize": 20,
       "cellSize": 30,
       "maxBuildingHeight": 200,

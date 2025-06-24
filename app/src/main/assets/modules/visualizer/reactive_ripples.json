@@ -8,6 +8,13 @@
   "data": {
     "rendererScript": "js/visualizers/reactiveRipplesRenderer.js",
     "settings": {
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": false, // Default to false as ripples are mainly touch/audio
+        "strength": 0.3,
+        "invertPitch": false,
+        "invertRoll": false
+      },
       "rippleColor": "accent",
       "rippleMaxRadius": 150,
       "rippleDuration": 1000,

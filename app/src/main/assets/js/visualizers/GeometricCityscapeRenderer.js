@@ -124,12 +124,30 @@ class GeometricCityscapeRenderer {
     draw(audioData, activeTouchStates, deviceTilt) {
         if (!this.ctx || !this.canvas) return;
 
-        // 1. Обновление камеры на основе наклона акселерометра
-        // Плавный наклон влево-вправо (roll -> gamma) -> поворот сцены (yaw)
-        this.camera.targetYaw = (deviceTilt.gamma / 90) * (Math.PI / 3); // gamma: -90 to 90. Max rotation PI/3.
-        // Плавный наклон вперед-назад (pitch -> beta) -> наклон сцены (pitch)
-        this.camera.targetPitch = Math.PI / 8 + (deviceTilt.beta / 90) * (Math.PI / 4); // beta: -90 to 90. Max additional pitch PI/4.
-        this.camera.targetPitch = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, this.camera.targetPitch)); // Ограничение
+        // 1. Обновление камеры на основе наклона устройства
+        // Наклон влево-вправо (roll) -> поворот сцены (yaw)
+        this.camera.targetYaw = (deviceTilt.roll / 90) * (this.settings.camera?.tiltYawFactor !== undefined ? this.settings.camera.tiltYawFactor : (Math.PI / 3));
+        // Наклон вперед-назад (pitch) -> наклон сцены (pitch)
+        // Base pitch might be from settings, e.g., this.settings.camera.initialPitch
+        const initialPitch = this.settings.camera?.initialPitch !== undefined ? this.settings.camera.initialPitch : Math.PI / 8;
+        this.camera.targetPitch = initialPitch + (deviceTilt.pitch / 90) * (this.settings.camera?.tiltPitchFactor !== undefined ? this.settings.camera.tiltPitchFactor : (Math.PI / 4));
+
+        const maxPitchUp = this.settings.camera?.maxPitchUp !== undefined ? this.settings.camera.maxPitchUp : -Math.PI/2.2; // Typically negative for up
+        const maxPitchDown = this.settings.camera?.maxPitchDown !== undefined ? this.settings.camera.maxPitchDown : Math.PI/2.2;
+        this.camera.targetPitch = Math.max(maxPitchUp, Math.min(maxPitchDown, this.camera.targetPitch)); // Ограничение
+
+        // Универсальный блок tiltPhysics здесь не используется для windX/windY,
+        // так как управление идет через camera.targetYaw и camera.targetPitch.
+        // Настройки tiltPhysics в JSON для этого рендерера могут определять enabled:false или иметь strength для факторов выше.
+        // Если camera.tiltYawFactor и camera.tiltPitchFactor должны управляться через tiltPhysics.strength:
+        // const tiltSettings = this.settings.tiltPhysics || { enabled: true, strength: 1.0, invertPitch: false, invertRoll: false };
+        // if (tiltSettings.enabled && deviceTilt) {
+        //    const rollFactor = tiltSettings.invertRoll ? -1 : 1;
+        //    const pitchFactor = tiltSettings.invertPitch ? -1 : 1;
+        //    this.camera.targetYaw = (deviceTilt.roll / 90) * (Math.PI / 3) * tiltSettings.strength * rollFactor;
+        //    this.camera.targetPitch = initialPitch + (deviceTilt.pitch / 90) * (Math.PI / 4) * tiltSettings.strength * pitchFactor;
+        // }
+        // Пока что оставляем прямое использование deviceTilt.roll и deviceTilt.pitch с множителями из camera settings.
 
         this.camera.yaw += (this.camera.targetYaw - this.camera.yaw) * this.camera.lerpFactor;
         this.camera.pitch += (this.camera.targetPitch - this.camera.pitch) * this.camera.lerpFactor;

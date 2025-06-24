@@ -874,8 +874,25 @@ class StellarNurseryRenderer {
         this.ctx.fillStyle = this.globalVisualizerRef.getColorWithAlpha((this.themeColors && this.themeColors.background) ? this.themeColors.background : '#00000A', this.settings.fadeSpeed);
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        const windX = (deviceTilt.roll / 90) * (this.settings.windStrength || 0);
-        const windY = (deviceTilt.pitch / 90) * (this.settings.windStrength || 0);
+        // >>> НАЧАЛО НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
+        let windX = 0;
+        let windY = 0;
+
+        // Получаем настройки физики из JSON или используем дефолтные
+        // Используем старое значение this.settings.windStrength как strength по умолчанию, если tiltPhysics отсутствует
+        const defaultTiltStrength = this.settings.windStrength !== undefined ? this.settings.windStrength : 0.3;
+        const tiltSettings = this.settings.tiltPhysics || { enabled: true, strength: defaultTiltStrength, invertPitch: false, invertRoll: false };
+
+        if (tiltSettings.enabled && deviceTilt) {
+            // Множитель инверсии
+            const pitchFactor = tiltSettings.invertPitch ? -1 : 1;
+            const rollFactor = tiltSettings.invertRoll ? -1 : 1;
+
+            // Вычисляем финальную силу "ветра"
+            windX = (deviceTilt.roll / 90) * tiltSettings.strength * rollFactor;
+            windY = (deviceTilt.pitch / 90) * tiltSettings.strength * pitchFactor;
+        }
+        // >>> КОНЕЦ НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
 
         this._updateCores(activeTouchStates, windX, windY, now);
         this._updateBackgroundParticles(windX, windY, now);

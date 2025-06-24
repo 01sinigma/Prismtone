@@ -8,6 +8,13 @@
   "data": {
     "rendererScript": "js/visualizers/touchTrailsRenderer.js",
     "settings": {
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": false, // Default to false for touch trails
+        "strength": 0.3,
+        "invertPitch": false,
+        "invertRoll": false
+      },
       "trailColorSource": "note",
       "trailDuration": 1000,
       "trailBaseWidth": 3,

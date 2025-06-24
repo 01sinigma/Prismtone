@@ -9,7 +9,15 @@
     "maxCount": 120,
     "baseSpeed": 0.3,
     "maxSpeed": 1.0,
-    "tiltForceFactor": 0.05,
+
+    "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+    "tiltPhysics": {
+      "enabled": true,
+      "strength": 0.05,   // Existing tiltForceFactor was 0.05
+      "invertPitch": false,
+      "invertRoll": false
+    },
+    "tiltForceFactor": 0.05, // Keeping old key for compatibility
     "touchAttractionForce": 0.08,
     "touchAttractionRadius": 200,
     "motherFireflyBaseRadius": 6,

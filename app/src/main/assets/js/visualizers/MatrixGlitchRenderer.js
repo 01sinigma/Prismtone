@@ -294,6 +294,30 @@ class MatrixGlitchRenderer {
         this.ctx.fillStyle = this.themeColors.background || '#000000';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
+        // >>> НАЧАЛО НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
+        // This renderer currently does not use tilt for wind/gravity.
+        // Adding the block for consistency and future use if tilt-based effects are desired.
+        let windX = 0;
+        let windY = 0;
+
+        const tiltSettings = this.settings.tiltPhysics || {
+            enabled: false, // Default to false as it's not used
+            strength: 0.3,
+            invertPitch: false,
+            invertRoll: false
+        };
+
+        if (tiltSettings.enabled && deviceTilt) {
+            const pitchFactor = tiltSettings.invertPitch ? -1 : 1;
+            const rollFactor = tiltSettings.invertRoll ? -1 : 1;
+
+            windX = (deviceTilt.roll / 90) * tiltSettings.strength * rollFactor;
+            windY = (deviceTilt.pitch / 90) * tiltSettings.strength * pitchFactor;
+            // To use these, MatrixGlitchRenderer would need new logic,
+            // e.g., to influence letter offsets or rain direction.
+        }
+        // >>> КОНЕЦ НОВОГО УНИВЕРСАЛЬНОГО БЛОКА ГРАВИТАЦИИ <<<
+
         this.letters.forEach((letter, index) => {
             const atlasCoords = this.atlasMap.get(`${letter.char}_${letter.color}`);
             if (atlasCoords) {

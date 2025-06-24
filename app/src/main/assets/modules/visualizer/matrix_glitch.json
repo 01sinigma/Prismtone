@@ -8,6 +8,13 @@
   "data": {
     "rendererScript": "MatrixGlitchRenderer",
     "settings": {
+      "//": ">>> НОВЫЙ БЛОК НАСТРОЕК ГИРОСКОПА <<<",
+      "tiltPhysics": {
+        "enabled": true,
+        "strength": 0.3, // Default strength
+        "invertPitch": false,
+        "invertRoll": false
+      },
       "glitchSpeed": 80,
       "audioReactivity": 15,
       "smooth": true,
