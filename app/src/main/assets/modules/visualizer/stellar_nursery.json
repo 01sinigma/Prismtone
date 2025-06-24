@@ -2,8 +2,8 @@
   "id": "stellar_nursery",
   "type": "visualizer",
   "name": "Stellar Nursery",
-  "version": "6.0.0",
-  "description": "Interactive cosmic ecosystem with stars, nebulas, and antimatter particles. Version 6.0.",
+  "version": "6.1.0",
+  "description": "Interactive cosmic ecosystem with temporary antimatter transformation of particles. Version 6.1.",
   "active": true,
   "data": {
     "rendererScript": "js/visualizers/StellarNurseryRenderer.js",
@@ -18,12 +18,21 @@
         "repulsionFactor": 0.005,
         "repulsionActive": true,
         "repulsionRadiusSq": 2500,
-        "attractionToAntimatter": 75,
+        "attractionToTransformedAntimatter": 75,
         "transformed": {
           "lifeMs": 3000,
           "initialSpeedBoost": 1.5,
           "gravityImmunityDurationMs": 1500,
           "coolDownMs": 1000
+        },
+        "antimatterTransformation": {
+          "durationMs": 2000,
+          "coolDownMs": 1500,
+          "impulseFactor": 1.5,
+          "color": "themeError",
+          "repulsionFromStarsFactor": 0.2,
+          "repulsionFromCoresFactor": 0.2,
+          "attractionToNormalFactor": 100
         }
       },
 
@@ -35,8 +44,8 @@
         "energyGain": 0.015,
         "inertiaDamping": 30,
         "historyLength": 5,
-        "repulsionFromAntimatter": 0.1,
         "windInfluence": 0.5
+
       },
 
       "stars": {
@@ -44,23 +53,13 @@
         "gravityFactor": 800,
         "polarityStrength": 2.0,
         "bounceDamping": -0.6,
-        "defaultDecay": 0.001,
+        "defaultDecay": 0.0025,
         "fadeStartSize": 15,
-        "repulsionFromAntimatter": 0.1,
         "supernova": {
           "starPushForce": 5,
-          "antimatterConversionRadiusFactor": 5,
-          "maxAntimatterParticles": 50,
-          "antimatterInitialSpeedFactor": 2.0
+          "antimatterConversionRadiusFactor": 4,
+          "maxParticlesToTransform": 20
         }
-      },
-
-      "antimatterSystem": {
-        "poolSize": 200,
-        "particleDefaultSize": 2,
-        "particleLifeMs": 5000,
-        "particleFriction": 0.98,
-        "windInfluence": 1.0
       }
     }
   }

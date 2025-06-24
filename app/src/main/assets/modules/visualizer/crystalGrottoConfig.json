@@ -1,9 +1,9 @@
 {
   "id": "crystal_grotto",
   "type": "visualizer",
-  "name": "Хрустальная Пещера",
-  "version": "1.6",
-  "description": "Финальная версия пещеры с кристаллами: динамика, частицы, реакции на звук, наклон, касания и взаимодействия.",
+  "name": "Crystal Grotto",
+  "version": "2.0",
+  "description": "A cave of crystals with harmonic resonance, energy flows, interactive shattering, background vibration and light echoes.",
   "active": false,
   "data": {
     "rendererScript": "js/visualizers/CrystalGrottoRenderer.js",
@@ -67,7 +67,38 @@
         },
         "crystalCharge": { "energyBoostFactor":0.07,"maxChargeEffectRadius":22 },
         "swipeTrail": { "enabled":true,"maxLength":28,"minDistance":5,"lineWidth":2.0,"color":"rgba(210,210,255,0.2)"},
-        "multiTouchLink": { "enabled":true,"lineWidth":1.0,"color":"rgba(200,200,240,0.15)","pulseSpeed":0.03,"pulseAmplitude":0.3}
+        "multiTouchLink": { "enabled":true,"lineWidth":1.0,"color":"rgba(200,200,240,0.15)","pulseSpeed":0.03,"pulseAmplitude":0.3},
+        "chargeRate": 0.02,
+        "resonantCascadeHoldTime": 1500,
+        "lightEcho": {
+          "enabled": true,
+          "trailLength": 15,
+          "minDistance": 10,
+          "initialIntensity": 0.8,
+          "decayRate": 0.05,
+          "interactionRadius": 150
+        }
+      },
+      "resonance": {
+        "showHarmonicLinks": true,
+        "linkMinWidth": 0.5,
+        "linkMaxWidth": 2.0,
+        "harmonicLinkJitter": 0.5,
+        "maxHarmonicLinksPerCrystal": 3,
+        "maxSimultaneousHarmonicLinks": 50,
+        "energyTransfer": {
+          "show": true,
+          "speed": 0.8,
+          "decay": 0.95,
+          "maxAffectedNeighbors": 3,
+          "initialVisualEnergy": 1.0
+        }
+      },
+      "backgroundVibration": {
+        "enabled": true,
+        "lowFrequencyThreshold": 0.7,
+        "waveIntensity": 0.05,
+        "waveSpeed": 0.1
       },
       "visualPolish": {
         "crystalAmbientGlow": { "enabled":true,"influenceRadiusFactor":3.0,"maxBrightnessBoost":0.04,"energyThreshold":0.45 },

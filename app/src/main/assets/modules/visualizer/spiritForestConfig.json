@@ -3,20 +3,51 @@
   "type": "visualizer",
   "name": "Spirit Forest",
   "version": "2.0",
-  "description": "An interactive forest with energy spirits reacting to sound, touch and wind.",
-  "active": false,
+  "description": "An ecosystem of spirits that interact with each other, pollinate trees, and react to multi-touch.",
+  "active": true,
   "data": {
-    "rendererScript": "js/visualizers/SpiritForestRenderer.js",
-    "settings": {
-      "spiritCount": 200,
-      "treeLayers": 5,
-      "treeRepulsion": 1.5,
-      "windStrength": 0.2,
-      "touchAttraction": 0.8,
-      "touchRadius": 200,
-      "tapRepulsion": 10,
-      "energyGainRate": 0.15,
-      "energyDecayRate": 0.99
+    "data": {
+      "rendererScript": "js/visualizers/SpiritForestRenderer.js",
+      "settings": {
+        "forest": {
+          "treeLayers": 5,
+          "baseTreeHeight": 0.3,
+          "treeHeightVariance": 0.4
+        },
+
+        "spirits": {
+          "initialCount": 200,
+          "maxCount": 400,
+          "minSize": 1.0,
+          "maxSize": 3.5,
+          "baseSpeed": 0.4
+        },
+
+        "physics": {
+          "windStrength": 0.4,
+          "friction": 0.97,
+          "audioEnergyMultiplier": 3.0
+        },
+
+        "interaction": {
+          "touchAttraction": 0.15,
+          "touchRadius": 180,
+          "energyChargeRate": 0.05,
+          "pollination": {
+            "energyCost": 0.8,
+            "newSpiritsCount": 3,
+            "flashDurationMs": 300
+          },
+          "multiTouchBridge": {
+            "lineWidth": 2.0,
+            "glow": 10
+          },
+          "pinchExplosion": {
+            "strength": 5.0,
+            "radius": 300
+          }
+        }
+      }
     }
   }
 }

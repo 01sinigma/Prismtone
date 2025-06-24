@@ -213,12 +213,37 @@ const visualizer = {
             const vizModuleInfo = await moduleManager.getModule(typeId);
             if (this.debugMode) console.log(`[Visualizer v4.0 DEBUG] Loaded module info for ${typeId}:`, vizModuleInfo ? JSON.parse(JSON.stringify(vizModuleInfo)) : 'null');
 
-            if (!vizModuleInfo || !vizModuleInfo.data || !vizModuleInfo.data.data) {
-                if (this.debugMode) console.error(`[Visualizer v4.0] Module info or core data block (module.data.data) not found for visualizer: ${typeId}`);
+            let coreData = null;
+            // Исправленная логика для определения coreData, включая специфичный случай для spirit_forest
+            if (vizModuleInfo && vizModuleInfo.data) {
+                if (typeId === 'spirit_forest' &&
+                    vizModuleInfo.data.data &&
+                    typeof vizModuleInfo.data.data.rendererScript === 'undefined' && // Проверяем, что стандартный путь не сработал бы
+                    vizModuleInfo.data.data.data) { // И что более глубокий путь существует
+
+                    coreData = vizModuleInfo.data.data.data;
+                    if (this.debugMode) console.warn(`[Visualizer DEBUG ${typeId}] Using DEEPER coreData path (vizModuleInfo.data.data.data) due to an
+omaly in received structure.`);
+                } else if (vizModuleInfo.data.data) {
+                    // Стандартный ожидаемый путь
+                    coreData = vizModuleInfo.data.data;
+                }
+            }
+
+            if (!coreData) {
+                 if (this.debugMode) {
+                    console.error(`[Visualizer v4.0] Core data block (coreData) could not be determined for visualizer: ${typeId}.`);
+                    if (vizModuleInfo && vizModuleInfo.data) {
+                         console.log(`[Visualizer DEBUG ${typeId}] vizModuleInfo.data content: `, JSON.stringify(vizModuleInfo.data, null, 2));
+                    } else if (vizModuleInfo) {
+                         console.log(`[Visualizer DEBUG ${typeId}] vizModuleInfo content: `, JSON.stringify(vizModuleInfo, null, 2));
+                    } else {
+                         console.log(`[Visualizer DEBUG ${typeId}] vizModuleInfo itself is null or undefined.`);
+                    }
+                }
                 return;
             }
 
-            const coreData = vizModuleInfo.data.data;
             const rendererScriptName = coreData.rendererScript;
             this.vizModuleSettings = coreData.settings || {};
 
