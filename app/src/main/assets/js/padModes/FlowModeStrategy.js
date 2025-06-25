@@ -57,8 +57,8 @@ const FlowModeStrategy_v3 = {
             const settingsKey = 'flowModeSettings_v3'; // New settings key for v3
              if (this.appRef.state.settingsBroker && typeof this.appRef.state.settingsBroker.getModeSettings === 'function') {
                 loadedSettings = this.appRef.state.settingsBroker.getModeSettings(this.getName(), settingsKey);
-            } else if (appState[settingsKey]) { // Fallback
-                loadedSettings = appState[settingsKey];
+            } else if (appState.rocketModeSettings && appState.rocketModeSettings[settingsKey]) {
+                loadedSettings = appState.rocketModeSettings[settingsKey];
             }
             if (loadedSettings) {
                 this._settings = { ...this._settings, ...loadedSettings };

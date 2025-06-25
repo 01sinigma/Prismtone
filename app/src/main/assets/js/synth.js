@@ -607,22 +607,38 @@ const synth = {
         if (!this.isReady) return;
         const voiceIndex = this.findVoiceIndex(touchId);
         if (voiceIndex === -1) return;
+
         const voiceData = this.voices[voiceIndex];
         if (!voiceData || !voiceData.components) return;
+
         const activeVoice = this.activeVoices.get(touchId);
-        if (activeVoice && activeVoice.lastY === yPosition && activeVoice.frequency === frequency) {
-            return;
+
+        // >>> ОПТИМИЗАЦИЯ: Проверяем, изменилось ли что-то <<<
+        const yChanged = activeVoice && Math.abs(activeVoice.lastY - yPosition) > 0.001; // Порог для Y
+        const freqChanged = activeVoice && Math.abs(activeVoice.frequency - frequency) > 0.1; // Порог для частоты (в Гц)
+
+        if (!yChanged && !freqChanged) {
+            return; // Ничего не изменилось, выходим
         }
+        // --- КОНЕЦ ОПТИМИЗАЦИИ ---
+
         if (activeVoice) activeVoice.lastY = yPosition;
+
         const calculatedVolume = this.calculateGenericYParameter(yPosition, app.state.yAxisControls.volume);
         const calculatedSendLevel = this.calculateGenericYParameter(yPosition, app.state.yAxisControls.effects);
-        if (activeVoice && activeVoice.frequency !== frequency) {
+
+        if (freqChanged) { // Обновляем только если изменилось
             audioConfig.getManager('oscillator')?.update(voiceData.components.oscillator.nodes, { frequency });
-            activeVoice.frequency = frequency;
+            if (activeVoice) activeVoice.frequency = frequency;
         }
-        audioConfig.getManager('outputGain')?.update(voiceData.components.outputGain.nodes, { gain: calculatedVolume });
-        if (voiceData.fxSend) {
-            voiceData.fxSend.volume.value = calculatedSendLevel;
+
+        // Громкость и посыл на эффекты обновляем, только если изменился Y
+        if (yChanged) {
+            audioConfig.getManager('outputGain')?.update(voiceData.components.outputGain.nodes, { gain: calculatedVolume });
+            if (voiceData.fxSend) {
+                // Вместо прямого присвоения используем rampTo для плавности
+                voiceData.fxSend.volume.rampTo(calculatedSendLevel, 0.02);
+            }
         }
     },
 
@@ -1086,9 +1102,11 @@ const synth = {
             const { effect: effectType, param: paramName, range, curve } = mapping;
             const effectInstance = this.effects[effectType];
 
-            if (!effectInstance) {
-                if (this.config.debug) console.warn(`[Synth FX Macro] Effect instance '${effectType}' not found for macro '${macroName}'.`);
-                return;
+            // >>> ДОБАВИТЬ ПРОВЕРКУ ЗДЕСЬ <<<
+            const definition = this.config.effectDefinitions[effectType];
+            if (!effectInstance || !definition) {
+                if (this.config.debug) console.warn(`[Synth FX Macro] Effect instance or definition for '${effectType}' not found for macro '${macroName}'.`);
+                return; // Пропустить этот маппинг
             }
 
             // Проверяем существование параметра как собственного свойства или как Tone.Param
@@ -1104,7 +1122,7 @@ const synth = {
 
             if (!paramExists) {
                  // Попытка проверить, есть ли такой параметр в def.params для эффекта, если он не Tone.Param
-                 const definition = this.config.effectDefinitions[effectType];
+                 // const definition = this.config.effectDefinitions[effectType]; // Уже определено выше
                  if (definition && definition.params && definition.params.includes(paramName)) {
                      paramExists = true; // Параметр описан, будем считать, что он есть, даже если не Tone.Param
                  } else {

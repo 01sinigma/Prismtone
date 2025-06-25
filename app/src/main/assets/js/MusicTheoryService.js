@@ -477,7 +477,8 @@ const MusicTheoryService = {
             const fullScaleName = `${tonicPc} ${scaleName}`;
     
             // Tonal.Scale.chords() вернет, например: ["CM", "Dm", "Em", "FM", "GM", "Am", "Bdim"]
-            const scaleChordSymbols = this._TonalScale.chords(scaleName);
+            // ИСПРАВЛЕНИЕ: Прямой вызов статического метода Tonal.Scale.chords
+            const scaleChordSymbols = Tonal.Scale.chords(scaleName);
     
             if (!scaleChordSymbols || scaleChordSymbols.length === 0) {
                 console.warn(`[MTS] Tonal.js could not find diatonic chords for scale: "${scaleName}".`);

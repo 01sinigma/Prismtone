@@ -30,6 +30,7 @@ const pad = {
     _zoneMidiNoteToIndexMap: new Map(), // Карта для быстрого поиска индекса зоны по MIDI ноте
     cachedRect: null,
     lastInteractionTime: 0,
+    _lastDrawnTonic: null, // Для оптимизации drawZones
 
     // >>> OPTIMIZATION: Свойства для троттлинга pointermove <<<
     _isMoveProcessingQueued: false,
@@ -225,6 +226,19 @@ const pad = {
         console.log(`[Pad.drawZones ENTRY v10.1] Received zonesData (length: ${zonesData ? zonesData.length : 'null/undefined'}), currentTonic: ${currentTonicNoteName}`);
         if (!this.isReady || !this.zonesContainer || !this.labelsContainer) return;
         if (zonesData && zonesData.length > 0) console.log("[Pad.drawZones] First zone example:", JSON.stringify(zonesData[0]));
+
+        // >>> ОПТИМИЗАЦИЯ: Проверка на реальные изменения <<<
+        // Сравнение может быть сложным, если объекты содержат функции или сложные структуры.
+        // Простая проверка по длине и MIDI первой ноты может отсечь большинство ненужных перерисовок.
+        if (this._currentDisplayedZones && zonesData &&
+            this._currentDisplayedZones.length === zonesData.length &&
+            this._currentDisplayedZones[0]?.midiNote === zonesData[0]?.midiNote &&
+            this._lastDrawnTonic === currentTonicNoteName) {
+             // console.log("[Pad.drawZones] Zone data appears unchanged. Skipping DOM redraw.");
+             return;
+        }
+        this._lastDrawnTonic = currentTonicNoteName; // Сохраняем для следующей проверки
+        // --- КОНЕЦ ОПТИМИЗАЦИИ ---
 
         console.log(`[Pad.drawZones v10] Drawing ${zonesData.length} zones. Current tonic: ${currentTonicNoteName}`);
         this._currentDisplayedZones = Array.isArray(zonesData) ? zonesData : [];
