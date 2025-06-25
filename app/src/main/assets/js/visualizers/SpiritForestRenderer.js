@@ -110,9 +110,9 @@ class SpiritForestRenderer {
             Object.assign(spirit, {
                 x: Math.random() * this.canvas.width,
                 y: Math.random() * this.canvas.height,
-                vx: (Math.random() - 0.5) * s.baseSpeed,
-                vy: (Math.random() - 0.5) * s.baseSpeed,
-                size: s.minSize + Math.random() * (s.maxSize - s.minSize),
+                vx: (Math.random() - 0.5) * s_settings.baseSpeed,
+                vy: (Math.random() - 0.5) * s_settings.baseSpeed,
+                size: s_settings.minSize + Math.random() * (s_settings.maxSize - s_settings.minSize),
                 baseAlpha: 0.5 + Math.random() * 0.5,
                 color: this.themeColors.primary,
 

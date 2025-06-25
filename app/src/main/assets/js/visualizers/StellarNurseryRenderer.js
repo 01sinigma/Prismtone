@@ -995,10 +995,10 @@ class StellarNurseryRenderer {
 
         // The original canvas resizing can be removed if clearRect is used,
         // or kept if it serves a specific purpose in the host application.
-        if (this.canvas) {
-            this.canvas.width = 1;
-            this.canvas.height = 1;
-        }
+        // if (this.canvas) {
+        //     this.canvas.width = 1;
+        //     this.canvas.height = 1;
+        // }
 
         this.ctx = null;
         this.canvas = null;

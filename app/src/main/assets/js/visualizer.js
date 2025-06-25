@@ -336,17 +336,36 @@ const visualizer = {
                     if (this.debugMode) console.log(`[Visualizer] Analyser is available for ${RendererClass.name}. Type: ${this.analyser.type}`);
                 }
 
-                if (this.canvas.width === 0 || this.canvas.height === 0) {
-                    if (this.debugMode) console.warn(`[Visualizer] Canvas dimensions are zero before initializing ${RendererClass.name}. Attempting resize.`);
-                    this.resizeCanvas();
-                    await new Promise(resolve => setTimeout(resolve, 50));
+                // Принудительно установим корректные размеры холста ПЕРЕД init
+                if (this.canvas && this.canvas.parentElement) {
+                    const parent = this.canvas.parentElement;
+                    const newWidth = parent.clientWidth;
+                    const newHeight = parent.clientHeight;
+                    if (newWidth > 0 && newHeight > 0) {
+                        if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
+                            this.canvas.width = newWidth;
+                            this.canvas.height = newHeight;
+                            if (this.debugMode) console.log(`[Visualizer setVisualizerType] Canvas resized to ${newWidth}x${newHeight} before init.`);
+                        }
+                    }
+                } else if (this.debugMode) {
+                    console.warn("[Visualizer setVisualizerType] Canvas or its parent missing, cannot resize before init.");
                 }
-                if (this.canvas.width === 0 || this.canvas.height === 0) {
-                     if (this.debugMode) console.error(`[Visualizer] Canvas dimensions STILL ZERO for ${RendererClass.name}. Renderer WILL LIKELY FAIL.`);
+
+                // Дополнительная проверка после попытки изменения размера, если все еще 0
+                if (this.canvas && (this.canvas.width === 0 || this.canvas.height === 0)) {
+                     if (this.debugMode) console.error(`[Visualizer] Canvas dimensions STILL ZERO for ${RendererClass.name} after explicit resize attempt. Renderer WILL LIKELY FAIL.`);
                 }
 
                 this.activeRenderer = new RendererClass();
                 this.activeRenderer.init(this.ctx, this.canvas, this.vizModuleSettings, this.themeColors, this, this.analyser);
+
+                // Явный вызов onResize после init, чтобы рендерер адаптировался,
+                // если его init не делает этого сам или если размеры могли измениться.
+                if (this.canvas && typeof this.activeRenderer.onResize === 'function') {
+                    this.activeRenderer.onResize(this.canvas.width, this.canvas.height);
+                }
+
                 if (typeof this.activeRenderer.onThemeChange === 'function') {
                     this.activeRenderer.onThemeChange(this.themeColors);
                 }
