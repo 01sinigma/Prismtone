@@ -258,19 +258,31 @@ const visualizer = {
             if (this.debugMode) console.log(`[Visualizer v4.0 DEBUG] Loaded module info for ${typeId}:`, vizModuleInfo ? JSON.parse(JSON.stringify(vizModuleInfo)) : 'null');
 
             let coreData = null;
-            // Исправленная логика для определения coreData, включая специфичный случай для spirit_forest
             if (vizModuleInfo && vizModuleInfo.data) {
                 if (typeId === 'spirit_forest' &&
                     vizModuleInfo.data.data &&
-                    typeof vizModuleInfo.data.data.rendererScript === 'undefined' && // Проверяем, что стандартный путь не сработал бы
-                    vizModuleInfo.data.data.data) { // И что более глубокий путь существует
+                    vizModuleInfo.data.data.data &&
+                    typeof vizModuleInfo.data.data.data.rendererScript === 'string') { // Check if deeper path is valid for spirit_forest
 
                     coreData = vizModuleInfo.data.data.data;
-                    if (this.debugMode) console.warn(`[Visualizer DEBUG ${typeId}] Using DEEPER coreData path (vizModuleInfo.data.data.data) due to an
-omaly in received structure.`);
-                } else if (vizModuleInfo.data.data) {
-                    // Стандартный ожидаемый путь
+                    if (this.debugMode) console.warn(`[Visualizer DEBUG ${typeId}] Using explicit DEEPER coreData path for spirit_forest.`);
+
+                } else if (vizModuleInfo.data.data && typeof vizModuleInfo.data.data.rendererScript === 'string') {
+                    // Standard path, ensure rendererScript exists here
                     coreData = vizModuleInfo.data.data;
+                    if (typeId === 'spirit_forest' && this.debugMode) {
+                        // This case means the explicit deeper check for spirit_forest failed, and we're falling back.
+                        // This might still be problematic if spirit_forest truly needs the deeper data.
+                        console.warn(`[Visualizer DEBUG ${typeId}] spirit_forest using STANDARD coreData path as deeper path check failed. Potential issue if deeper data is required.`);
+                    }
+                } else if (vizModuleInfo.data.data && vizModuleInfo.data.data.data && typeId === 'spirit_forest') {
+                    // Fallback for spirit_forest if no rendererScript found in either standard or deeper path, but deeper data exists
+                     if (this.debugMode) {
+                        console.warn(`[Visualizer DEBUG ${typeId}] spirit_forest falling back to DEEPER data path despite missing rendererScript there. This implies settings might be in deeper path but script name is missing/elsewhere.`);
+                     }
+                     coreData = vizModuleInfo.data.data.data;
+                } else if (vizModuleInfo.data.data) { // General fallback if other conditions not met
+                     coreData = vizModuleInfo.data.data;
                 }
             }
 
@@ -288,6 +300,7 @@ omaly in received structure.`);
                 return;
             }
 
+            // rendererScriptName should be derived from the chosen coreData, or handled if missing
             const rendererScriptName = coreData.rendererScript;
             this.vizModuleSettings = coreData.settings || {};
 

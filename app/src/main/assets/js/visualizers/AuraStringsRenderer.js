@@ -83,9 +83,9 @@ class AuraStringsRenderer {
             if (zoneInfo && typeof zoneInfo.startX === 'number' && typeof zoneInfo.endX === 'number' && this.canvas.width > 0) {
                 baseXPos = (zoneInfo.startX + (zoneInfo.endX - zoneInfo.startX) / 2) * this.canvas.width;
             } else {
-                baseXPos = (this.canvas.width / (numStrings || 1)) * (i + 0.5);
+                baseXPos = (this.canvas.width / (numStrings || 1)) * (s_idx + 0.5);
                 // Refined warnings for different fallback scenarios
-                if (!zoneInfo && i < currentZones.length) {
+                if (!zoneInfo && s_idx < currentZones.length) { // Changed i to s_idx here
                     // This case means currentZones[s_idx] was undefined/null, or lacked startX/endX, but we expected it based on currentZones.length
                     console.warn(`[AuraStringsRenderer] Zone data for string ${s_idx} (index within currentZones) was invalid or incomplete. Using fallback positioning.`);
                 } else if (s_idx >= currentZones.length && currentZones.length > 0) {

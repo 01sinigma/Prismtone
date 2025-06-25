@@ -8,6 +8,9 @@ class NovaSparkEffect {
         this.activeEffects = new Map();
         this.globalVisualizerRef = null;
         this.lastDrawTime = 0;
+
+        this.sparkPool = []; // Added for object pooling
+        this.poolSize = 200; // Default pool size, can be overridden by settings
     }
 
     init(ctx, canvas, initialSettings, themeColors, globalVisualizerRef) {
@@ -28,16 +31,37 @@ class NovaSparkEffect {
             opacityConnectionCore: 1.0, opacityConnectionGlow: 0.9,
             lineGlowRadiusFactor: 1.6, lineGlowOpacityFactor: 0.65,
             attractionRadiusPx: 180, targetAttractionFactor: 0.3,
-            fadeDurationMs: 200, compositeOperation: "lighter"
+            fadeDurationMs: 200, compositeOperation: "lighter",
+            sparkPoolSize: 200 // Added setting for pool size
         };
         this.settings = { ...defaultSettings, ...initialSettings };
         this.themeColors = themeColors || {};
         this.globalVisualizerRef = globalVisualizerRef;
         this.activeEffects.clear();
         this.lastDrawTime = performance.now();
-        console.log("[NovaSparkEffect v1.0] Initialized. Settings:", JSON.parse(JSON.stringify(this.settings)));
+
+        // Initialize spark pool
+        this.poolSize = this.settings.sparkPoolSize || 200;
+        this.sparkPool = [];
+        for (let i = 0; i < this.poolSize; i++) {
+            this.sparkPool.push({ isActiveInPool: false });
+        }
+
+        console.log("[NovaSparkEffect v1.1 ObjectPool] Initialized. Settings:", JSON.parse(JSON.stringify(this.settings)), "Pool Size:", this.poolSize);
     }
 
+    _getSparkFromPool() {
+        for (let i = 0; i < this.poolSize; i++) {
+            if (!this.sparkPool[i].isActiveInPool) {
+                this.sparkPool[i].isActiveInPool = true;
+                return this.sparkPool[i];
+            }
+        }
+        console.warn("[NovaSparkEffect] Spark pool depleted.");
+        // Optionally create a new one if depletion is critical, or return null
+        // For now, returning null as per the example.
+        return null;
+    }
     onThemeChange(themeColors) {
         this.themeColors = themeColors;
         this.activeEffects.forEach(effect => {
@@ -183,22 +207,40 @@ class NovaSparkEffect {
         effect.coreRadius = baseCoreRadius * pulseFactor;
     }
 
-    _updateSparks(effect, now) { /* ... как в BallLightningEffect v1.1 (но используем effect.sparkGlowColor) ... */
-        effect.sparks = effect.sparks.filter(spark => {
+    _updateSparks(effect, now) {
+        let writeIndex = 0;
+        for (let readIndex = 0; readIndex < effect.sparks.length; readIndex++) {
+            const spark = effect.sparks[readIndex];
             const age = now - spark.creationTime;
             spark.life = 1.0 - Math.min(age / this.settings.sparkLifeTimeMs, 1.0);
-            return spark.life > 0;
-        });
+
+            if (spark.life > 0) {
+                effect.sparks[writeIndex] = spark;
+                writeIndex++;
+            } else {
+                spark.isActiveInPool = false; // Return to pool
+            }
+        }
+        effect.sparks.length = writeIndex; // Resize array
+
         if (effect.isActive && (now - effect.lastSparkEmitTime > this.settings.sparkEmitIntervalMs)) {
             const angleSpreadRad = this.settings.sparkAngleSpreadDeg * (Math.PI / 180);
             for (let i = 0; i < this.settings.sparksPerEmit; i++) {
-                effect.currentSparkAngleOffset += (Math.random() - 0.5) * angleSpreadRad * 0.15;
-                const angle = effect.currentSparkAngleOffset + (Math.random() - 0.5) * angleSpreadRad;
-                const length = (this.settings.sparkSegmentLengthBase + this.settings.sparkSegmentLengthYFactor * effect.normY) * (0.6 + Math.random() * 0.7);
-                effect.sparks.push({
-                    points: this._generateSparkPath(effect.touchX, effect.touchY, angle, length, this.settings.sparkMaxSegments, this.settings.sparkJitter),
-                    creationTime: now, life: 1.0, opacityMultiplier: 0.7 + Math.random()*0.3
-                });
+                const newSpark = this._getSparkFromPool();
+                if (newSpark) {
+                    effect.currentSparkAngleOffset += (Math.random() - 0.5) * angleSpreadRad * 0.15;
+                    const angle = effect.currentSparkAngleOffset + (Math.random() - 0.5) * angleSpreadRad;
+                    const length = (this.settings.sparkSegmentLengthBase + this.settings.sparkSegmentLengthYFactor * effect.normY) * (0.6 + Math.random() * 0.7);
+
+                    Object.assign(newSpark, {
+                        points: this._generateSparkPath(effect.touchX, effect.touchY, angle, length, this.settings.sparkMaxSegments, this.settings.sparkJitter),
+                        creationTime: now,
+                        life: 1.0,
+                        opacityMultiplier: 0.7 + Math.random() * 0.3,
+                        // isActiveInPool is already true from _getSparkFromPool
+                    });
+                    effect.sparks.push(newSpark);
+                }
             }
             effect.lastSparkEmitTime = now;
         }

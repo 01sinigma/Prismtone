@@ -12,6 +12,7 @@ class CrystalGrottoRenderer {
         // Object Pooling for particles
         this.particlePool = [];
         this.particlePoolSize = 500; // Default, can be updated from settings
+        this.particleGradientCache = new Map(); // Added for gradient caching
     }
 
     init(ctx, canvas, initialSettings, themeColors, globalVisualizerRef, analyserNodeRef) {
@@ -50,6 +51,7 @@ class CrystalGrottoRenderer {
 
     onThemeChange(themeColors) {
         this.themeColors = themeColors;
+        this.particleGradientCache.clear(); // Clear gradient cache
     }
 
     onSettingsChange(newSettings) {
@@ -190,9 +192,19 @@ class CrystalGrottoRenderer {
             const pulse = 0.85 + 0.18 * Math.sin(now * 3 + p.x * 0.01 + p.life * 6);
             let drawR = p.r * pulse;
             // === Градиент цвета по высоте ===
-            let grad = this.ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, drawR);
-            grad.addColorStop(0, p.color);
-            grad.addColorStop(1, '#fffbe6');
+            const cacheKey = `${p.color}_${drawR.toFixed(1)}`; // Key based on color and radius
+            let grad = this.particleGradientCache.get(cacheKey);
+
+            if (!grad) {
+                // Similar to StellarNursery, if p.x, p.y are part of createRadialGradient,
+                // caching is less effective unless particles are static or overlap perfectly.
+                // Assuming the gradient is defined relative to the particle's center for now.
+                grad = this.ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, drawR);
+                grad.addColorStop(0, p.color);
+                grad.addColorStop(1, '#fffbe6'); // Fixed color stop
+                this.particleGradientCache.set(cacheKey, grad);
+            }
+
             this.ctx.save();
             this.ctx.globalAlpha = p.alpha;
             this.ctx.beginPath();

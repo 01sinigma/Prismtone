@@ -1,4 +1,4 @@
-// Файл: app/src/main/assets/js/visualizers/StellarNurseryRenderer.js
+    // Файл: app/src/main/assets/js/visualizers/StellarNurseryRenderer.js
 // ВЕРСИЯ 6.2.1: Исправлена ошибка с extractBaseColor.
 
 class StellarNurseryRenderer {
@@ -936,7 +936,8 @@ class StellarNurseryRenderer {
     }
 
     dispose() {
-        console.log("[StellarNurseryRenderer v6.2.1] Disposing...");
+        console.log("[StellarNurseryRenderer v6.2.1] dispose() called."); // Added log
+
         this.particles = [];
         this.particlePool = [];
         this.stars = [];
@@ -947,21 +948,57 @@ class StellarNurseryRenderer {
         this.extractAlphaCache.clear();
         this.rgbComponentsCache.clear();
 
+        if (this.ctx) {
+            // Resetting more properties to their common defaults
+            // Some of these are already in the original dispose, kept for clarity
+            // Some are new, to be absolutely sure.
+
+            this.ctx.globalCompositeOperation = 'source-over'; // Already there, good
+            this.ctx.globalAlpha = 1.0;                      // Already there, good
+
+            this.ctx.fillStyle = '#000000'; // Default fillStyle (black)
+            this.ctx.strokeStyle = '#000000'; // Default strokeStyle (black)
+            this.ctx.lineWidth = 1;
+            this.ctx.lineCap = 'butt';
+            this.ctx.lineJoin = 'miter';
+            this.ctx.miterLimit = 10;
+
+            this.ctx.shadowOffsetX = 0;
+            this.ctx.shadowOffsetY = 0;
+            this.ctx.shadowBlur = 0;                         // Already there, good
+            this.ctx.shadowColor = 'rgba(0, 0, 0, 0)';       // Already there, good (fully transparent black)
+
+            if (typeof this.ctx.filter !== 'undefined') {
+                this.ctx.filter = 'none';                    // Already there, good
+            }
+
+            this.ctx.font = '10px sans-serif'; // Default font
+            this.ctx.textAlign = 'start';
+            this.ctx.textBaseline = 'alphabetic';
+
+            // Clear any transformations
+            if (typeof this.ctx.resetTransform === 'function') {
+                this.ctx.resetTransform(); // Modern way
+            } else {
+                // Fallback for older browsers if needed, though setTransform is common
+                this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+            }
+
+            // Attempt to clear the canvas content itself, though the next renderer should do this.
+            // if (this.canvas) {
+            // this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            // }
+
+        } else {
+            console.warn("[StellarNurseryRenderer v6.2.1] dispose(): this.ctx is null, cannot reset context properties.");
+        }
+
+        // The original canvas resizing can be removed if clearRect is used,
+        // or kept if it serves a specific purpose in the host application.
         if (this.canvas) {
             this.canvas.width = 1;
             this.canvas.height = 1;
         }
-
-    // Сброс свойств контекста рендеринга
-    if (this.ctx) {
-        this.ctx.globalCompositeOperation = 'source-over';
-        this.ctx.shadowBlur = 0;
-        this.ctx.shadowColor = 'rgba(0,0,0,0)';
-        this.ctx.globalAlpha = 1.0;
-        if (typeof this.ctx.filter !== 'undefined') {
-            this.ctx.filter = 'none';
-        }
-    }
 
         this.ctx = null;
         this.canvas = null;
@@ -969,7 +1006,7 @@ class StellarNurseryRenderer {
         this.themeColors = null;
         this.globalVisualizerRef = null;
 
-        console.log("[StellarNurseryRenderer v6.2.1] Disposed.");
+        console.log("[StellarNurseryRenderer v6.2.1] dispose() completed."); // Original log, good for checking completion
     }
 }
 

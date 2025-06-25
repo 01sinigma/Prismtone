@@ -1081,6 +1081,68 @@ const synth = {
             if(this.config.debug) console.warn(`[Synth FX Macro] No valid mapping array found for macro: '${macroName}' in chain '${this.currentChainId}'. Mappings object:`, this.currentFxChainData.macroMappings);
             return;
         }
-        // ... остальная логика применения маппингов ...
+
+        mappings.forEach(mapping => {
+            const { effect: effectType, param: paramName, range, curve } = mapping;
+            const effectInstance = this.effects[effectType];
+
+            if (!effectInstance) {
+                if (this.config.debug) console.warn(`[Synth FX Macro] Effect instance '${effectType}' not found for macro '${macroName}'.`);
+                return;
+            }
+
+            // Проверяем существование параметра как собственного свойства или как Tone.Param
+            // Обратите внимание, что effectInstance[paramName] может быть undefined, если свойство не существует.
+            const targetParam = effectInstance[paramName];
+            let paramExists = effectInstance.hasOwnProperty(paramName) || (targetParam instanceof Tone.Param);
+
+            // Для некоторых параметров Tone.js (например, 'frequency' в LFO или 'playbackRate' в Player)
+            // они могут быть объектами Signal, но не Param. Их нужно обрабатывать через .value
+            // JCReverb.roomSize - это не Param, а обычное число.
+            // Distortion.distortion - тоже обычное число.
+            // Chorus.frequency, Chorus.depth - это Param.
+
+            if (!paramExists) {
+                 // Попытка проверить, есть ли такой параметр в def.params для эффекта, если он не Tone.Param
+                 const definition = this.config.effectDefinitions[effectType];
+                 if (definition && definition.params && definition.params.includes(paramName)) {
+                     paramExists = true; // Параметр описан, будем считать, что он есть, даже если не Tone.Param
+                 } else {
+                    if (this.config.debug) console.warn(`[Synth FX Macro] Parameter '${paramName}' not found or not applicable on effect '${effectType}' for macro '${macroName}'.`);
+                    return;
+                 }
+            }
+
+            let normalizedValue = value;
+
+            // Логику для "curve" пока оставляем для будущего, если понадобится сложная нелинейная обработка
+            // самого значения ручки 0-1 перед применением к диапазону.
+            // const minRange = range[0];
+            // const maxRange = range[1];
+            // if (curve === 'logarithmic' && minRange > 0 && maxRange > 0 && minRange < maxRange) {
+            //    targetValue = minRange * Math.pow(maxRange / minRange, normalizedValue);
+            // } else if (curve === 'exponential' && minRange >= 0 && maxRange >= 0 && minRange < maxRange) {
+            //    targetValue = minRange + (maxRange - minRange) * Math.pow(normalizedValue, 2); // Пример простой экспоненты
+            // } else {
+            //    targetValue = minRange + normalizedValue * (maxRange - minRange);
+            // }
+
+            const targetValue = range[0] + normalizedValue * (range[1] - range[0]);
+
+            if (targetParam instanceof Tone.Param) {
+                targetParam.rampTo(targetValue, 0.05);
+                if (this.config.debug) console.log(`[Synth FX Macro] Ramping param '${effectType}.${paramName}' to ${targetValue.toFixed(3)} for macro '${macroName}'.`);
+            } else if (targetParam instanceof Tone.Signal) { // Обработка для Tone.Signal
+                targetParam.rampTo(targetValue, 0.05);
+                if (this.config.debug) console.log(`[Synth FX Macro] Ramping signal '${effectType}.${paramName}' to ${targetValue.toFixed(3)} for macro '${macroName}'.`);
+            } else if (effectInstance.hasOwnProperty(paramName) || (definition && definition.params && definition.params.includes(paramName))) {
+                // Если это не Tone.Param и не Tone.Signal, но свойство существует или описано в defs
+                effectInstance[paramName] = targetValue;
+                if (this.config.debug) console.log(`[Synth FX Macro] Setting param '${effectType}.${paramName}' to ${targetValue.toFixed(3)} for macro '${macroName}'.`);
+            } else {
+                 // Эта ветка по идее не должна сработать из-за проверок выше, но на всякий случай
+                 if (this.config.debug) console.warn(`[Synth FX Macro] Parameter '${paramName}' could not be set on effect '${effectType}' for macro '${macroName}'.`);
+            }
+        });
     },
 };

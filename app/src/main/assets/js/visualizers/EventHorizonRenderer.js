@@ -103,8 +103,8 @@
              const distSq = dx * dx + dy * dy;
 
              if (distSq < this.blackHole.radius * this.blackHole.radius) {
-                 p.active = false;
-                 this.particlePool.push(p);
+                 p.active = false; // Mark as inactive, it's already in particlePool
+                 // this.particlePool.push(p); // DO NOT PUSH - p is already an object from particlePool
                  this.particles.splice(i, 1);
                  continue;
              }
