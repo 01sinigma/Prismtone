@@ -951,6 +951,18 @@ class StellarNurseryRenderer {
             this.canvas.width = 1;
             this.canvas.height = 1;
         }
+
+    // Сброс свойств контекста рендеринга
+    if (this.ctx) {
+        this.ctx.globalCompositeOperation = 'source-over';
+        this.ctx.shadowBlur = 0;
+        this.ctx.shadowColor = 'rgba(0,0,0,0)';
+        this.ctx.globalAlpha = 1.0;
+        if (typeof this.ctx.filter !== 'undefined') {
+            this.ctx.filter = 'none';
+        }
+    }
+
         this.ctx = null;
         this.canvas = null;
         this.settings = null;

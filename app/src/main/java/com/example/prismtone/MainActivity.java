@@ -68,7 +68,7 @@ public class MainActivity extends AppCompatActivity {
 
         webView.loadUrl("https://appassets.androidplatform.net/assets/index.html");
 
-        moduleManager.scanModules();
+        moduleManager.scanModulesAsync();
     }
 
     private static class LocalContentWebViewClient extends WebViewClient {

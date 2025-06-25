@@ -206,11 +206,11 @@ const app = {
 
             this.state.isInitialized = true; // Перемещаем сюда, если sidePanel зависит от isInitialized
             console.log('[App.init PadModes] Core services initialized (isInitialized = true).');
-            
+
             // Инициализация UI Panels (включая sidePanel)
             if (typeof sidePanel === 'undefined') throw new Error("sidepanel.js is not loaded!");
             sidePanel.init(); // populateStaticSelects и populatePadModeSelectDisplay вызовутся здесь
-            
+
             // Установка активного режима пэда (это вызовет app.updateZones() И sidePanel.displayModeSpecificControls())
             await this.setPadMode(this.state.padMode, true); // true для initialLoad
 

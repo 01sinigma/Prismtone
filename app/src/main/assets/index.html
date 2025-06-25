@@ -128,39 +128,39 @@
             <div class="setting-group">
                 <h4 data-i18n="display_options_header">Display & Behavior</h4>
                 <div class="toggle-container">
-                    <label for="show-note-names-toggle" data-i18n="show_note_names">Show Note Names</label>
-                    <div class="toggle">
+                    <span data-i18n="show_note_names">Show Note Names</span>
+                    <label class="toggle">
                         <input type="checkbox" id="show-note-names-toggle">
                         <span class="toggle-slider"></span>
-                    </div>
+                    </label>
                 </div>
                 <div class="toggle-container">
-                    <label for="show-lines-toggle" data-i18n="show_lines">Show Grid Lines</label>
-                    <div class="toggle">
+                    <span data-i18n="show_lines">Show Grid Lines</span>
+                    <label class="toggle">
                         <input type="checkbox" id="show-lines-toggle">
                         <span class="toggle-slider"></span>
-                    </div>
+                    </label>
                 </div>
                 <div class="toggle-container">
-                    <label for="highlight-sharps-flats-toggle" data-i18n="highlight_sharps_flats">Highlight Accidentals</label>
-                    <div class="toggle">
+                    <span data-i18n="highlight_sharps_flats">Highlight Accidentals</span>
+                    <label class="toggle">
                         <input type="checkbox" id="highlight-sharps-flats-toggle">
                         <span class="toggle-slider"></span>
-                    </div>
+                    </label>
                 </div>
                 <div class="toggle-container">
-                    <label for="enable-polyphony-volume-scaling-toggle" data-i18n="enable_polyphony_scaling">Polyphony Volume Scaling</label>
-                    <div class="toggle">
+                    <span data-i18n="enable_polyphony_scaling">Polyphony Volume Scaling</span>
+                    <label class="toggle">
                         <input type="checkbox" id="enable-polyphony-volume-scaling-toggle">
                         <span class="toggle-slider"></span>
-                    </div>
+                    </label>
                 </div>
                 <div class="toggle-container">
-                    <label for="vibration-toggle" data-i18n="enable_vibration">Enable Vibration</label>
-                    <div class="toggle">
+                    <span data-i18n="enable_vibration">Enable Vibration</span>
+                    <label class="toggle">
                         <input type="checkbox" id="vibration-toggle">
                         <span class="toggle-slider"></span>
-                    </div>
+                    </label>
                 </div>
                 <div id="vibration-intensity-controls" class="setting-group hidden">
                     <label data-i18n="vibration_intensity_label">Intensity</label>
@@ -304,49 +304,61 @@
     <div id="tonality-panel" class="side-panel right-panel">
         <div class="panel-header"> <h2 data-i18n="tonality_title">Tonality</h2> <button class="close-button" data-panel-id="tonality-panel">×</button> </div>
         <div class="panel-content">
-            <div class="setting-group">
-                <label for="scale-select-display" data-i18n="scale_label">Scale</label>
-                <div id="scale-select-display" class="dropdown-display" tabindex="0"></div>
-            </div>
-            <div class="setting-group">
-                <label for="size-slider" data-i18n="size_label">Size</label>
-                <div class="slider-container">
-                    <button class="round-button icon-button" id="size-down" aria-label="Decrease Size" data-i18n-aria-label="decrease_size_label"><i class="fas fa-minus"></i></button>
-                    <input type="range" id="size-slider" class="styled-slider size-slider" min="8" max="36" step="2">
-                    <span id="size-value" class="slider-value-display">12</span>
-                    <button class="round-button icon-button" id="size-up" aria-label="Increase Size" data-i18n-aria-label="increase_size_label"><i class="fas fa-plus"></i></button>
-                </div>
-            </div>
-            <div class="setting-group">
-                <label for="octave-slider" data-i18n="octave_label">Octave</label>
-                <div class="slider-container">
-                    <button class="round-button icon-button" id="octave-down" aria-label="Decrease Octave" data-i18n-aria-label="decrease_octave_label"><i class="fas fa-minus"></i></button>
-                    <input type="range" id="octave-slider" class="styled-slider octave-slider" min="-7" max="7" step="1">
-                    <span id="octave-value" class="slider-value-display">0</span>
-                    <button class="round-button icon-button" id="octave-up" aria-label="Increase Octave" data-i18n-aria-label="increase_octave_label"><i class="fas fa-plus"></i></button>
-                </div>
-            </div>
+            <div class="setting-group"> <label for="scale-select" data-i18n="scale_label">Scale</label> <div id="scale-select-display" class="dropdown-display" tabindex="0"></div>  </div>
+            <div class="setting-group"> <label data-i18n="size_label">Size</label> <div class="slider-container"> <button id="size-down" class="slider-button">-</button> <input type="range" id="size-slider" class="slider" min="8" max="36" value="12" step="2"> <button id="size-up" class="slider-button">+</button> <span id="size-value" class="slider-value">12</span> </div> </div>
+            <div class="setting-group"> <label data-i18n="octave_label">Octave</label> <div class="slider-container"> <button id="octave-down" class="slider-button">-</button> <input type="range" id="octave-slider" class="slider" min="-7" max="7" value="0" step="1"> <button id="octave-up" class="slider-button">+</button> <span id="octave-value" class="slider-value">0</span> </div> </div>
         </div>
     </div>
 
     <div id="effects-panel" class="side-panel right-panel">
         <div class="panel-header"> <h2 data-i18n="effects_title">Effects</h2> <button class="close-button" data-panel-id="effects-panel">×</button> </div>
         <div class="panel-content">
-            <div class="setting-group">
+            <div class="setting-group fx-chain-container">
                 <label for="fx-chain-select" data-i18n="fx_chain_label">FX Chain</label>
                 <select id="fx-chain-select" class="dropdown"></select>
             </div>
-            <div class="setting-group" id="macro-controls">
-                <!-- Macro controls will be populated here by sidepanel.js -->
+            <h4 data-i18n="macro_controls_title">Macro Controls</h4>
+            <div id="macro-controls" class="control-grid">
+                <div class="knob-container"> <div class="knob" data-param="macro1" data-min="0" data-max="1" data-step="0.01"> <div class="knob-dial"></div><span class="knob-value">0.5</span> </div> <label data-i18n="macro_space">Space</label> </div>
+                <div class="knob-container"> <div class="knob" data-param="macro2" data-min="0" data-max="1" data-step="0.01"> <div class="knob-dial"></div><span class="knob-value">0.5</span> </div> <label data-i18n="macro_time">Time</label> </div>
+                <div class="knob-container"> <div class="knob" data-param="macro3" data-min="0" data-max="1" data-step="0.01"> <div class="knob-dial"></div><span class="knob-value">0.5</span> </div> <label data-i18n="macro_motion">Motion</label> </div>
+                <div class="knob-container"> <div class="knob" data-param="macro4" data-min="0" data-max="1" data-step="0.01"> <div class="knob-dial"></div><span class="knob-value">0.5</span> </div> <label data-i18n="macro_tone">Tone</label> </div>
             </div>
-            <div class="setting-group" id="yaxis-controls-container">
-                <h4 data-i18n="y_axis_settings_title">Y-Axis Modulation Target</h4>
-                <div id="yaxis-control-target-display" class="dropdown-display" tabindex="0" data-i18n="select_y_target">Select Y-Axis Target...</div>
-                <!-- Y-Axis specific controls will be populated here by sidepanel.js -->
+            <div class="setting-group y-axis-controls">
+                <h4 data-i18n="y_axis_controls">Y-Axis Controls</h4>
+                <h5>Volume</h5>
+                <div class="y-axis-row">
+                    <div class="knob-container"> <div class="knob small" data-param="volume_minOutput" data-min="0" data-max="1" data-step="0.01"><div class="knob-dial"></div><span class="knob-value">0.0</span></div> <label data-i18n="y_axis_volume_min_output">Min Output</label> </div>
+                    <div class="knob-container"> <div class="knob small" data-param="volume_maxOutput" data-min="0" data-max="1" data-step="0.01"><div class="knob-dial"></div><span class="knob-value">1.0</span></div> <label data-i18n="y_axis_volume_max_output">Max Output</label> </div>
+                    <div class="knob-container"> <div class="knob small" data-param="volume_yThreshold" data-min="0" data-max="1" data-step="0.01"><div class="knob-dial"></div><span class="knob-value">0.0</span></div> <label data-i18n="y_axis_volume_y_threshold">Y Threshold</label> </div>
+                </div>
+                <div class="y-axis-row">
+                    <div class="dropdown-container small" style="flex-basis: 120px;"> <label for="volume_curveType-select" data-i18n="y_axis_curve_type">Curve Type</label> <select id="volume_curveType-select" class="dropdown small"> <option value="linear" data-i18n="linear">Linear</option> <option value="exponential" data-i18n="exponential">Exponential</option> <option value="logarithmic" data-i18n="logarithmic">Logarithmic</option> <option value="sCurve" data-i18n="s_curve">S-Curve</option> </select> </div>
+                    <div class="knob-container"> <div class="knob small" data-param="volume_curveFactor" data-min="0.1" data-max="5" data-step="0.1"><div class="knob-dial"></div><span class="knob-value">1.0</span></div> <label data-i18n="y_axis_curve_factor">Curve Factor</label> </div>
+                </div>
+                <h5 style="margin-top: 15px;">Effects Send</h5>
+                <div class="y-axis-row">
+                    <div class="knob-container"> <div class="knob small" data-param="effects_minOutput" data-min="-60" data-max="0" data-step="1"><div class="knob-dial"></div><span class="knob-value">-60</span></div> <label data-i18n="y_axis_effects_min_output">Min Output (dB)</label> </div>
+                    <div class="knob-container"> <div class="knob small" data-param="effects_maxOutput" data-min="-60" data-max="0" data-step="1"><div class="knob-dial"></div><span class="knob-value">0</span></div> <label data-i18n="y_axis_effects_max_output">Max Output (dB)</label> </div>
+                    <div class="knob-container"> <div class="knob small" data-param="effects_yThreshold" data-min="0" data-max="1" data-step="0.01"><div class="knob-dial"></div><span class="knob-value">0.1</span></div> <label data-i18n="y_axis_effects_y_threshold">Y Threshold</label> </div>
+                </div>
+                <div class="y-axis-row">
+                    <div class="dropdown-container small" style="flex-basis: 120px;"> <label for="effects_curveType-select" data-i18n="y_axis_curve_type">Curve Type</label> <select id="effects_curveType-select" class="dropdown small"> <option value="linear" data-i18n="linear">Linear</option> <option value="exponential" data-i18n="exponential">Exponential</option> <option value="logarithmic" data-i18n="logarithmic">Logarithmic</option> <option value="sCurve" data-i18n="s_curve">S-Curve</option></select> </div>
+                    <div class="knob-container"> <div class="knob small" data-param="effects_curveFactor" data-min="0.1" data-max="5" data-step="0.1"><div class="knob-dial"></div><span class="knob-value">2.0</span></div> <label data-i18n="y_axis_curve_factor">Curve Factor</label> </div>
+                </div>
             </div>
-            <div class="setting-group panel-actions">
-                <button id="reset-fx-button" class="button" data-i18n="reset_fx_button">Reset FX</button>
+            <div class="setting-group master-output-controls">
+                <h4 data-i18n="master_output_title">Master Output</h4>
+                <div class="control-grid">
+                    <div class="knob-container">
+                        <div class="knob" data-param="masterVolumeCeiling" data-min="0" data-max="1" data-step="0.01" data-default="1.0">
+                            <div class="knob-dial"></div><span class="knob-value">1.0</span>
+                        </div>
+                        <label data-i18n="master_volume_ceiling">Volume Ceiling</label>
+                    </div>
+                </div>
             </div>
+            <div class="effect-actions"> <button id="reset-fx-button" class="action-button" data-i18n="reset_fx">Reset FX</button> </div>
         </div>
     </div>
 

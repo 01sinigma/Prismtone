@@ -48,6 +48,27 @@ const visualizer = {
     _hexToRgbCache: {}, // Глобальный кеш для hexToRgb
     _colorWithAlphaCache: {}, // Глобальный кеш для getColorWithAlpha
 
+    // Добавить новый вспомогательный метод в visualizer.js
+    _resetCanvasContext() {
+        if (!this.ctx) return;
+        this.ctx.globalAlpha = 1.0;
+        this.ctx.globalCompositeOperation = 'source-over';
+        this.ctx.fillStyle = '#000000';
+        this.ctx.strokeStyle = '#000000';
+        this.ctx.shadowOffsetX = 0;
+        this.ctx.shadowOffsetY = 0;
+        this.ctx.shadowBlur = 0;
+        this.ctx.shadowColor = 'rgba(0, 0, 0, 0)';
+        this.ctx.lineWidth = 1;
+        this.ctx.lineCap = 'butt';
+        this.ctx.lineJoin = 'miter';
+        if (typeof this.ctx.filter !== 'undefined') {
+            this.ctx.filter = 'none';
+        }
+        this.ctx.beginPath(); // Очищаем любой незавершенный путь
+        if (this.debugMode) console.log('[Visualizer v4.1] Canvas context reset to defaults.');
+    },
+
     /**
      * Initializes the visualizer module.
      * Sets up the canvas, rendering context, and FPS manager.
@@ -210,6 +231,12 @@ const visualizer = {
             this.activeRenderer.dispose();
         }
         this.activeRenderer = null;
+
+        // >>> РЕКОМЕНДАЦИЯ: Добавить сброс контекста здесь <<<
+        if (this.ctx) {
+            this._resetCanvasContext();
+        }
+        // >>> КОНЕЦ РЕКОМЕНДАЦИИ <<<
 
         try {
             const vizModuleInfo = await moduleManager.getModule(typeId);
