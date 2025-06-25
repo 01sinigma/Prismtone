@@ -155,8 +155,9 @@ class MatrixGlitchRenderer {
             this.rainStreams.push(stream);
         }
 
-        this.ctx.font = `${this.fontSize}px monospace`;
-        this.ctx.textBaseline = 'top';
+        // Font and textBaseline are set during atlas creation, not needed here per draw.
+        // this.ctx.font = `${this.fontSize}px monospace`;
+        // this.ctx.textBaseline = 'top';
 
         for (let i = this.rainStreams.length - 1; i >= 0; i--) {
             const stream = this.rainStreams[i];
@@ -169,16 +170,64 @@ class MatrixGlitchRenderer {
                 const char = stream.characters[j % stream.characters.length];
                 const charX = stream.col * this.charWidth;
 
-                if (j === 0) {
-                    this.ctx.fillStyle = stream.headColor;
-                    this.ctx.shadowColor = stream.headColor;
-                    this.ctx.shadowBlur = 15;
-                } else {
+                let colorToDraw;
+                let originalFillStyle = this.ctx.fillStyle; // Save current fillStyle
+
+                if (j === 0) { // Head character
+                    colorToDraw = stream.headColor;
+                    this.ctx.shadowColor = stream.headColor; // Shadow for head
+                    this.ctx.shadowBlur = this.settings.rainGlowBlur || 15;
+                } else { // Body characters
                     const progress = j / stream.length;
-                    this.ctx.fillStyle = this.globalVisualizerRef.getColorWithAlpha(this.dynamicColorPalette[0], 1.0 - progress);
-                    this.ctx.shadowBlur = 0;
+                    // Ensure color is from palette, or use a default from palette
+                    const baseRainColor = this.settings.rainBaseColor || this.dynamicColorPalette[0] || '#39ff14';
+                    // Fade out effect for body
+                    colorToDraw = this.globalVisualizerRef.getColorWithAlpha(baseRainColor, (1.0 - progress) * (this.settings.rainBaseOpacity || 1.0));
+                    this.ctx.shadowBlur = 0; // No shadow for body
                 }
-                this.ctx.fillText(char, charX, charY);
+
+                const atlasCoords = this.atlasMap.get(`${char}_${colorToDraw}`);
+
+                if (atlasCoords) {
+                    this.ctx.drawImage(
+                        this.charAtlas,
+                        atlasCoords.x, atlasCoords.y, this.charWidth, this.charHeight,
+                        charX, charY, this.charWidth, this.charHeight
+                    );
+                } else {
+                    // Fallback for colors not in atlas (e.g. specific headColor, or dynamic alpha ones)
+                    // For colors with alpha, fillText is better as atlas can't store infinite alpha variations.
+                    // However, if headColor is always from palette, this fallback is less needed for head.
+                    // For body, if we want smooth alpha fade, fillText is more accurate than picking discrete atlas entries.
+                    // For now, let's assume rain body fading is OK with fillText for simplicity and accuracy of fade.
+                    // Head color will be from atlas if it's in dynamicColorPalette.
+
+                    // If it's the head and its color is not in the atlas, try to find a similar one or default.
+                    let headAtlasFallback = false;
+                    if (j === 0 && !atlasCoords) {
+                         const defaultHeadAtlasColor = this.dynamicColorPalette[0] || '#FFFFFF';
+                         const headFallbackCoords = this.atlasMap.get(`${char}_${defaultHeadAtlasColor}`);
+                         if(headFallbackCoords) {
+                            this.ctx.drawImage(
+                                this.charAtlas,
+                                headFallbackCoords.x, headFallbackCoords.y, this.charWidth, this.charHeight,
+                                charX, charY, this.charWidth, this.charHeight
+                            );
+                            headAtlasFallback = true;
+                         }
+                    }
+
+                    if(!headAtlasFallback) { // Use fillText if not head, or head color not in atlas and no fallback found
+                        this.ctx.fillStyle = colorToDraw; // Set fill style for fillText
+                         // Font needs to be set if using fillText
+                        if (!this.ctx.font.includes(`${this.fontSize}px monospace`)) {
+                            this.ctx.font = `${this.fontSize}px monospace`;
+                            this.ctx.textBaseline = 'top';
+                        }
+                        this.ctx.fillText(char, charX, charY);
+                    }
+                }
+                this.ctx.fillStyle = originalFillStyle; // Restore fillStyle
             }
 
             if (stream.y - (stream.length * this.charHeight) > this.canvas.height) {

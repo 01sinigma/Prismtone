@@ -20,8 +20,8 @@ import android.view.WindowManager;
  */
 public class SensorController implements SensorEventListener {
     private static final String TAG = "SensorController";
-    private final SensorManager sensorManager;
-    private final Sensor rotationVectorSensor;
+    private SensorManager sensorManager; // Made non-final for potential re-init if needed
+    private Sensor rotationVectorSensor; // Made non-final
     private final PrismtoneBridge bridge;
     private final WindowManager windowManager;
 
@@ -39,30 +39,56 @@ public class SensorController implements SensorEventListener {
      * 0 < ALPHA < 1. Чем меньше значение, тем более плавными, но инертными будут данные.
      * Хорошее значение: 0.15f
      */
-    private static final float SMOOTHING_ALPHA = 0.15f;
+    private float smoothingAlpha = 0.15f;
 
     /**
      * Инвертировать вертикальную ось (Pitch: наклон вперед/назад)?
      * false: Наклон "на себя" -> объекты движутся ВВЕРХ (интуитивно для "всплытия").
      * true:  Наклон "на себя" -> объекты движутся ВНИЗ (интуитивно для "падения").
      */
-    private static final boolean INVERT_PITCH_AXIS = true;
+    private boolean invertPitchAxis = true;
 
     /**
      * Инвертировать горизонтальную ось (Roll: наклон влево/вправо)?
      * false: Наклон вправо -> объекты движутся ВПРАВО.
      * true:  Наклон вправо -> объекты движутся ВЛЕВО.
      */
-    private static final boolean INVERT_ROLL_AXIS = false;
+    private boolean invertRollAxis = false;
 
     /**
      * Поменять оси местами?
      * false: (Стандарт) Pitch -> Y, Roll -> X.
      * true:  Pitch -> X, Roll -> Y. Полезно, если физика визуализатора этого требует.
      */
-    private static final boolean SWAP_AXES = false;
+    private boolean swapAxes = false;
 
     // ====================================================================
+
+    // Public setters for these properties
+    public void setSmoothingAlpha(float alpha) {
+        if (alpha > 0 && alpha < 1) { // Basic validation
+            this.smoothingAlpha = alpha;
+            Log.d(TAG, "Smoothing Alpha updated to: " + alpha);
+        } else {
+            Log.w(TAG, "Invalid Smoothing Alpha value: " + alpha + ". Must be between 0 and 1.");
+        }
+    }
+
+    public void setInvertPitchAxis(boolean invert) {
+        this.invertPitchAxis = invert;
+        Log.d(TAG, "Invert Pitch Axis updated to: " + invert);
+    }
+
+    public void setInvertRollAxis(boolean invert) {
+        this.invertRollAxis = invert;
+        Log.d(TAG, "Invert Roll Axis updated to: " + invert);
+    }
+
+    public void setSwapAxes(boolean swap) {
+        this.swapAxes = swap;
+        Log.d(TAG, "Swap Axes updated to: " + swap);
+    }
+    // End of public setters
 
     private float smoothedPitch = 0f;
     private float smoothedRoll = 0f;
@@ -149,13 +175,13 @@ public class SensorController implements SensorEventListener {
         float rawRoll = (float) Math.toDegrees(orientationAngles[2]);
 
         // 5. Применяем пользовательские настройки инверсии и смены осей
-        float finalPitch = INVERT_PITCH_AXIS ? -rawPitch : rawPitch;
-        float finalRoll = INVERT_ROLL_AXIS ? -rawRoll : rawRoll;
+        float finalPitch = this.invertPitchAxis ? -rawPitch : rawPitch;
+        float finalRoll = this.invertRollAxis ? -rawRoll : rawRoll;
 
         float valueForJsPitch;
         float valueForJsRoll;
 
-        if (SWAP_AXES) {
+        if (this.swapAxes) {
             // Если оси поменяны местами
             valueForJsPitch = finalRoll;
             valueForJsRoll = finalPitch;
@@ -166,8 +192,8 @@ public class SensorController implements SensorEventListener {
         }
 
         // 6. Сглаживаем финальные значения
-        smoothedPitch = smoothedPitch + SMOOTHING_ALPHA * (valueForJsPitch - smoothedPitch);
-        smoothedRoll = smoothedRoll + SMOOTHING_ALPHA * (valueForJsRoll - smoothedRoll);
+        smoothedPitch = smoothedPitch + this.smoothingAlpha * (valueForJsPitch - smoothedPitch);
+        smoothedRoll = smoothedRoll + this.smoothingAlpha * (valueForJsRoll - smoothedRoll);
 
         // 7. Отправляем готовые к использованию данные в JavaScript
         if (bridge != null) {

@@ -1,7 +1,9 @@
 {
+  "version": "1.0.0",
   "id": "linkedParticles",
   "name": "Linked Particles",
   "description": "Particles appear at touch points and lines connect them dynamically.",
+  "active": false,
   "type": "touchEffect",
   "rendererScript": "touchEffects/linkedParticlesEffect.js",
   "settings": {

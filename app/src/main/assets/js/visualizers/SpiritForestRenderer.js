@@ -18,6 +18,10 @@ class SpiritForestRenderer {
         this.offscreenCanvas = document.createElement('canvas');
         this.offscreenCtx = this.offscreenCanvas.getContext('2d');
         this._isForestDirty = true;
+
+        // Object Pooling for spirits
+        this.spiritPool = [];
+        this.spiritPoolSize = 200; // Default, will be updated from settings
     }
 
     init(ctx, canvas, initialSettings, themeColors, globalVisualizerRef, analyserNodeRef) {
@@ -28,8 +32,29 @@ class SpiritForestRenderer {
         this.globalVisualizerRef = globalVisualizerRef;
         this.analyserNodeRef = analyserNodeRef;
 
-        this.onResize();
-        console.log("[SpiritForestRenderer v2.0] Initialized with advanced physics.");
+        // Initialize spirit pool
+        this.spiritPoolSize = this.settings.spirits?.poolSize || this.spiritPoolSize;
+        this.spiritPool = [];
+        for (let i = 0; i < this.spiritPoolSize; i++) {
+            this.spiritPool.push({ isActiveInPool: false });
+        }
+
+        this.onResize(); // Calls _initSpirits which will use the pool
+        console.log(`[SpiritForestRenderer v2.1-pool] Initialized with advanced physics and spirit pool size: ${this.spiritPoolSize}.`);
+    }
+
+    _getSpiritFromPool() {
+        for (let i = 0; i < this.spiritPool.length; i++) {
+            if (!this.spiritPool[i].isActiveInPool) {
+                this.spiritPool[i].isActiveInPool = true;
+                // Reset any critical properties if necessary, or rely on assigner to do so
+                this.spiritPool[i].toBeRemoved = false;
+                return this.spiritPool[i];
+            }
+        }
+        console.warn("[SpiritForestRenderer] Spirit pool depleted. Consider increasing pool size.");
+        // Create a new one if pool is empty, this one won't be returned to the fixed pool
+        return { isActiveInPool: true, toBeRemoved: false };
     }
 
     onThemeChange(themeColors) {
@@ -46,32 +71,39 @@ class SpiritForestRenderer {
     }
 
     _initSpirits() {
+        // Return existing spirits to the pool before clearing
+        this.spirits.forEach(s => { if (s.isActiveInPool) s.isActiveInPool = false; });
         this.spirits = [];
         const s = this.settings.spirits; // короткая ссылка для удобства
-        for (let i = 0; i < s.initialCount; i++) {
-            const spirit = {
+        const initialCount = s.initialCount || 50; // Fallback if not in settings
+
+        for (let i = 0; i < initialCount; i++) {
+            if (this.spirits.length >= (s.maxCount || 150) ) break; // Respect max count
+
+            const spirit = this._getSpiritFromPool();
+            if (!spirit) continue; // Should not happen if pool logic is correct or creates new ones
+
+            Object.assign(spirit, {
                 x: Math.random() * this.canvas.width,
                 y: Math.random() * this.canvas.height,
                 vx: (Math.random() - 0.5) * s.baseSpeed,
                 vy: (Math.random() - 0.5) * s.baseSpeed,
                 size: s.minSize + Math.random() * (s.maxSize - s.minSize),
                 baseAlpha: 0.5 + Math.random() * 0.5,
-                color: this.themeColors.primary, // Начальный цвет, может меняться
+                color: this.themeColors.primary,
 
-                // Новые свойства V2.0
-                state: 'wandering', // 'wandering', 'following', 'pollinating', 'dying'
-                energy: Math.random() * 0.1, // Начальная небольшая энергия
-                pollinationTarget: null, // Ссылка на дерево для опыления
-                age: 0, // Возраст духа, может пригодиться для логики смерти или эволюции
-                timeInState: 0, // Время в текущем состоянии
-                lastTouchedBy: null, // ID последнего касания, взаимодействовавшего с духом
-                forces: { x: 0, y: 0 } // Аккумулятор сил
-            };
+                state: 'wandering',
+                energy: Math.random() * 0.1,
+                pollinationTarget: null,
+                age: 0,
+                timeInState: 0,
+                lastTouchedBy: null,
+                forces: { x: 0, y: 0 }
+                // isActiveInPool is already true
+            });
             this.spirits.push(spirit);
         }
     }
-
-    // Лишняя скобка удалена отсюда
 
     _renderStaticForest() {
         if (!this.offscreenCtx || !this.canvas) return;
@@ -309,18 +341,33 @@ class SpiritForestRenderer {
             if (spirit.y > this.canvas.height) spirit.y = 0;
         });
 
-        // Удаление "мертвых" духов
-        this.spirits = this.spirits.filter(spirit => !spirit.toBeRemoved);
+        // Удаление "мертвых" духов и возврат в пул
+        let writeIndexSpirits = 0;
+        for (let readIndexSpirits = 0; readIndexSpirits < this.spirits.length; readIndexSpirits++) {
+            const spirit = this.spirits[readIndexSpirits];
+            if (!spirit.toBeRemoved) {
+                if (writeIndexSpirits !== readIndexSpirits) {
+                    this.spirits[writeIndexSpirits] = spirit;
+                }
+                writeIndexSpirits++;
+            } else {
+                spirit.isActiveInPool = false; // Return to pool
+            }
+        }
+        this.spirits.length = writeIndexSpirits;
+
 
         // Ограничение максимального количества духов
-        while (this.spirits.length > this.settings.spirits.maxCount) {
+        const maxSpiritCount = this.settings.spirits.maxCount || 150;
+        while (this.spirits.length > maxSpiritCount) {
             // Удаляем самого старого или самого слабого духа (например, с наименьшей энергией и не умирающего)
             let spiritToRemoveIndex = -1;
             let minScore = Infinity;
             for (let i = 0; i < this.spirits.length; i++) {
                 const s = this.spirits[i];
-                if (s.state !== 'dying') { // Не удаляем тех, кто уже умирает естественным путем
-                    const score = s.energy + (s.age / 1000); // Примерный скоринг, можно улучшить
+                // Ensure s is valid and not already marked for removal by other logic or in pool
+                if (s && s.isActiveInPool && s.state !== 'dying') {
+                    const score = s.energy + (s.age / 1000);
                     if (score < minScore) {
                         minScore = score;
                         spiritToRemoveIndex = i;
@@ -328,11 +375,17 @@ class SpiritForestRenderer {
                 }
             }
             if (spiritToRemoveIndex !== -1) {
-                this.spirits.splice(spiritToRemoveIndex, 1);
-            } else { // Если все духи умирают, удаляем первого попавшегося не умирающего
-                 const nonDyingSpirit = this.spirits.findIndex(s => s.state !== 'dying');
-                 if (nonDyingSpirit !== -1) this.spirits.splice(nonDyingSpirit, 1);
-                 else break; // Все духи умирают, ничего не делаем
+                const removedSpirit = this.spirits.splice(spiritToRemoveIndex, 1)[0];
+                if (removedSpirit) removedSpirit.isActiveInPool = false; // Return to pool
+            } else {
+                 // If all remaining spirits are 'dying' or some other edge case, try to find any non-dying to remove
+                 const nonDyingSpiritIndex = this.spirits.findIndex(s => s && s.isActiveInPool && s.state !== 'dying');
+                 if (nonDyingSpiritIndex !== -1) {
+                    const removedSpirit = this.spirits.splice(nonDyingSpiritIndex, 1)[0];
+                    if (removedSpirit) removedSpirit.isActiveInPool = false; // Return to pool
+                 } else {
+                    break; // All spirits are dying or pool is managed, nothing more to remove by this rule
+                 }
             }
         }
     }
@@ -433,10 +486,13 @@ class SpiritForestRenderer {
         const newSpiritSettings = this.settings.spirits;
         const pollSettings = this.settings.interaction.pollination;
         for (let i = 0; i < pollSettings.newSpiritsCount; i++) {
-            if (this.spirits.length >= newSpiritSettings.maxCount) break;
+            if (this.spirits.length >= (newSpiritSettings.maxCount || 150)) break;
+
+            const newSpirit = this._getSpiritFromPool();
+            if (!newSpirit) continue; // Pool depleted
 
             const angle = Math.random() * Math.PI * 2;
-            const newSpirit = {
+            Object.assign(newSpirit, {
                 x: tree.x + Math.cos(angle) * tree.radius * 0.5,
                 y: tree.y - tree.height * 0.3 + Math.sin(angle) * tree.radius * 0.3, // Рождаются ближе к кроне
                 vx: (Math.random() - 0.5) * newSpiritSettings.baseSpeed * 0.5,
@@ -451,7 +507,8 @@ class SpiritForestRenderer {
                 timeInState: 0,
                 lastTouchedBy: null,
                 forces: { x: 0, y: 0 }
-            };
+                // isActiveInPool is already true
+            });
             this.spirits.push(newSpirit);
         }
     }
@@ -773,7 +830,13 @@ class SpiritForestRenderer {
         this.trees = [];
         this.pollinationFlashes = [];
         this.lastTwoTouchState = null;
-        console.log("[SpiritForestRenderer v2.0] Disposed.");
+
+        // Return all spirits to the pool
+        this.spirits.forEach(s => { if (s.isActiveInPool) s.isActiveInPool = false; });
+        this.spirits = [];
+        // Optionally, fully clear the pool array itself if re-init always rebuilds it
+        // this.spiritPool = [];
+        console.log("[SpiritForestRenderer v2.1-pool] Disposed.");
     }
 }
 

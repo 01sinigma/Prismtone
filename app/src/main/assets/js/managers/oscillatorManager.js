@@ -280,7 +280,7 @@ const oscillatorManager = {
             switch (currentOscType) {
                 case 'fatsine': case 'fatsquare': case 'fatsawtooth': case 'fattriangle':
                     if (newSettings.count !== undefined && oscNode.hasOwnProperty('count')) {
-                        const maxFatCount = 5; 
+                        const maxFatCount = 5;
                         const newCount = Math.max(1, Math.min(parseInt(newSettings.count, 10), maxFatCount));
                         if (oscNode.count !== newCount) {
                             oscNode.count = newCount;

@@ -65,6 +65,10 @@ public class MainActivity extends AppCompatActivity {
 
         // >>> NEW: Инициализируем SensorController <<<
         sensorController = new SensorController(this, bridge);
+        // >>> NEW: Передаем экземпляр SensorController в PrismtoneBridge <<<
+        if (bridge != null && sensorController != null) {
+            bridge.setSensorController(sensorController);
+        }
 
         webView.loadUrl("https://appassets.androidplatform.net/assets/index.html");
 

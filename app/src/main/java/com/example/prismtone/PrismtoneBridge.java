@@ -39,6 +39,15 @@ public class PrismtoneBridge {
     private final Vibrator vibrator;
     private static final String TAG = "PrismtoneBridge";
     private final ExecutorService executorService;
+    private SensorController sensorControllerInstance; // Instance of SensorController
+
+    // Inner class for deserializing sensor settings
+    private static class SensorSettingsPayload {
+        float smoothingAlpha;
+        boolean invertPitchAxis;
+        boolean invertRollAxis;
+        boolean swapAxes;
+    }
 
     public PrismtoneBridge(Context context, WebView webView, MainViewModel viewModel, ModuleManager moduleManager) {
         this.context = context.getApplicationContext();
@@ -505,8 +514,40 @@ public class PrismtoneBridge {
 
     public void sendDeviceTiltToJs(float pitch, float roll) {
         String script = String.format(Locale.US,
-            "if(window.app && typeof window.app.onDeviceTilt === 'function') { window.app.onDeviceTilt({ pitch: %.2f, roll: %.2f }); }",
-            pitch, roll);
+                "if(window.app && typeof window.app.onDeviceTilt === 'function') { window.app.onDeviceTilt({ pitch: %.2f, roll: %.2f }); }",
+                pitch, roll);
         runJavaScript(script);
+    }
+
+    public void setSensorController(SensorController controller) {
+        this.sensorControllerInstance = controller;
+    }
+
+    @JavascriptInterface
+    public void updateSensorSettings(String jsonSettings) {
+        Log.d(TAG, "updateSensorSettings called with: " + jsonSettings);
+        if (sensorControllerInstance == null) {
+            Log.e(TAG, "SensorController instance is null in PrismtoneBridge. Cannot update settings.");
+            return;
+        }
+
+        try {
+            SensorSettingsPayload settings = gson.fromJson(jsonSettings, SensorSettingsPayload.class);
+            if (settings != null) {
+                mainHandler.post(() -> {
+                    sensorControllerInstance.setSmoothingAlpha(settings.smoothingAlpha);
+                    sensorControllerInstance.setInvertPitchAxis(settings.invertPitchAxis);
+                    sensorControllerInstance.setInvertRollAxis(settings.invertRollAxis);
+                    sensorControllerInstance.setSwapAxes(settings.swapAxes);
+                    Log.i(TAG, "Sensor settings updated in SensorController.");
+                });
+            } else {
+                Log.e(TAG, "Failed to parse sensor settings JSON.");
+            }
+        } catch (JsonSyntaxException e) {
+            Log.e(TAG, "Error parsing sensor settings JSON: " + jsonSettings, e);
+        } catch (Exception e) {
+            Log.e(TAG, "Unexpected error updating sensor settings: " + jsonSettings, e);
+        }
     }
 }

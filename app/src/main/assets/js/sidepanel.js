@@ -36,6 +36,13 @@ const sidePanel = {
     rocketModeEnableToggle: null,
     // ...
 
+    // Gyroscope settings UI elements
+    smoothingAlphaSlider: null,
+    smoothingAlphaValue: null,
+    invertPitchAxisToggle: null,
+    invertRollAxisToggle: null,
+    swapAxesToggle: null,
+
     vibrationToggle: null,
     vibrationIntensityControls: null,
     vibrationButtons: [],
@@ -128,6 +135,13 @@ const sidePanel = {
         if (this.vibrationIntensityControls) {
             this.vibrationButtons = this.vibrationIntensityControls.querySelectorAll('button');
         }
+
+        // Gyroscope settings
+        this.smoothingAlphaSlider = document.getElementById('smoothing-alpha-slider');
+        this.smoothingAlphaValue = document.getElementById('smoothing-alpha-value');
+        this.invertPitchAxisToggle = document.getElementById('invert-pitch-axis-toggle');
+        this.invertRollAxisToggle = document.getElementById('invert-roll-axis-toggle');
+        this.swapAxesToggle = document.getElementById('swap-axes-toggle');
 
         if (this.sizeSlider) {
             this.sizeSlider.min = "8";
@@ -402,7 +416,7 @@ const sidePanel = {
                 if (app && typeof app.setPadMode === 'function') {
                     await app.setPadMode(newMode);
                 }
-                if (isEnabled && (!this.modeSpecificControlsContainer.hasChildNodes() || 
+                if (isEnabled && (!this.modeSpecificControlsContainer.hasChildNodes() ||
                     this.modeSpecificControlsContainer.querySelector('p[data-i18n="rocket_mode_settings_placeholder"]'))) {
                     this.displayModeSpecificControls('rocket');
                 }
@@ -420,6 +434,64 @@ const sidePanel = {
                 button.addEventListener('click', (e) => {
                     app.setVibrationIntensity(e.currentTarget.dataset.intensity);
                 });
+            });
+        }
+
+        // Gyroscope Settings Listeners
+        if (this.smoothingAlphaSlider) {
+            this.smoothingAlphaSlider.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                if (this.smoothingAlphaValue) this.smoothingAlphaValue.textContent = value.toFixed(2);
+                if (app && app.state && app.state.sensorSettings) {
+                    app.state.sensorSettings.smoothingAlpha = value;
+                }
+            });
+            this.smoothingAlphaSlider.addEventListener('change', (e) => {
+                const value = parseFloat(e.target.value);
+                if (app && app.state && app.state.sensorSettings) {
+                    app.state.sensorSettings.smoothingAlpha = value;
+                    if (window.PrismtoneBridge && window.PrismtoneBridge.updateSensorSettings) {
+                        window.PrismtoneBridge.updateSensorSettings(JSON.stringify(app.state.sensorSettings));
+                    } else if (bridgeFix && bridgeFix.callBridge) { // Fallback for older bridgeFix style
+                        bridgeFix.callBridge('updateSensorSettings', JSON.stringify(app.state.sensorSettings));
+                    }
+                }
+            });
+        }
+        if (this.invertPitchAxisToggle) {
+            this.invertPitchAxisToggle.addEventListener('change', (e) => {
+                if (app && app.state && app.state.sensorSettings) {
+                    app.state.sensorSettings.invertPitchAxis = e.target.checked;
+                    if (window.PrismtoneBridge && window.PrismtoneBridge.updateSensorSettings) {
+                        window.PrismtoneBridge.updateSensorSettings(JSON.stringify(app.state.sensorSettings));
+                    } else if (bridgeFix && bridgeFix.callBridge) {
+                        bridgeFix.callBridge('updateSensorSettings', JSON.stringify(app.state.sensorSettings));
+                    }
+                }
+            });
+        }
+        if (this.invertRollAxisToggle) {
+            this.invertRollAxisToggle.addEventListener('change', (e) => {
+                if (app && app.state && app.state.sensorSettings) {
+                    app.state.sensorSettings.invertRollAxis = e.target.checked;
+                    if (window.PrismtoneBridge && window.PrismtoneBridge.updateSensorSettings) {
+                        window.PrismtoneBridge.updateSensorSettings(JSON.stringify(app.state.sensorSettings));
+                    } else if (bridgeFix && bridgeFix.callBridge) {
+                        bridgeFix.callBridge('updateSensorSettings', JSON.stringify(app.state.sensorSettings));
+                    }
+                }
+            });
+        }
+        if (this.swapAxesToggle) {
+            this.swapAxesToggle.addEventListener('change', (e) => {
+                if (app && app.state && app.state.sensorSettings) {
+                    app.state.sensorSettings.swapAxes = e.target.checked;
+                    if (window.PrismtoneBridge && window.PrismtoneBridge.updateSensorSettings) {
+                        window.PrismtoneBridge.updateSensorSettings(JSON.stringify(app.state.sensorSettings));
+                    } else if (bridgeFix && bridgeFix.callBridge) {
+                        bridgeFix.callBridge('updateSensorSettings', JSON.stringify(app.state.sensorSettings));
+                    }
+                }
             });
         }
 
@@ -530,7 +602,7 @@ const sidePanel = {
         controlsConfig.forEach(controlConf => {
             const group = document.createElement('div');
             group.className = 'setting-group mode-specific-setting';
-            
+
             let controlElement;
 
             const label = document.createElement('label');
@@ -543,7 +615,7 @@ const sidePanel = {
                 case 'toggle':
                     group.classList.add('toggle-container');
                     const span = document.createElement('span');
-                    span.textContent = label.textContent; 
+                    span.textContent = label.textContent;
                     group.appendChild(span);
                     const toggleLabel = document.createElement('label');
                     toggleLabel.className = 'toggle';
@@ -558,16 +630,16 @@ const sidePanel = {
                     break;
                 case 'slider':
                     const sliderContainer = document.createElement('div');
-                    sliderContainer.className = 'slider-container'; 
+                    sliderContainer.className = 'slider-container';
                     controlElement = document.createElement('input');
                     controlElement.type = 'range';
-                    controlElement.className = 'slider'; 
+                    controlElement.className = 'slider';
                     controlElement.min = controlConf.min || 0;
                     controlElement.max = controlConf.max || 100;
                     controlElement.step = controlConf.step || 1;
                     controlElement.value = controlConf.initialValue || controlConf.min || 0;
                     const valueDisplay = document.createElement('span');
-                    valueDisplay.className = 'slider-value'; 
+                    valueDisplay.className = 'slider-value';
                     valueDisplay.textContent = controlElement.value;
                     controlElement.addEventListener('input', (e) => {
                         valueDisplay.textContent = e.target.value;
@@ -583,7 +655,7 @@ const sidePanel = {
                     break;
                 case 'select':
                     controlElement = document.createElement('select');
-                    controlElement.className = 'dropdown'; 
+                    controlElement.className = 'dropdown';
                     if (controlConf.options && Array.isArray(controlConf.options)) {
                         controlConf.options.forEach(opt => {
                             const option = document.createElement('option');
@@ -601,7 +673,7 @@ const sidePanel = {
                     group.appendChild(p);
             }
 
-            if (controlElement && controlConf.type !== 'slider') { 
+            if (controlElement && controlConf.type !== 'slider') {
                  controlElement.dataset.controlName = controlConf.name;
                  controlElement.addEventListener('change', (e) => {
                     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -636,7 +708,7 @@ const sidePanel = {
         if (this.linesToggle) this.linesToggle.checked = showGrid;
         if (this.highlightSharpsFlatsToggle) this.highlightSharpsFlatsToggle.checked = highlightSharps;
         if (this.enablePolyphonyScalingToggle) this.enablePolyphonyScalingToggle.checked = enablePolyScaling;
-        
+
         // >>> НАЧАЛО НОВОЙ ЛОГИКИ ОБНОВЛЕНИЯ UI ВИБРАЦИИ <<<
         if (this.vibrationToggle) {
             this.vibrationToggle.checked = enableVibration;
@@ -659,6 +731,15 @@ const sidePanel = {
         this.populatePadModeSelectDisplay();
         this.displayModeSpecificControls(currentPadMode);
         console.log(`[SidePanel.updateSettingsControls] Updated UI for ... Vibration: ${enableVibration}, Intensity: ${vibrationIntensity}`);
+
+        // Update Gyroscope settings UI
+        if (app && app.state && app.state.sensorSettings) {
+            if (this.smoothingAlphaSlider) this.smoothingAlphaSlider.value = app.state.sensorSettings.smoothingAlpha;
+            if (this.smoothingAlphaValue) this.smoothingAlphaValue.textContent = parseFloat(app.state.sensorSettings.smoothingAlpha).toFixed(2);
+            if (this.invertPitchAxisToggle) this.invertPitchAxisToggle.checked = app.state.sensorSettings.invertPitchAxis;
+            if (this.invertRollAxisToggle) this.invertRollAxisToggle.checked = app.state.sensorSettings.invertRollAxis;
+            if (this.swapAxesToggle) this.swapAxesToggle.checked = app.state.sensorSettings.swapAxes;
+        }
     },
 
     handleOctaveChange(value, finalChange = false) {

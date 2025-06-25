@@ -65,7 +65,13 @@ const app = {
         isApplyingChange: false,
         vibrationEnabled: true,
         vibrationIntensity: 'weak',
-        deviceTilt: { pitch: 0, roll: 0 } // Начальное состояние
+        deviceTilt: { pitch: 0, roll: 0 }, // Начальное состояние
+        sensorSettings: {
+            smoothingAlpha: 0.15,
+            invertPitchAxis: true,
+            invertRollAxis: false,
+            swapAxes: false
+        }
     },
     elements: {
         loadingOverlay: null,
@@ -549,6 +555,27 @@ const app = {
                 if (settings.highlightSharpsFlats !== undefined) this.state.highlightSharpsFlats = settings.highlightSharpsFlats;
                 // =======================================================
 
+            // === ЗАГРУЗКА sensorSettings ===
+            if (settings.sensorSettings && typeof settings.sensorSettings === 'object') {
+                this.state.sensorSettings.smoothingAlpha = settings.sensorSettings.smoothingAlpha ?? this.state.sensorSettings.smoothingAlpha;
+                this.state.sensorSettings.invertPitchAxis = settings.sensorSettings.invertPitchAxis ?? this.state.sensorSettings.invertPitchAxis;
+                this.state.sensorSettings.invertRollAxis = settings.sensorSettings.invertRollAxis ?? this.state.sensorSettings.invertRollAxis;
+                this.state.sensorSettings.swapAxes = settings.sensorSettings.swapAxes ?? this.state.sensorSettings.swapAxes;
+                console.log('[App.loadInitialSettings] Loaded sensorSettings from bridge:', this.state.sensorSettings);
+            } else if (localStorage.getItem('sensorSettings')) {
+                try {
+                    const storedSensorSettings = JSON.parse(localStorage.getItem('sensorSettings'));
+                    this.state.sensorSettings.smoothingAlpha = storedSensorSettings.smoothingAlpha ?? this.state.sensorSettings.smoothingAlpha;
+                    this.state.sensorSettings.invertPitchAxis = storedSensorSettings.invertPitchAxis ?? this.state.sensorSettings.invertPitchAxis;
+                    this.state.sensorSettings.invertRollAxis = storedSensorSettings.invertRollAxis ?? this.state.sensorSettings.invertRollAxis;
+                    this.state.sensorSettings.swapAxes = storedSensorSettings.swapAxes ?? this.state.sensorSettings.swapAxes;
+                    console.log('[App.loadInitialSettings] Loaded sensorSettings from localStorage:', this.state.sensorSettings);
+                } catch (e) {
+                    console.warn('[App.loadInitialSettings] Failed to parse sensorSettings from localStorage, using defaults.', e);
+                }
+            }
+            // ==================================
+
                 // === ЗАГРУЗКА rocketModeSettings ===
                 let rocketDefaults = {
                     highlightActiveNotes: true,
@@ -721,7 +748,7 @@ const app = {
             if (i18n?.loadLanguage) {
                 await i18n.loadLanguage(languageId);
                 this.state.language = languageId;
-                
+
                 // Обновление текста на экране загрузки, если он виден
                 if (this.elements.loadingOverlay && !this.elements.loadingOverlay.classList.contains('hidden')) {
                      const currentTextKey = this.elements.loadingText?.dataset.i18nKey || 'loading';
@@ -735,11 +762,11 @@ const app = {
                 }
 
                  this._updateSidePanelSettingsUI();
-            } else { 
+            } else {
                 console.error('[App.applyLanguage] i18n module or loadLanguage function is not available.');
                 throw new Error('i18n module not available'); // Выбрасываем ошибку, чтобы попасть в catch
             }
-        } catch (error) { 
+        } catch (error) {
             console.error(`[App.applyLanguage] Error applying language ${languageId}:`, error, error.stack);
             // Логика отката
             this.state.language = previousLanguageId;
@@ -768,7 +795,7 @@ const app = {
     async applyVisualizer(visualizerId) {
         if (!visualizerId) return; // Проверка на пустой visualizerId
         // Флаг isApplyingChange здесь не используется, согласно примеру пользователя
-        
+
         const previousVisualizerId = this.state.visualizer; // Для возможного отката
 
         try {
@@ -777,7 +804,7 @@ const app = {
                 await visualizer.setVisualizerType(visualizerId);
                 // Используем await и новый метод моста согласно примеру
                 if (this.state.isBridgeReady) { // Добавляем проверку isBridgeReady для безопасности
-                    await bridgeFix.callBridge('setVisualizer', visualizerId); 
+                    await bridgeFix.callBridge('setVisualizer', visualizerId);
                 }
             }
             this._updateSidePanelSettingsUI();
@@ -791,7 +818,7 @@ const app = {
             if (this.state.isBridgeReady) {
                  await bridgeFix.callBridge('setVisualizer', previousVisualizerId).catch(e => console.error("[App.applyVisualizer] Rollback bridge call failed:", e));
             }
-            this._updateSidePanelSettingsUI(); 
+            this._updateSidePanelSettingsUI();
         }
     },
 
@@ -803,7 +830,7 @@ const app = {
      */
     async applyTouchEffect(effectId) {
         // Значение по умолчанию 'none' применяется, если effectId это null или undefined
-        const targetEffectId = effectId ?? 'none'; 
+        const targetEffectId = effectId ?? 'none';
         // Флаг isApplyingChange здесь не используется, согласно примеру пользователя
 
         const previousTouchEffectId = this.state.touchEffect; // Для возможного отката
@@ -876,12 +903,12 @@ const app = {
         this.state.isApplyingChange = true;
         // this.showLoadingIndicator(true);
 
-        const previousPresetId = this.state.soundPreset; 
+        const previousPresetId = this.state.soundPreset;
 
         try {
             const presetModule = await moduleManager.getModule(targetPresetId);
             // Используем synth.config.defaultPreset как более подходящий фоллбэк для данных синтезатора
-            const presetData = presetModule?.data?.data || synth.config.defaultPreset; 
+            const presetData = presetModule?.data?.data || synth.config.defaultPreset;
 
             if (!presetData) {
                 // Сообщение об ошибке немного изменено для ясности
@@ -895,7 +922,7 @@ const app = {
             } else {
                 throw new Error("Synth not ready for preset application");
             }
-            
+
             // 2. this.state.soundPreset
             this.state.soundPreset = targetPresetId;
 
@@ -903,7 +930,7 @@ const app = {
             if (soundPresets?.updateActivePresetCube) {
                 soundPresets.updateActivePresetCube(targetPresetId);
             }
-            
+
             // 4. bridgeFix.callBridge
             if (this.state.isBridgeReady) { // Проверка isBridgeReady добавлена для безопасности
                 await bridgeFix.callBridge('setSoundPreset', targetPresetId);
@@ -911,7 +938,7 @@ const app = {
 
             // 5. _resolveAndApplyYAxisControls
             if (typeof this._resolveAndApplyYAxisControls === 'function') {
-                await this._resolveAndApplyYAxisControls(true); 
+                await this._resolveAndApplyYAxisControls(true);
             } else {
                  console.warn("[App.applySoundPreset] _resolveAndApplyYAxisControls is not a function.");
             }
@@ -992,7 +1019,7 @@ const app = {
             if (fxChains?.updateActiveChain) {
                 fxChains.updateActiveChain(targetChainId);
             }
-            
+
             // 5. Разрешаем и применяем настройки Y-оси
             // Убедимся, что _resolveAndApplyYAxisControls существует и является функцией
             if (typeof this._resolveAndApplyYAxisControls === 'function') {
@@ -1477,7 +1504,7 @@ const app = {
                     throw new Error(`Аудиоконтекст не в состоянии 'running' (${Tone.context.state}) после всех попыток.`);
                 }
             }
-        
+
             // 4. Переинициализация synth и visualizer
         console.log("[App.restartAudioEngine] Переинициализирую synth и visualizer...");
             if (typeof synth !== 'undefined' && typeof synth.init === 'function') {
@@ -1623,17 +1650,17 @@ const app = {
             // Если предыдущий код с `await this.updateZones()` был важен при неизменной тонике, его нужно вернуть.
             return;
         }
-    
+
         console.log(`[App] Setting tonic to: ${noteName}`);
         const previousTonic = this.state.currentTonic; // Сохраняем для возможного отката
-    
+
         try {
         this.state.currentTonic = noteName;
 
             // Сначала обновляем состояние, потом вызываем асинхронные операции
             // Важно ДОЖДАТЬСЯ, пока PadModeManager отреагирует и перерисует пэд
             if (PadModeManager && typeof PadModeManager.onTonicChanged === 'function') {
-                await PadModeManager.onTonicChanged(this.state.currentTonic); 
+                await PadModeManager.onTonicChanged(this.state.currentTonic);
         } else {
                 // Если PadModeManager вдруг нет, или у него нет onTonicChanged,
                 // вызываем перерисовку зон напрямую (если он есть).
@@ -1647,12 +1674,12 @@ const app = {
                     await this.updateZoneLayout();
                 }
             }
-    
+
             // Обновляем UI панели тональности
             if (sidePanel?.updateTonalityControls) {
                 sidePanel.updateTonalityControls(this.state.octaveOffset, this.state.scale, this.state.zoneCount);
             }
-            
+
             // Сохраняем в bridge ПОСЛЕ всех успешных операций
             if (this.state.isBridgeReady) {
                  await bridgeFix.callBridge('setSetting', 'currentTonic', this.state.currentTonic);
@@ -1662,7 +1689,7 @@ const app = {
         if (pad && typeof pad.highlightTonic === "function") {
                 pad.highlightTonic(this.state.currentTonic);
             }
-    
+
         } catch (error) {
             console.error(`[App.setTonic] Failed to set tonic to ${noteName}:`, error, error.stack);
             // Откатываем состояние при ошибке
@@ -1756,11 +1783,11 @@ const app = {
         }
 
         // Обновленное условие для флага isApplyingChange
-        if (this.state.isApplyingChange && !initialLoad) { 
+        if (this.state.isApplyingChange && !initialLoad) {
             console.warn("[App.setPadMode] Action ignored: another change is in progress and this is not an initial load.");
             return;
         }
-        
+
         console.log(`[App.setPadMode] Attempting to set pad mode to: ${modeId}`);
         this.state.isApplyingChange = true;
         const previousModeId = this.state.padMode;
@@ -1773,7 +1800,7 @@ const app = {
                 if (this.state.isBridgeReady) { // Сохраняем безопасную проверку
                     await bridgeFix.callBridge('setSetting', 'padMode', modeId);
                 }
-            
+
                 // Существующая логика обновления UI (панели Chord/Rocket и т.д.) сохраняется
             const chordPanel = document.getElementById('chord-mode-panel');
             const expandBtn = document.getElementById('chord-panel-expand-btn');
@@ -1784,7 +1811,7 @@ const app = {
                 this.toggleChordPanel(this.state.isChordPanelCollapsed);
                     }
                 const strategy = PadModeManager.getCurrentStrategy();
-                    if (strategy && typeof strategy.getSelectedChordId === 'function' && !strategy.getSelectedChordId() && 
+                    if (strategy && typeof strategy.getSelectedChordId === 'function' && !strategy.getSelectedChordId() &&
                         typeof strategy.getAvailableChords === 'function' && strategy.getAvailableChords().length > 0) {
                         if (typeof strategy.selectChord === 'function') {
                     await strategy.selectChord(strategy.getAvailableChords()[0].id);
@@ -1813,12 +1840,12 @@ const app = {
                 console.log(`[App.setPadMode] Successfully set pad mode to ${modeId}`);
             } else {
                 // Явное выбрасывание ошибки, если setActiveMode не удалось
-                throw new Error(`PadModeManager.setActiveMode for ${modeId} returned false.`); 
+                throw new Error(`PadModeManager.setActiveMode for ${modeId} returned false.`);
             }
         } catch (error) {
             console.error(`[App.setPadMode] Error setting pad mode to ${modeId}:`, error, error.stack);
             // Существующая логика отката сохраняется
-            this.state.padMode = previousModeId; 
+            this.state.padMode = previousModeId;
             if (PadModeManager) await PadModeManager.setActiveMode(previousModeId).catch(e => console.error("[App.setPadMode] Error during rollback setActiveMode:", e));
             if (this.state.isBridgeReady) await bridgeFix.callBridge('setSetting', 'padMode', previousModeId).catch(e => console.error("[App.setPadMode] Error during rollback bridge call:", e));
             if (sidePanel?.populatePadModeSelectDisplay) sidePanel.populatePadModeSelectDisplay();
@@ -1827,7 +1854,7 @@ const app = {
             this.state.isApplyingChange = false;
         }
     },
-    
+
     toggleChordPanel(shouldBeCollapsed) {
         if (typeof shouldBeCollapsed !== 'boolean') {
             shouldBeCollapsed = !this.state.isChordPanelCollapsed;
@@ -1871,6 +1898,23 @@ const app = {
             );
             if (sidePanel.populatePadModeSelectDisplay) {
                 sidePanel.populatePadModeSelectDisplay();
+            }
+
+            // Ensure sensor controller is updated with initial/loaded settings
+            if (this.state.isBridgeReady && window.PrismtoneBridge && window.PrismtoneBridge.updateSensorSettings) {
+                try {
+                    console.log('[App._updateSidePanelSettingsUI] Syncing initial sensorSettings to native:', this.state.sensorSettings);
+                    window.PrismtoneBridge.updateSensorSettings(JSON.stringify(this.state.sensorSettings));
+                } catch (e) {
+                    console.error('[App._updateSidePanelSettingsUI] Error calling bridge.updateSensorSettings:', e);
+                }
+            } else if (this.state.isBridgeReady && bridgeFix && bridgeFix.callBridge) { // Fallback
+                 try {
+                    console.log('[App._updateSidePanelSettingsUI] Syncing initial sensorSettings to native (via bridgeFix):', this.state.sensorSettings);
+                    bridgeFix.callBridge('updateSensorSettings', JSON.stringify(this.state.sensorSettings));
+                } catch (e) {
+                    console.error('[App._updateSidePanelSettingsUI] Error calling bridgeFix.callBridge for updateSensorSettings:', e);
+                }
             }
         }
     },

@@ -86,43 +86,91 @@ const filterManager = {
      * @param {object} newSettings - An object with new settings to apply (frequency, Q, type, rolloff, gain).
      * @returns {boolean} True if the update was successful, false otherwise.
      */
-    update(nodes, newSettings) {
-        if (!nodes || !nodes.filter || !newSettings) {
-            console.warn("[FilterManager] Update called with invalid args", { nodes, newSettings });
+    update(componentData, newSettingsBundle, oldSettingsBundle) {
+        const t0 = performance.now();
+        if (!newSettingsBundle || !newSettingsBundle.params) {
+            console.warn("[FilterManager] Update called with invalid newSettingsBundle. Params missing.", { newSettingsBundle });
             return false;
         }
-        const filterNode = nodes.filter;
-        try {
-            // >>> НАЧАЛО ИЗМЕНЕНИЙ (Оптимизация) <<<
-            const paramsToUpdate = {};
-            const rampTime = 0.02; // Стандартное время для плавного перехода
 
-            if (newSettings.frequency !== undefined) paramsToUpdate.frequency = newSettings.frequency;
-            if (newSettings.Q !== undefined) paramsToUpdate.Q = newSettings.Q;
-            if (newSettings.gain !== undefined) paramsToUpdate.gain = newSettings.gain;
-            
-            // Применяем параметры, которые можно плавно изменять
-            if (Object.keys(paramsToUpdate).length > 0) {
-                filterNode.set(paramsToUpdate, rampTime);
+        const newSettings = newSettingsBundle.params;
+        // const oldSettings = oldSettingsBundle?.params || {}; // Not strictly needed for filter if no complex comparisons
+
+        const currentFilterNode = componentData?.nodes?.filter;
+
+        if (!currentFilterNode) {
+            if (newSettingsBundle.enabled !== false) { // Check if the component is meant to be active
+                console.log("[FilterManager] Filter node does not exist and component is enabled. Creating new filter.");
+                // Create a new filter based on newSettings.
+                // The 'create' method expects settings directly.
+                const creationResult = this.create(newSettings);
+                const t1_recreate = performance.now();
+                console.log(`[FilterManager] Created new filter in ${(t1_recreate - t0).toFixed(2)}ms. Result:`, creationResult.error ? creationResult.error : 'Success');
+                return creationResult; // This includes { nodes, audioInput, audioOutput, modInputs, error }
+            } else {
+                // No node and component is disabled, nothing to do.
+                console.log("[FilterManager] No filter node and component is disabled. Skipping update.");
+                return true; // Successfully did nothing
+            }
+        }
+
+        // If filter node exists, update its parameters
+        const filterNode = currentFilterNode;
+        try {
+            const paramsToSet = {};
+            const rampTime = 0.02; // Standard ramp time for smooth transitions
+
+            // Collect parameters for filterNode.set()
+            if (newSettings.frequency !== undefined && filterNode.frequency.value !== newSettings.frequency) {
+                paramsToSet.frequency = newSettings.frequency;
+            }
+            if (newSettings.Q !== undefined && filterNode.Q.value !== newSettings.Q) {
+                paramsToSet.Q = newSettings.Q;
+            }
+            // Also handle 'resonance' as an alias for 'Q' if present in preset
+            if (newSettings.resonance !== undefined && filterNode.Q.value !== newSettings.resonance) {
+                paramsToSet.Q = newSettings.resonance;
+            }
+            if (newSettings.gain !== undefined && filterNode.gain.value !== newSettings.gain) {
+                paramsToSet.gain = newSettings.gain;
+            }
+            // Detune might also be a settable param for some filters, good to include if available
+            if (newSettings.detune !== undefined && filterNode.detune?.value !== undefined && filterNode.detune.value !== newSettings.detune) {
+                 paramsToSet.detune = newSettings.detune;
             }
 
-            // Применяем параметры, которые изменяются мгновенно
-            if (newSettings.type !== undefined) {
+            if (Object.keys(paramsToSet).length > 0) {
+                console.log("[FilterManager] Setting batched params:", paramsToSet);
+                filterNode.set(paramsToSet, rampTime);
+            }
+
+            // Apply parameters that change instantly (type, rolloff)
+            if (newSettings.type !== undefined && filterNode.type !== newSettings.type) {
                 const validTypes = ['lowpass', 'highpass', 'bandpass', 'lowshelf', 'highshelf', 'notch', 'allpass', 'peaking'];
                 if (validTypes.includes(newSettings.type)) {
                     filterNode.type = newSettings.type;
+                    console.log(`[FilterManager] Set filter type to: ${newSettings.type}`);
+                } else {
+                    console.warn(`[FilterManager] Invalid filter type '${newSettings.type}' provided. Keeping old type '${filterNode.type}'.`);
                 }
             }
-            if (newSettings.rolloff !== undefined) {
+            if (newSettings.rolloff !== undefined && filterNode.rolloff !== newSettings.rolloff) {
                 const validRolloffs = [-12, -24, -48, -96];
                 if (validRolloffs.includes(newSettings.rolloff)) {
                     filterNode.rolloff = newSettings.rolloff;
+                    console.log(`[FilterManager] Set filter rolloff to: ${newSettings.rolloff}`);
+                } else {
+                    console.warn(`[FilterManager] Invalid filter rolloff '${newSettings.rolloff}' provided. Keeping old rolloff '${filterNode.rolloff}'.`);
                 }
             }
-            // >>> КОНЕЦ ИЗМЕНЕНИЙ <<<
-            return true;
+
+            const t1_update = performance.now();
+            console.log(`[FilterManager] Updated existing filter in ${(t1_update - t0).toFixed(2)}ms`);
+            return true; // Successfully updated in-place
         } catch (err) {
-            console.error("[FilterManager] Error in update():", err);
+            console.error("[FilterManager] Error in update() for existing filter:", err, err.stack);
+            const t1_err = performance.now();
+            console.log(`[FilterManager] Update error after ${(t1_err - t0).toFixed(2)}ms`);
             return false;
         }
     },

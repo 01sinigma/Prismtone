@@ -65,30 +65,91 @@ const ampEnvManager = {
      * @param {object} newSettings - Объект с новыми настройками для обновления (attack, decay, sustain, release, attackCurve, decayCurve, releaseCurve).
      * @returns {boolean} True, если обновление прошло успешно, иначе false.
      */
-    update(nodes, newSettings) {
-        if (!nodes || !nodes.envelope || !newSettings) {
-            console.warn("[AmpEnvManager] Update called with invalid args", { nodes, newSettings });
+    update(componentData, newSettingsBundle, oldSettingsBundle) {
+        const t0 = performance.now();
+        if (!newSettingsBundle || !newSettingsBundle.params) {
+            console.warn("[AmpEnvManager] Update called with invalid newSettingsBundle. Params missing.", { newSettingsBundle });
             return false;
         }
-        try {
-            // >>> НАЧАЛО ИЗМЕНЕНИЙ (Оптимизация) <<<
-            // Используем метод .set() для пакетного обновления параметров
-            const settingsToUpdate = {};
-            if (newSettings.attack !== undefined) settingsToUpdate.attack = newSettings.attack;
-            if (newSettings.decay !== undefined) settingsToUpdate.decay = newSettings.decay;
-            if (newSettings.sustain !== undefined) settingsToUpdate.sustain = newSettings.sustain;
-            if (newSettings.release !== undefined) settingsToUpdate.release = newSettings.release;
-            if (newSettings.attackCurve !== undefined) settingsToUpdate.attackCurve = newSettings.attackCurve;
-            if (newSettings.decayCurve !== undefined) settingsToUpdate.decayCurve = newSettings.decayCurve;
-            if (newSettings.releaseCurve !== undefined) settingsToUpdate.releaseCurve = newSettings.releaseCurve;
 
-            if (Object.keys(settingsToUpdate).length > 0) {
-                nodes.envelope.set(settingsToUpdate);
+        const newSettings = newSettingsBundle.params;
+        const isEnabledInNewPreset = newSettingsBundle.enabled !== false; // Default to true if 'enabled' is missing
+        const currentEnvelopeNode = componentData?.nodes?.envelope;
+
+        if (!currentEnvelopeNode && isEnabledInNewPreset) {
+            // Node doesn't exist, but it should be enabled: CREATE
+            console.log("[AmpEnvManager] Envelope node does not exist and component is enabled. Creating new envelope.");
+            const creationResult = this.create(newSettings); // create expects params directly
+            const t1_create = performance.now();
+            console.log(`[AmpEnvManager] Created new envelope in ${(t1_create - t0).toFixed(2)}ms.`);
+            return creationResult; // Returns { nodes, audioInput, audioOutput, ... }
+        }
+
+        if (currentEnvelopeNode && !isEnabledInNewPreset) {
+            // Node exists, but it should be disabled: DISPOSE
+            console.log("[AmpEnvManager] Envelope node exists but component is now disabled. Disposing envelope.");
+            this.dispose(componentData.nodes);
+            const t1_dispose = performance.now();
+            console.log(`[AmpEnvManager] Disposed envelope in ${(t1_dispose - t0).toFixed(2)}ms.`);
+            // Return a structure that synth.js can use to clear the component
+            return { nodes: null, audioInput: null, audioOutput: null, modInputs: {}, modOutputs: {}, error: null, effectivelyDisabled: true };
+        }
+
+        if (!currentEnvelopeNode && !isEnabledInNewPreset) {
+            // Node doesn't exist and it's disabled, do nothing.
+            console.log("[AmpEnvManager] Envelope node does not exist and component is disabled. No action.");
+            return true; // Or a specific "no-op" success state if needed
+        }
+
+        // If node exists and is enabled, update its parameters
+        const envelopeNode = currentEnvelopeNode;
+        try {
+            const settingsToUpdate = {};
+            let changed = false;
+
+            if (newSettings.attack !== undefined && envelopeNode.attack !== newSettings.attack) {
+                settingsToUpdate.attack = newSettings.attack;
+                changed = true;
             }
-            // >>> КОНЕЦ ИЗМЕНЕНИЙ <<<
-            return true;
+            if (newSettings.decay !== undefined && envelopeNode.decay !== newSettings.decay) {
+                settingsToUpdate.decay = newSettings.decay;
+                changed = true;
+            }
+            if (newSettings.sustain !== undefined && envelopeNode.sustain !== newSettings.sustain) {
+                settingsToUpdate.sustain = newSettings.sustain;
+                changed = true;
+            }
+            if (newSettings.release !== undefined && envelopeNode.release !== newSettings.release) {
+                settingsToUpdate.release = newSettings.release;
+                changed = true;
+            }
+            if (newSettings.attackCurve !== undefined && envelopeNode.attackCurve !== newSettings.attackCurve) {
+                settingsToUpdate.attackCurve = newSettings.attackCurve;
+                changed = true;
+            }
+            if (newSettings.decayCurve !== undefined && envelopeNode.decayCurve !== newSettings.decayCurve) {
+                settingsToUpdate.decayCurve = newSettings.decayCurve;
+                changed = true;
+            }
+            if (newSettings.releaseCurve !== undefined && envelopeNode.releaseCurve !== newSettings.releaseCurve) {
+                settingsToUpdate.releaseCurve = newSettings.releaseCurve;
+                changed = true;
+            }
+
+            if (changed && Object.keys(settingsToUpdate).length > 0) {
+                console.log("[AmpEnvManager] Updating envelope params:", settingsToUpdate);
+                envelopeNode.set(settingsToUpdate);
+            } else {
+                console.log("[AmpEnvManager] No envelope parameters changed. Skipping set.");
+            }
+
+            const t1_update = performance.now();
+            console.log(`[AmpEnvManager] Updated existing envelope in ${(t1_update - t0).toFixed(2)}ms (changed: ${changed})`);
+            return true; // Successfully updated in-place
         } catch (err) {
-            console.error("[AmpEnvManager] Error in update():", err);
+            console.error("[AmpEnvManager] Error in update() for existing envelope:", err, err.stack);
+            const t1_err = performance.now();
+            console.log(`[AmpEnvManager] Update error after ${(t1_err - t0).toFixed(2)}ms`);
             return false;
         }
     },

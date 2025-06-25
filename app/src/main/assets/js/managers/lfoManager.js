@@ -69,34 +69,114 @@ const lfoManager = {
      * @param {object} newSettings - An object with new settings to apply (frequency, type, phase, depth).
      * @returns {boolean} True if the update was successful, false otherwise.
      */
-    update(nodes, newSettings) {
-        if (!nodes?.lfo || !nodes?.depth) {
-            console.warn("[LFOManager] Update called with invalid nodes.", nodes);
+    update(componentData, newSettingsBundle, oldSettingsBundle) {
+        const t0 = performance.now();
+        if (!newSettingsBundle || !newSettingsBundle.params) {
+            console.warn("[LFOManager] Update called with invalid newSettingsBundle. Params missing.", { newSettingsBundle });
             return false;
         }
+
+        const newSettings = newSettingsBundle.params;
+        // 'enabled' is at newSettingsBundle.enabled, not newSettingsBundle.params.enabled
+        const isEnabledInNewPreset = newSettingsBundle.enabled === true;
+        const currentLfoNode = componentData?.nodes?.lfo;
+
+        if (!currentLfoNode && isEnabledInNewPreset) {
+            // LFO does not exist, but it should be enabled: CREATE and START
+            console.log("[LFOManager] LFO does not exist and component is enabled. Creating and starting LFO.");
+            const creationResult = this.create(newSettings); // create expects params directly
+            if (creationResult.error) {
+                console.error("[LFOManager] Failed to create LFO during update.", creationResult.error);
+                return creationResult; // Propagate error
+            }
+            this.enable(creationResult.nodes, true); // Start the newly created LFO
+            const t1_create = performance.now();
+            console.log(`[LFOManager] Created and started new LFO in ${(t1_create - t0).toFixed(2)}ms.`);
+            return creationResult; // Returns { nodes, modOutputs, ... }
+        }
+
+        if (currentLfoNode && !isEnabledInNewPreset) {
+            // LFO exists, but it should be disabled: STOP and DISPOSE
+            console.log("[LFOManager] LFO exists but component is now disabled. Stopping and disposing LFO.");
+            this.enable(componentData.nodes, false); // Stop the LFO
+            this.dispose(componentData.nodes);
+            const t1_dispose = performance.now();
+            console.log(`[LFOManager] Stopped and disposed LFO in ${(t1_dispose - t0).toFixed(2)}ms.`);
+            return { nodes: null, audioInput: null, audioOutput: null, modOutputs: {}, error: null, effectivelyDisabled: true };
+        }
+
+        if (!currentLfoNode && !isEnabledInNewPreset) {
+            // LFO does not exist and it's disabled, do nothing.
+            console.log("[LFOManager] LFO does not exist and component is disabled. No action.");
+            return true;
+        }
+
+        // If LFO exists and is enabled, update its parameters
+        // Also, ensure it's running if it was previously stopped for some reason but is now enabled.
+        const lfoNode = currentLfoNode;
+        const depthNode = componentData.nodes.depth;
         try {
-            const lfoNode = nodes.lfo;
-            const depthNode = nodes.depth;
-
+            let paramsChanged = false;
             const lfoPropsToSet = {};
-            if (newSettings.frequency !== undefined) lfoPropsToSet.frequency = newSettings.frequency;
-            if (newSettings.type !== undefined) lfoPropsToSet.type = newSettings.type;
-            if (newSettings.phase !== undefined) lfoPropsToSet.phase = newSettings.phase;
 
-            if (Object.keys(lfoPropsToSet).length > 0) {
+            if (newSettings.frequency !== undefined && lfoNode.frequency.value !== newSettings.frequency) {
+                lfoPropsToSet.frequency = newSettings.frequency;
+                paramsChanged = true;
+            }
+            if (newSettings.type !== undefined && lfoNode.type !== newSettings.type) {
+                lfoPropsToSet.type = newSettings.type;
+                paramsChanged = true;
+            }
+            if (newSettings.phase !== undefined && lfoNode.phase !== newSettings.phase) {
+                lfoPropsToSet.phase = newSettings.phase;
+                paramsChanged = true;
+            }
+
+            if (paramsChanged && Object.keys(lfoPropsToSet).length > 0) {
+                console.log("[LFOManager] Updating LFO node params:", lfoPropsToSet);
                 lfoNode.set(lfoPropsToSet);
             }
 
             if (newSettings.depth !== undefined) {
-                if (depthNode.factor && (depthNode.factor instanceof Tone.Signal || depthNode.factor instanceof Tone.Param)) {
-                    depthNode.factor.value = newSettings.depth;
-                } else {
-                    console.warn("[LFOManager] depthNode.factor is not a Signal or Param. Depth not set for LFO.");
+                const currentDepthVal = (depthNode.factor && depthNode.factor.value !== undefined)
+                                      ? depthNode.factor.value
+                                      : depthNode.value; // Fallback if factor isn't the holder, though it should be for Tone.Multiply
+                if (currentDepthVal !== newSettings.depth) {
+                    if (depthNode.factor && (depthNode.factor instanceof Tone.Signal || depthNode.factor instanceof Tone.Param)) {
+                        depthNode.factor.value = newSettings.depth;
+                    } else if (depthNode.hasOwnProperty('value')) { // Should not be hit if factor exists
+                        depthNode.value = newSettings.depth;
+                    } else {
+                        console.warn("[LFOManager] Could not set depth on depthNode", depthNode);
+                    }
+                    paramsChanged = true;
+                    console.log(`[LFOManager] Updated LFO depth to: ${newSettings.depth}`);
                 }
             }
-            return true;
+
+            // Ensure LFO is started if it's supposed to be enabled
+            // The `enable` method handles the actual start/stop logic.
+            // If it was already enabled and running, calling enable(true) again is fine.
+            // If it was disabled (e.g. by a previous preset) but its nodes were not disposed,
+            // and now it's enabled again, this ensures it starts.
+             if (isEnabledInNewPreset && lfoNode.state !== "started") {
+                 console.log("[LFOManager] LFO is enabled in preset but not started. Starting LFO.");
+                 this.enable(componentData.nodes, true); // Ensure LFO is running
+                 paramsChanged = true; // Indicate an action was taken
+             }
+
+
+            const t1_update = performance.now();
+            if (paramsChanged) {
+                console.log(`[LFOManager] Updated existing LFO in ${(t1_update - t0).toFixed(2)}ms.`);
+            } else {
+                console.log(`[LFOManager] No LFO parameters changed. Duration: ${(t1_update - t0).toFixed(2)}ms.`);
+            }
+            return true; // Successfully updated in-place or no change needed
         } catch (err) {
-            console.error("[LFOManager] Error in update():", err);
+            console.error("[LFOManager] Error in update() for existing LFO:", err, err.stack);
+            const t1_err = performance.now();
+            console.log(`[LFOManager] Update error after ${(t1_err - t0).toFixed(2)}ms`);
             return false;
         }
     },

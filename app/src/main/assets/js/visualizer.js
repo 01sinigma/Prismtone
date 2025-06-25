@@ -1,3 +1,4 @@
+// Файл: app/src/main/assets/js/visualizer.js
 /**
  * @file visualizer.js
  * @description
@@ -955,7 +956,7 @@ omaly in received structure.`);
      * @returns {string} The rgba color string (e.g., "rgba(255,0,0,0.5)").
      */
     getColorWithAlpha(colorString, alpha) {
-        const clampedAlpha = Math.max(0, Math.min(1, parseFloat(alpha.toFixed(3)))); // alpha округляется для консистентности ключа
+        const clampedAlpha = Math.max(0, Math.min(1, parseFloat(alpha.toFixed(3))));
         const cacheKey = `${colorString}_${clampedAlpha}`;
 
         if (this._colorWithAlphaCache[cacheKey]) {
@@ -963,31 +964,37 @@ omaly in received structure.`);
         }
 
         let effectiveColorString = colorString || this.themeColors.primary;
-        const themeColorValue = this.themeColors[effectiveColorString];
-        if (themeColorValue && (themeColorValue.startsWith('#') || themeColorValue.startsWith('rgb') || themeColorValue.startsWith('hsl'))) {
-            effectiveColorString = themeColorValue;
+        let result;
+
+        // Check if colorString is a theme color name
+        if (this.themeColors[effectiveColorString] && (this.themeColors[effectiveColorString].startsWith('#') || this.themeColors[effectiveColorString].startsWith('rgb') || this.themeColors[effectiveColorString].startsWith('hsl'))) {
+            effectiveColorString = this.themeColors[effectiveColorString];
         }
 
-        let result;
         if (typeof effectiveColorString === 'string') {
             if (effectiveColorString.startsWith('#')) {
-                const rgb = this.hexToRgb(effectiveColorString); // hexToRgb уже использует свой кеш
+                const rgb = this.hexToRgb(effectiveColorString); // hexToRgb uses its own cache
                 result = rgb ? `rgba(${rgb.r},${rgb.g},${rgb.b},${clampedAlpha})` : `rgba(0,0,0,${clampedAlpha})`;
             } else if (effectiveColorString.startsWith('rgba')) {
+                // Replace existing alpha
                 result = effectiveColorString.replace(/[\d\.]+\)$/g, `${clampedAlpha})`);
             } else if (effectiveColorString.startsWith('rgb')) {
+                // Add alpha
                 result = effectiveColorString.replace('rgb', 'rgba').replace(')', `, ${clampedAlpha})`);
             } else if (effectiveColorString.startsWith('hsla')) {
-                result = effectiveColorString.replace(/[\d\.]+\)$/g, `${clampedAlpha})`);
+                // Replace existing alpha
+                result = effectiveColorString.replace(/[\d\.]+(?=\))/g, `${clampedAlpha}`);
             } else if (effectiveColorString.startsWith('hsl')) {
+                // Add alpha
                 result = effectiveColorString.replace('hsl', 'hsla').replace(')', `, ${clampedAlpha})`);
             }
         }
 
         if (!result) {
             if (this.debugMode) console.warn(`[Visualizer getColorWithAlpha] Unknown color format: ${colorString} (effective: ${effectiveColorString}). Using fallback.`);
-            const fallbackRgb = this.hexToRgb(this.themeColors.primary);
-            result = fallbackRgb ? `rgba(${fallbackRgb.r},${fallbackRgb.g},${fallbackRgb.b},${clampedAlpha})` : `rgba(0,0,255,${clampedAlpha})`;
+            // Fallback to primary theme color if input is unrecognizable
+            const fallbackRgb = this.hexToRgb(this.themeColors.primary); // Ensure this.themeColors.primary is a hex
+            result = fallbackRgb ? `rgba(${fallbackRgb.r},${fallbackRgb.g},${fallbackRgb.b},${clampedAlpha})` : `rgba(0,0,255,${clampedAlpha})`; // Absolute fallback
         }
 
         this._colorWithAlphaCache[cacheKey] = result;

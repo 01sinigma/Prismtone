@@ -79,39 +79,114 @@ const filterEnvelopeManager = {
      * @param {object} newSettings - An object with new settings to apply (attack, decay, sustain, release, curves, amount).
      * @returns {boolean} True if the update was successful, false otherwise.
      */
-    update(nodes, newSettings) {
-        if (!nodes?.env || !nodes?.amountControl) {
-            console.warn("[FilterEnvManager] Update called with invalid nodes.", nodes);
+    update(componentData, newSettingsBundle, oldSettingsBundle) {
+        const t0 = performance.now();
+        if (!newSettingsBundle || !newSettingsBundle.params) {
+            console.warn("[FilterEnvManager] Update called with invalid newSettingsBundle. Params missing.", { newSettingsBundle });
             return false;
         }
-        try {
-            const envParamsToSet = {};
-            if (newSettings.attack !== undefined) envParamsToSet.attack = newSettings.attack;
-            if (newSettings.decay !== undefined) envParamsToSet.decay = newSettings.decay;
-            if (newSettings.sustain !== undefined) envParamsToSet.sustain = newSettings.sustain;
-            if (newSettings.release !== undefined) envParamsToSet.release = newSettings.release;
-            if (newSettings.attackCurve !== undefined) envParamsToSet.attackCurve = newSettings.attackCurve;
-            if (newSettings.decayCurve !== undefined) envParamsToSet.decayCurve = newSettings.decayCurve;
-            if (newSettings.releaseCurve !== undefined) envParamsToSet.releaseCurve = newSettings.releaseCurve;
 
-            if (Object.keys(envParamsToSet).length > 0) {
-                nodes.env.set(envParamsToSet);
+        const newSettings = newSettingsBundle.params;
+        const isEnabledInNewPreset = newSettingsBundle.enabled === true; // Explicitly check for true
+        const currentEnvNode = componentData?.nodes?.env;
+        const currentAmountControlNode = componentData?.nodes?.amountControl;
+
+        if (!currentEnvNode && isEnabledInNewPreset) {
+            // Nodes don't exist, but component should be enabled: CREATE
+            console.log("[FilterEnvManager] Nodes do not exist and component is enabled. Creating new Filter Env.");
+            const creationResult = this.create(newSettings); // create expects params directly
+            const t1_create = performance.now();
+            console.log(`[FilterEnvManager] Created new Filter Env in ${(t1_create - t0).toFixed(2)}ms.`);
+            return creationResult; // Returns { nodes, modOutputs, ... }
+        }
+
+        if (currentEnvNode && !isEnabledInNewPreset) {
+            // Nodes exist, but component should be disabled: DISPOSE
+            console.log("[FilterEnvManager] Nodes exist but component is now disabled. Disposing Filter Env.");
+            this.dispose(componentData.nodes);
+            const t1_dispose = performance.now();
+            console.log(`[FilterEnvManager] Disposed Filter Env in ${(t1_dispose - t0).toFixed(2)}ms.`);
+            return { nodes: null, audioInput: null, audioOutput: null, modOutputs: {}, error: null, effectivelyDisabled: true };
+        }
+
+        if (!currentEnvNode && !isEnabledInNewPreset) {
+            // Nodes don't exist and component is disabled, do nothing.
+            console.log("[FilterEnvManager] Nodes do not exist and component is disabled. No action.");
+            return true;
+        }
+
+        // If nodes exist and component is enabled, update parameters
+        const envNode = currentEnvNode;
+        const amountControlNode = currentAmountControlNode;
+        try {
+            const envSettingsToUpdate = {};
+            let envChanged = false;
+            let amountChanged = false;
+
+            // Envelope parameters
+            if (newSettings.attack !== undefined && envNode.attack !== newSettings.attack) {
+                envSettingsToUpdate.attack = newSettings.attack;
+                envChanged = true;
+            }
+            if (newSettings.decay !== undefined && envNode.decay !== newSettings.decay) {
+                envSettingsToUpdate.decay = newSettings.decay;
+                envChanged = true;
+            }
+            if (newSettings.sustain !== undefined && envNode.sustain !== newSettings.sustain) {
+                envSettingsToUpdate.sustain = newSettings.sustain;
+                envChanged = true;
+            }
+            if (newSettings.release !== undefined && envNode.release !== newSettings.release) {
+                envSettingsToUpdate.release = newSettings.release;
+                envChanged = true;
+            }
+            if (newSettings.attackCurve !== undefined && envNode.attackCurve !== newSettings.attackCurve) {
+                envSettingsToUpdate.attackCurve = newSettings.attackCurve;
+                envChanged = true;
+            }
+            if (newSettings.decayCurve !== undefined && envNode.decayCurve !== newSettings.decayCurve) {
+                envSettingsToUpdate.decayCurve = newSettings.decayCurve;
+                envChanged = true;
+            }
+            if (newSettings.releaseCurve !== undefined && envNode.releaseCurve !== newSettings.releaseCurve) {
+                envSettingsToUpdate.releaseCurve = newSettings.releaseCurve;
+                envChanged = true;
             }
 
+            if (envChanged && Object.keys(envSettingsToUpdate).length > 0) {
+                console.log("[FilterEnvManager] Updating envelope params:", envSettingsToUpdate);
+                envNode.set(envSettingsToUpdate);
+            }
+
+            // Amount parameter
             if (newSettings.amount !== undefined) {
-                // Check if nodes.amountControl.factor exists and is a Tone.Signal or Tone.Param
-                if (nodes.amountControl.factor && (nodes.amountControl.factor instanceof Tone.Signal || nodes.amountControl.factor instanceof Tone.Param)) {
-                    nodes.amountControl.factor.value = newSettings.amount;
-                } else if (nodes.amountControl.hasOwnProperty('value')) { 
-                    // Fallback for nodes where 'value' is a direct property
-                    nodes.amountControl.value = newSettings.amount;
-                } else {
-                    console.warn("[FilterEnvManager] Could not set amount on nodes.amountControl", nodes.amountControl);
+                const currentAmountVal = (amountControlNode.factor && amountControlNode.factor.value !== undefined)
+                                       ? amountControlNode.factor.value
+                                       : amountControlNode.value;
+                if (currentAmountVal !== newSettings.amount) {
+                    if (amountControlNode.factor && (amountControlNode.factor instanceof Tone.Signal || amountControlNode.factor instanceof Tone.Param)) {
+                        amountControlNode.factor.value = newSettings.amount;
+                    } else if (amountControlNode.hasOwnProperty('value')) {
+                        amountControlNode.value = newSettings.amount;
+                    } else {
+                        console.warn("[FilterEnvManager] Could not set amount on amountControlNode", amountControlNode);
+                    }
+                    amountChanged = true;
+                    console.log(`[FilterEnvManager] Updated amount to: ${newSettings.amount}`);
                 }
             }
-            return true;
+
+            const t1_update = performance.now();
+            if (envChanged || amountChanged) {
+                console.log(`[FilterEnvManager] Updated existing Filter Env in ${(t1_update - t0).toFixed(2)}ms.`);
+            } else {
+                console.log(`[FilterEnvManager] No Filter Env parameters changed. Duration: ${(t1_update - t0).toFixed(2)}ms.`);
+            }
+            return true; // Successfully updated in-place
         } catch (err) {
-            console.error("[FilterEnvManager] Error in update():", err);
+            console.error("[FilterEnvManager] Error in update() for existing Filter Env:", err, err.stack);
+            const t1_err = performance.now();
+            console.log(`[FilterEnvManager] Update error after ${(t1_err - t0).toFixed(2)}ms`);
             return false;
         }
     },
