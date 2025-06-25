@@ -5,7 +5,7 @@ class SpiritForestRenderer {
     constructor() {
         this.ctx = null;
         this.canvas = null;
-        this.settings = {};
+        this.settings = { performanceTier: 'high' }; // Инициализируем с дефолтным performanceTier
         this.themeColors = {};
         this.globalVisualizerRef = null;
         this.analyserNodeRef = null;
@@ -27,20 +27,26 @@ class SpiritForestRenderer {
     init(ctx, canvas, initialSettings, themeColors, globalVisualizerRef, analyserNodeRef) {
         this.ctx = ctx;
         this.canvas = canvas;
-        this.settings = { ...initialSettings }; // Загружаем все из JSON
+        // Мержим initialSettings с дефолтами, включая performanceTier из конструктора
+        this.settings = { ...this.settings, ...initialSettings };
         this.themeColors = themeColors || {};
         this.globalVisualizerRef = globalVisualizerRef;
         this.analyserNodeRef = analyserNodeRef;
 
-        // Initialize spirit pool
-        this.spiritPoolSize = this.settings.spirits?.poolSize || this.spiritPoolSize;
+        // Initialize spirit pool - размер пула может зависеть от performanceTier
+        const basePoolSize = this.settings.spirits?.poolSize || 200;
+        switch (this.settings.performanceTier) {
+            case 'low': this.spiritPoolSize = Math.round(basePoolSize * 0.5); break;
+            case 'medium': this.spiritPoolSize = Math.round(basePoolSize * 0.75); break;
+            case 'high': default: this.spiritPoolSize = basePoolSize; break;
+        }
         this.spiritPool = [];
         for (let i = 0; i < this.spiritPoolSize; i++) {
             this.spiritPool.push({ isActiveInPool: false });
         }
 
         this.onResize(); // Calls _initSpirits which will use the pool
-        console.log(`[SpiritForestRenderer v2.1-pool] Initialized with advanced physics and spirit pool size: ${this.spiritPoolSize}.`);
+        console.log(`[SpiritForestRenderer v2.2-perfTier] Initialized. Performance Tier: ${this.settings.performanceTier}, Spirit Pool Size: ${this.spiritPoolSize}.`);
     }
 
     _getSpiritFromPool() {
@@ -74,14 +80,32 @@ class SpiritForestRenderer {
         // Return existing spirits to the pool before clearing
         this.spirits.forEach(s => { if (s.isActiveInPool) s.isActiveInPool = false; });
         this.spirits = [];
-        const s = this.settings.spirits; // короткая ссылка для удобства
-        const initialCount = s.initialCount || 50; // Fallback if not in settings
+        const s_settings = this.settings.spirits; // короткая ссылка для удобства
+
+        let initialCount = s_settings?.initialCount || 50;
+        let maxCount = s_settings?.maxCount || 150;
+
+        switch (this.settings.performanceTier) {
+            case 'low':
+                initialCount = s_settings?.lowTier?.initialCount || Math.round(initialCount * 0.4); // e.g., 20
+                maxCount = s_settings?.lowTier?.maxCount || Math.round(maxCount * 0.33); // e.g., 50
+                break;
+            case 'medium':
+                initialCount = s_settings?.mediumTier?.initialCount || Math.round(initialCount * 0.7); // e.g., 35
+                maxCount = s_settings?.mediumTier?.maxCount || Math.round(maxCount * 0.67); // e.g., 100
+                break;
+            case 'high':
+                // Use values from settings or defaults
+                break;
+        }
+
+        console.log(`[SpiritForestRenderer _initSpirits] Tier: ${this.settings.performanceTier}, Initial: ${initialCount}, Max: ${maxCount}`);
 
         for (let i = 0; i < initialCount; i++) {
-            if (this.spirits.length >= (s.maxCount || 150) ) break; // Respect max count
+            if (this.spirits.length >= maxCount ) break; // Respect max count for the current tier
 
             const spirit = this._getSpiritFromPool();
-            if (!spirit) continue; // Should not happen if pool logic is correct or creates new ones
+            if (!spirit) continue;
 
             Object.assign(spirit, {
                 x: Math.random() * this.canvas.width,
@@ -357,9 +381,19 @@ class SpiritForestRenderer {
         this.spirits.length = writeIndexSpirits;
 
 
-        // Ограничение максимального количества духов
-        const maxSpiritCount = this.settings.spirits.maxCount || 150;
-        while (this.spirits.length > maxSpiritCount) {
+        // Ограничение максимального количества духов в зависимости от performanceTier
+        const s_settings = this.settings.spirits;
+        let currentMaxCount = s_settings?.maxCount || 150;
+        switch (this.settings.performanceTier) {
+            case 'low':
+                currentMaxCount = s_settings?.lowTier?.maxCount || Math.round(currentMaxCount * 0.33);
+                break;
+            case 'medium':
+                currentMaxCount = s_settings?.mediumTier?.maxCount || Math.round(currentMaxCount * 0.67);
+                break;
+        }
+
+        while (this.spirits.length > currentMaxCount) {
             // Удаляем самого старого или самого слабого духа (например, с наименьшей энергией и не умирающего)
             let spiritToRemoveIndex = -1;
             let minScore = Infinity;

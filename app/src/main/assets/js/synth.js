@@ -325,12 +325,13 @@ const synth = {
                 let needsRecreation = forceRecreation || !voiceData.components;
                 let t2 = performance.now();
                 // Сравнение типа осциллятора с учетом undefined/null
-                const oldOscType = oldPresetData.oscillator?.params?.type ?? null;
-                const newOscType = safePresetData.oscillator?.params?.type ?? null;
-                if (!needsRecreation && oldOscType !== newOscType) {
-                    if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Oscillator type changed ('${oldOscType}' -> '${newOscType}')`);
-                    needsRecreation = true;
-                }
+                // Проверка типа осциллятора теперь делегирована oscillatorManager.update
+                // const oldOscType = oldPresetData.oscillator?.params?.type ?? null;
+                // const newOscType = safePresetData.oscillator?.params?.type ?? null;
+                // if (!needsRecreation && oldOscType !== newOscType) {
+                // if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Oscillator type changed ('${oldOscType}' -> '${newOscType}')`);
+                // needsRecreation = true;
+                // }
                 const optionalComponents = ['pitchEnvelope', 'filterEnvelope', 'lfo1'];
                 for (const optCompId of optionalComponents) {
                     const oldEnabled = oldPresetData[optCompId]?.enabled ?? (this.config.defaultPreset[optCompId]?.enabled ?? false);
@@ -393,13 +394,20 @@ const synth = {
                         }
                         if (componentId === 'oscillator') {
                             if (!paramsToUpdate) paramsToUpdate = {};
+                            // Передаем новый тип осциллятора, если он есть в пресете
+                            if (newSettings.params && newSettings.params.type) {
+                                paramsToUpdate.type = newSettings.params.type;
+                            } else if (newSettings.type) { // Если тип указан напрямую в newSettings (менее вероятно для пресетов)
+                                paramsToUpdate.type = newSettings.type;
+                            }
                             paramsToUpdate.portamento = (safePresetData.portamento?.enabled && safePresetData.portamento.time !== undefined)
                                                       ? safePresetData.portamento.time
                                                       : 0;
-                            if (this.config.debug) console.log(`[Synth applyPreset] Updating oscillator for voice ${index} with portamento: ${paramsToUpdate.portamento}`);
+                            if (this.config.debug) console.log(`[Synth applyPreset] Updating oscillator for voice ${index} with params:`, JSON.stringify(paramsToUpdate));
                         }
                         if (paramsToUpdate && Object.keys(paramsToUpdate).length > 0 && typeof manager.update === 'function') {
-                            if (!manager.update(compData.nodes, paramsToUpdate)) {
+                            // Результат manager.update пока не используется, но может быть использован для флага reconnected
+                            if (!manager.update(compData.nodes, paramsToUpdate, components, voiceData.fxSend, this.analyser, this.limiter, safePresetData)) { // Передаем больше контекста менеджеру
                                 errorState[componentId] = "Update failed";
                             }
                         }

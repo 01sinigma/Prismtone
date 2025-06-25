@@ -2,6 +2,7 @@
   "id": "cosmicNebula",
   "name": "Cosmic Nebula",
   "description": "A swirling nebula background that reacts to device tilt and audio, with stars appearing at touch points.",
+  "active": false,
   "type": "visualizer",
   "rendererScript": "visualizers/cosmicNebulaRenderer.js",
   "settings": {

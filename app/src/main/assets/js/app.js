@@ -114,8 +114,186 @@ const app = {
      * @async
      * @returns {Promise<void>} A promise that resolves when initialization is complete or logs an error if it fails.
      */
+    async _loadCoreData() {
+        console.log('[App._loadCoreData] Loading core data...');
+        this.updateLoadingText('loading_settings', 'Loading settings...');
+
+        const loadPromises = [
+            this.loadInitialSettings(), // Запрос настроек с нативной стороны
+            (async () => { // Загрузка языкового пакета
+                if (typeof i18n !== 'undefined' && i18n.loadLanguage) {
+                    console.log('[App._loadCoreData] Initializing i18n with loaded language...');
+                    await i18n.loadLanguage(this.state.language);
+                } else {
+                    console.warn("[App._loadCoreData] i18n.loadLanguage not available.");
+                }
+            })(),
+            (async () => { // Предварительная загрузка основных модулей
+                this.updateLoadingText('loading_modules', 'Loading modules...');
+                if (typeof moduleManager === 'undefined') throw new Error("moduleManager.js is not loaded!");
+                await moduleManager.init();
+                // moduleManager.getModules('soundpreset'), moduleManager.getModules('theme'), moduleManager.getModules('scale'), moduleManager.getModules('fxChain')
+                // Эти модули будут загружены по мере необходимости через moduleManager.getModule(),
+                // здесь достаточно инициализации самого moduleManager.
+            })()
+        ];
+
+        await Promise.all(loadPromises);
+        console.log("[App._loadCoreData] Core data loaded.");
+        console.log("[App._loadCoreData] Initial currentTonic:", this.state.currentTonic);
+    },
+
+    async _initAudioAndVisuals() {
+        console.log('[App._initAudioAndVisuals] Initializing audio and visuals...');
+        this.updateLoadingText('loading_audio_viz', 'Initializing Audio & Visuals...');
+
+        // MusicTheoryService (должен быть до PadModeManager)
+        if (typeof MusicTheoryService === 'undefined') throw new Error("MusicTheoryService is not loaded!");
+        await MusicTheoryService.init(moduleManager); // moduleManager уже должен быть инициализирован
+        console.log("[App._initAudioAndVisuals] MusicTheoryService initialized. isTonalJsLoaded:", MusicTheoryService.isTonalJsLoaded, "Scale defs count:", Object.keys(MusicTheoryService.scaleDefinitions).length);
+
+        // Pad.js - ИНИЦИАЛИЗИРУЕМ ДО PadModeManager, чтобы pad.isReady было true
+        if (typeof pad === 'undefined') throw new Error("pad.js is not loaded!");
+        pad.init(document.getElementById('xy-pad-container'));
+        console.log("[App._initAudioAndVisuals] Pad initialized. pad.isReady:", pad.isReady);
+
+        // PadModeManager (зависит от MusicTheoryService и pad)
+        console.log('[App._initAudioAndVisuals] Initializing PadModeManager...');
+        if (typeof PadModeManager === 'undefined') throw new Error("PadModeManager.js is not loaded!");
+        if (typeof harmonicMarkerEngine === 'undefined') throw new Error("harmonicMarkerEngine.js is not loaded!");
+        harmonicMarkerEngine.init(MusicTheoryService);
+        console.log("[App._initAudioAndVisuals] HarmonicMarkerEngine initialized.");
+        PadModeManager.init(this, MusicTheoryService, harmonicMarkerEngine);
+        console.log("[App._initAudioAndVisuals] PadModeManager initialized.");
+
+        // Synth & Visualizer (могут инициализироваться параллельно)
+        const audioVisualPromises = [];
+
+        audioVisualPromises.push((async () => {
+            if (typeof synth === 'undefined') throw new Error("synth.js is not loaded!");
+            synth.init();
+            if(synth.isReady) synth.applyMasterVolumeSettings();
+            console.log("[App._initAudioAndVisuals] Synth initialized.");
+            // === Инициализация Tone.Transport BPM ===
+            if (typeof Tone !== 'undefined' && Tone.Transport) {
+                Tone.Transport.bpm.value = this.state.transportBpm;
+                console.log(`[App._initAudioAndVisuals] Tone.Transport initialized with BPM: ${this.state.transportBpm}`);
+            }
+        })());
+
+        audioVisualPromises.push((async () => {
+            let analyserNode = (synth?.isReady) ? synth.getAnalyser() : null;
+            // Если synth еще не isReady, analyserNode будет null, visualizer.init должен это обработать
+            // или мы можем подождать synth.init() явно, если это критично для visualizer.
+            if (!analyserNode && synth && typeof synth.waitForReady === 'function') { // Пример ожидания
+                await synth.waitForReady(); // Предположим, есть такой метод
+                analyserNode = synth.getAnalyser();
+            }
+            if (typeof visualizer === 'undefined') throw new Error("visualizer.js is not loaded!");
+            await visualizer.init(document.getElementById('xy-visualizer'), analyserNode);
+            console.log("[App._initAudioAndVisuals] Visualizer initialized.");
+            if (visualizer.isReady) {
+                // Эти вызовы могут быть параллельными, если setVisualizerType и setTouchEffectType независимы
+                await Promise.all([
+                    visualizer.setVisualizerType(this.state.visualizer),
+                    visualizer.setTouchEffectType(this.state.touchEffect)
+                ]);
+                console.log("[App._initAudioAndVisuals] Visualizer and TouchEffect types set.");
+            }
+        })());
+
+        // UI Panels (могут инициализироваться параллельно)
+        this.updateLoadingText('loading_ui', 'Initializing UI...');
+        const uiPromises = [];
+
+        uiPromises.push((async () => {
+            if (typeof sidePanel === 'undefined') throw new Error("sidepanel.js is not loaded!");
+            sidePanel.init(); // populateStaticSelects и populatePadModeSelectDisplay вызовутся здесь
+            console.log("[App._initAudioAndVisuals] sidePanel initialized.");
+        })());
+
+        uiPromises.push((async () => {
+            if (typeof topbar === 'undefined') throw new Error("topbar.js is not loaded!");
+            topbar.init();
+            console.log("[App._initAudioAndVisuals] topbar initialized.");
+        })());
+
+        uiPromises.push((async () => {
+            if (typeof soundPresets === 'undefined') throw new Error("soundpresets.js is not loaded!");
+            soundPresets.init();
+            console.log("[App._initAudioAndVisuals] soundPresets initialized.");
+        })());
+
+        uiPromises.push((async () => {
+            if (typeof fxChains === 'undefined') throw new Error("fxchains.js is not loaded!");
+            fxChains.init();
+            console.log("[App._initAudioAndVisuals] fxChains initialized.");
+        })());
+
+        await Promise.all([...audioVisualPromises, ...uiPromises]);
+        console.log('[App._initAudioAndVisuals] Audio, visuals, and UI panels initialized.');
+    },
+
+    async _applyInitialState() {
+        console.log('[App._applyInitialState] Applying initial application state...');
+        this.updateLoadingText('loading_presets', 'Applying settings...');
+
+        // Установка активного режима пэда ПЕРЕД применением пресетов и тем,
+        // так как это может влиять на UI и доступные опции
+        // this.state.isInitialized должен быть true до вызова setPadMode, если он от него зависит.
+        // В оригинальном коде isInitialized ставился до sidePanel.init(), который теперь в _initAudioAndVisuals
+        // Перенесем установку isInitialized сюда, чтобы быть уверенным, что все базовые модули загружены.
+        this.state.isInitialized = true;
+        console.log('[App._applyInitialState] Core services initialized (isInitialized = true).');
+
+
+        // Порядок важен: тема, затем пресеты/эффекты, которые могут зависеть от UI, созданного темой
+        this.applyTheme(this.state.theme);
+
+        // Применение пресета и FX Chain могут быть параллельными, если они не влияют друг на друга критично на этом этапе.
+        // Однако, applySoundPreset и applyFxChain вызывают _determineEffectiveYAxisControls,
+        // что может привести к гонкам, если они меняют одни и те же состояния.
+        // Безопаснее выполнить их последовательно или убедиться, что _determineEffectiveYAxisControls защищен.
+        // Для начала оставим последовательно.
+        await this.applySoundPreset(this.state.soundPreset);
+        await this.applyFxChain(this.state.fxChain);
+        console.log('[App._applyInitialState] Initial sound preset and FX chain applied.');
+
+        // Установка активного режима пэда. Должна быть после инициализации sidePanel и PadModeManager
+        await this.setPadMode(this.state.padMode, true); // true для initialLoad
+        console.log('[App._applyInitialState] Initial pad mode set.');
+
+        // После того как режим установлен и стратегия активна:
+        if (typeof sidePanel !== 'undefined' && sidePanel.displayModeSpecificControls) {
+            sidePanel.displayModeSpecificControls(this.state.padMode);
+        }
+
+        this._updateSidePanelSettingsUI(); // Обновляем все настройки UI на основе загруженных и примененных состояний
+        if (sidePanel?.updateTonalityControls) { // Добавим проверку существования sidePanel
+             sidePanel.updateTonalityControls(this.state.octaveOffset, this.state.scale, this.state.zoneCount);
+        }
+        if (fxChains?.updateMasterOutputControlsUI) fxChains.updateMasterOutputControlsUI(this.state.masterVolumeCeiling);
+        if (fxChains?.updateYAxisControlsUI && this.state.fxChain === null) { // Если нет FX цепочки, Y-axis управляется глобально
+            fxChains.updateYAxisControlsUI(this.state.yAxisControls);
+        }
+        // app.updateZones() уже был вызван из PadModeManager.setActiveMode() -> app.setPadMode()
+
+        // Инициализация VibrationService
+        if (typeof VibrationService !== 'undefined') {
+            VibrationService.init(this);
+            console.log('[App._applyInitialState] VibrationService initialized.');
+            VibrationService.setEnabled(this.state.vibrationEnabled);
+            VibrationService.setIntensity(this.state.vibrationIntensity);
+            console.log(`[App._applyInitialState] VibrationService configured with state: enabled=${this.state.vibrationEnabled}, intensity=${this.state.vibrationIntensity}`);
+        } else {
+            console.error('[App._applyInitialState] VibrationService not found!');
+        }
+
+        console.log('[App._applyInitialState] Initial application state applied.');
+    },
+
     async init() {
-        console.log('[App.init v2.5.1 PadModeManager] Starting application initialization...');
+        console.log('[App.init vNext] Starting application initialization...');
         this.elements.body = document.body;
         this.elements.appContainer = document.getElementById('app-container');
 
@@ -125,15 +303,15 @@ const app = {
         this.elements.loadingPrompt = document.querySelector('.loading-prompt');
 
         if (!this.elements.loadingOverlay || !this.elements.loadingText || !this.elements.loadingTitle || !this.elements.loadingPrompt) {
-            console.error("[App.init v6] Critical error: Loading overlay elements not found!");
+            console.error("[App.init] Critical error: Loading overlay elements not found!");
             if (this.elements.loadingText) this.elements.loadingText.textContent = "Initialization Error: UI elements missing.";
             return;
         }
 
         if (typeof i18n !== 'undefined') {
-            i18n.init(this.state.language);
+            i18n.init(this.state.language); // Базовая инициализация i18n (синхронная)
             this.updateLoadingText('initializing', 'Initializing...');
-        } else { console.warn("[App.init v6] i18n module not found."); }
+        } else { console.warn("[App.init] i18n module not found."); }
 
         let audioInitPromise = Promise.resolve(false);
         try {
@@ -147,21 +325,21 @@ const app = {
                     idle_loop: audioBaseUrl + 'audio/loading/idle_loop.mp3'
                 };
                 audioInitPromise = this.loadingAudio.init(audioUrls);
-            } else { console.warn("[App.init v6] loadingAudio module not found."); }
+            } else { console.warn("[App.init] loadingAudio module not found."); }
 
             if (typeof starsAnimation !== 'undefined') {
                 this.starsAnimation = starsAnimation;
-                if (!this.starsAnimation.init('loading-stars-canvas')) { console.error("App.init v6: Failed to initialize stars animation."); }
+                if (!this.starsAnimation.init('loading-stars-canvas')) { console.error("App.init: Failed to initialize stars animation."); }
                 else { this.starsAnimation.start(); }
-            } else { console.warn("[App.init v6] starsAnimation module not found."); }
+            } else { console.warn("[App.init] starsAnimation module not found."); }
 
             if (typeof prismEffect !== 'undefined') {
                 this.prismEffect = prismEffect;
-                if (!this.prismEffect.init('loading-prism-canvas')) { console.error("App.init v6: Failed to initialize prism effect."); }
-            } else { console.warn("[App.init v6] prismEffect module not found."); }
+                if (!this.prismEffect.init('loading-prism-canvas')) { console.error("App.init: Failed to initialize prism effect."); }
+            } else { console.warn("[App.init] prismEffect module not found."); }
 
         } catch (loadingModulesError) {
-             console.error("App.init v6: Error initializing loading animation/audio modules:", loadingModulesError);
+             console.error("App.init: Error initializing loading animation/audio modules:", loadingModulesError);
         }
 
         audioInitPromise.then(audioInitialized => {
@@ -169,116 +347,30 @@ const app = {
         });
 
         try {
-            console.log('[App.init v6] Waiting for DOM Ready...');
+            console.log('[App.init] Waiting for DOM Ready...');
             if (document.readyState === 'loading') { await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve)); }
-            console.log('[App.init v6] DOM Ready.');
+            console.log('[App.init] DOM Ready.');
 
-            console.log('[App.init v6] Waiting for bridge...');
+            console.log('[App.init] Waiting for bridge...');
             this.updateLoadingText('loading_bridge', 'Connecting...');
             await this.waitForBridge();
-            console.log('[App.init v6] Bridge Ready.');
+            console.log('[App.init] Bridge Ready.');
 
-            console.log('[App.init v6] Starting main initialization sequence...');
-            this.updateLoadingText('loading_settings', 'Loading settings...');
-            await this.loadInitialSettings();
-            console.log("[App.init v6] Initial currentTonic:", this.state.currentTonic);
+            console.log('[App.init] Starting main initialization sequence...');
 
-            console.log('[App.init v6] Initializing i18n with loaded language...');
-            await i18n.loadLanguage(this.state.language);
+            // Этап 1: Загрузка основных данных
+            await this._loadCoreData();
 
-            this.updateLoadingText('loading_modules', 'Loading modules...');
-            if (typeof moduleManager === 'undefined') throw new Error("moduleManager.js is not loaded!");
-            await moduleManager.init();
+            // Этап 2: Инициализация аудио, визуальных эффектов и базовых UI компонентов
+            await this._initAudioAndVisuals();
 
-            // MusicTheoryService
-            if (typeof MusicTheoryService === 'undefined') throw new Error("MusicTheoryService is not loaded!");
-            await MusicTheoryService.init(moduleManager);
-            console.log("[App.init v2.5.1] MusicTheoryService initialized. isTonalJsLoaded:", MusicTheoryService.isTonalJsLoaded, "Scale defs count:", Object.keys(MusicTheoryService.scaleDefinitions).length);
+            // Этап 3: Применение начального состояния и настроек UI
+            await this._applyInitialState();
 
-            // Pad.js - ИНИЦИАЛИЗИРУЕМ ДО PadModeManager, чтобы pad.isReady было true
-            if (typeof pad === 'undefined') throw new Error("pad.js is not loaded!");
-            pad.init(document.getElementById('xy-pad-container'));
-            console.log("[App.init v2.5.1] Pad initialized. pad.isReady:", pad.isReady);
-
-            // PadModeManager
-            console.log('[App.init] Before PadModeManager.init, this (app) is:', this);
-            console.log('[App.init PadModes] Initializing PadModeManager...');
-            if (typeof PadModeManager === 'undefined') throw new Error("PadModeManager.js is not loaded!");
-            if (typeof harmonicMarkerEngine === 'undefined') throw new Error("harmonicMarkerEngine.js is not loaded!");
-            harmonicMarkerEngine.init(MusicTheoryService);
-            console.log("[App.init] HarmonicMarkerEngine initialized.");
-            PadModeManager.init(this, MusicTheoryService, harmonicMarkerEngine);
-            console.log("[App.init] PadModeManager initialized.");
-
-            this.state.isInitialized = true; // Перемещаем сюда, если sidePanel зависит от isInitialized
-            console.log('[App.init PadModes] Core services initialized (isInitialized = true).');
-
-            // Инициализация UI Panels (включая sidePanel)
-            if (typeof sidePanel === 'undefined') throw new Error("sidepanel.js is not loaded!");
-            sidePanel.init(); // populateStaticSelects и populatePadModeSelectDisplay вызовутся здесь
-
-            // Установка активного режима пэда (это вызовет app.updateZones() И sidePanel.displayModeSpecificControls())
-            await this.setPadMode(this.state.padMode, true); // true для initialLoad
-
-            // После того как режим установлен и стратегия активна:
-            if (typeof sidePanel !== 'undefined' && sidePanel.displayModeSpecificControls) {
-                sidePanel.displayModeSpecificControls(this.state.padMode); // <--- ДОБАВЛЕН ВЫЗОВ
-            }
-
-            // Synth
-            if (typeof synth === 'undefined') throw new Error("synth.js is not loaded!");
-            synth.init();
-            if(synth.isReady) synth.applyMasterVolumeSettings();
-
-            // === ДОБАВЛЕНО: Инициализация Tone.Transport BPM ===
-            if (typeof Tone !== 'undefined' && Tone.Transport) {
-                Tone.Transport.bpm.value = this.state.transportBpm;
-                console.log(`[App.init] Tone.Transport initialized with BPM: ${this.state.transportBpm}`);
-            }
-
-            // Visualizer
-            let analyserNode = (synth?.isReady) ? synth.getAnalyser() : null;
-            if (typeof visualizer === 'undefined') throw new Error("visualizer.js is not loaded!");
-            await visualizer.init(document.getElementById('xy-visualizer'), analyserNode);
-            if (visualizer.isReady) {
-                await Promise.all([
-                    visualizer.setVisualizerType(this.state.visualizer),
-                    visualizer.setTouchEffectType(this.state.touchEffect)
-                ]);
-            }
-
-            // UI Panels
-            this.updateLoadingText('loading_ui', 'Initializing UI...');
-            if (typeof sidePanel === 'undefined') throw new Error("sidepanel.js is not loaded!");
-            sidePanel.init(); // populateStaticSelects вызовется здесь
-            // populatePadModeSelect уже вызван выше
-            console.log('[App.init v2.5.1] UI modules initialized.');
-
-            if (typeof topbar === 'undefined') throw new Error("topbar.js is not loaded!");
-            topbar.init();
-            if (typeof soundPresets === 'undefined') throw new Error("soundpresets.js is not loaded!");
-            soundPresets.init();
-            if (typeof fxChains === 'undefined') throw new Error("fxchains.js is not loaded!");
-            fxChains.init();
-
-            // Применение начального UI состояния
-            this.updateLoadingText('loading_presets', 'Applying settings...');
-            this.applyTheme(this.state.theme);
-            await this.applySoundPreset(this.state.soundPreset); // Этот вызов уже содержит _determineEffectiveYAxisControls и обновление UI
-            await this.applyFxChain(this.state.fxChain); // Этот вызов также должен содержать _determineEffectiveYAxisControls и обновление UI
-            console.log('[App.init v2.5.1] Initial UI state applied.');
-
-            this._updateSidePanelSettingsUI(); // Обновляем все настройки UI
-            sidePanel.updateTonalityControls(this.state.octaveOffset, this.state.scale, this.state.zoneCount);
-            if (fxChains.updateMasterOutputControlsUI) fxChains.updateMasterOutputControlsUI(this.state.masterVolumeCeiling);
-            if (fxChains.updateYAxisControlsUI && this.state.fxChain === null) {
-                fxChains.updateYAxisControlsUI(this.state.yAxisControls);
-            }
-            // app.updateZones() уже был вызван из PadModeManager.setActiveMode()
 
             this.elements.body.classList.add('landscape-mode');
             console.log('-----------------------------------------');
-            console.log('[App.init v2.5.1] Core Initialization Complete.');
+            console.log('[App.init] Core Initialization Complete.');
             console.log('Waiting for user interaction or timeout...');
             console.log('-----------------------------------------');
 
@@ -290,7 +382,7 @@ const app = {
             }
             this.elements.loadingTitle?.classList.add('show');
             this.elements.loadingPrompt?.classList.add('show');
-            if (typeof i18n !== 'undefined') i18n.updateUI();
+            if (typeof i18n !== 'undefined' && i18n.updateUI) i18n.updateUI(); // Обновляем UI после загрузки языка
 
             this.loadingTimeoutId = setTimeout(() => { this.triggerAppStart(); }, 14500);
             this.elements.loadingOverlay.addEventListener('click', this.handleOverlayClick, { once: true });
@@ -304,22 +396,8 @@ const app = {
                 this.elements.statusCurrentPhase = document.getElementById('status-current-phase');
             }
 
-            // ... после инициализации i18n и moduleManager ...
-            if (typeof VibrationService !== 'undefined') {
-                VibrationService.init(this);
-                console.log('[App.init] VibrationService initialized.');
-                // >>> НАЧАЛО НОВОГО КОДА <<<
-                // Явно конфигурируем сервис на основе загруженного или дефолтного состояния
-                VibrationService.setEnabled(this.state.vibrationEnabled);
-                VibrationService.setIntensity(this.state.vibrationIntensity);
-                console.log(`[App.init] VibrationService configured with state: enabled=${this.state.vibrationEnabled}, intensity=${this.state.vibrationIntensity}`);
-                // >>> КОНЕЦ НОВОГО КОДА <<<
-            } else {
-                console.error('[App.init] VibrationService not found!');
-            }
-
         } catch (error) {
-            console.error('[App.init v2.5.1] Initialization sequence failed:', error, error.stack);
+            console.error('[App.init] Initialization sequence failed:', error, error.stack);
             this.state.isInitialized = false;
             this.updateLoadingText('error_init_failed_details', `Initialization Error: ${error.message}. Check console.`, true);
             this.starsAnimation?.stop();

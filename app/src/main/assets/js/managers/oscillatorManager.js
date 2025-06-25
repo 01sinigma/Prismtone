@@ -212,18 +212,98 @@ const oscillatorManager = {
      *        `harmonicity`, `modulationType`, `modulationIndex` (for AM/FM oscillators).
      * @returns {boolean} True if the update was successful, false otherwise.
      */
-    update(nodes, newSettings) {
-        if (!nodes?.oscillatorNode || !newSettings) {
+    update(nodes, newSettings, allComponents, fxSend, mainAnalyser, mainLimiter, fullPresetData) {
+        if (!nodes || !newSettings) { // Removed oscillatorNode check as it might be recreated
             console.warn("[OscillatorManager] Update called with invalid args", { nodes, newSettings });
             return false;
         }
-        const oscNode = nodes.oscillatorNode;
-        const currentOscType = nodes.oscillatorType; // The type category set during creation
+
+        const oldOscNode = nodes.oscillatorNode;
+        const oldOscTypeCategory = nodes.oscillatorType; // The category type string like 'sine', 'fatsawtooth'
+        const newOscTypeFromSettings = newSettings.type; // The potentially new type from preset
 
         try {
-            const paramsToSet = {};
+            // Check if a full recreation is needed due to type change
+            // This simple check assumes 'type' directly maps to a need for re-creation.
+            // A more robust check would compare the constructor/class of oldOscNode vs what newOscTypeFromSettings implies.
+            if (newOscTypeFromSettings && newOscTypeFromSettings !== oldOscTypeCategory) {
+                console.log(`[OscillatorManager] Type change detected. Old: '${oldOscTypeCategory}', New: '${newOscTypeFromSettings}'. Recreating oscillator.`);
 
-            // Collect parameters that are part of Tone.Param or Tone.Signal and can be batched
+                // 1. Get the full configuration for the new oscillator
+                // We need to merge existing non-type related params from newSettings with the new type.
+                const creationSettings = { ...newSettings, type: newOscTypeFromSettings };
+                if (newSettings.portamento !== undefined) creationSettings.portamento = newSettings.portamento;
+                // Ensure all relevant params from newSettings (like frequency, phase, etc.) are included in creationSettings
+                // if they are not already part of a 'params' sub-object in newSettings.
+                // For example, if newSettings = { type: 'pwm', frequency: 220, modulationFrequency: 5 }
+                // creationSettings should be { type: 'pwm', frequency: 220, modulationFrequency: 5 }
+
+
+                // 2. Disconnect and Dispose the old oscillator
+                if (oldOscNode) {
+                    if (typeof oldOscNode.disconnect === 'function') {
+                        oldOscNode.disconnect(); // Disconnect from all destinations
+                    }
+                    if (typeof oldOscNode.dispose === 'function') {
+                        oldOscNode.dispose();
+                    }
+                    console.log("[OscillatorManager] Old oscillator node disposed.");
+                }
+
+                // 3. Create the new oscillator
+                // We need to ensure `create` uses all relevant parameters from `creationSettings`.
+                // The `create` method itself might need adjustment if it only expects `initialSettings.type` for type and other params directly.
+                // Let's assume `create` can take a full settings object.
+                const createResult = this.create(creationSettings);
+
+                if (!createResult || !createResult.nodes?.oscillatorNode || createResult.error) {
+                    console.error("[OscillatorManager] Failed to create new oscillator node during type change:", createResult?.error);
+                    nodes.oscillatorNode = null; // Mark as unusable
+                    nodes.error = `Recreation failed: ${createResult?.error}`;
+                    return false; // Indicate failure
+                }
+
+                nodes.oscillatorNode = createResult.nodes.oscillatorNode;
+                nodes.oscillatorType = createResult.nodes.oscillatorType; // Update the type category
+                // Update modInputs if createResult provides them
+                if (createResult.modInputs) nodes.modInputs = createResult.modInputs;
+
+
+                // 4. Reconnect the new oscillator
+                // The new oscillator (nodes.oscillatorNode, which is createResult.audioOutput)
+                // needs to be connected to the input of the next component in the chain.
+                // This is where `allComponents` and `voiceBuilder` or similar logic is crucial.
+                // For simplicity, let's assume the next component is amplitudeEnv if no filter, or filter if present.
+                let nextComponentAudioInput = null;
+                if (allComponents?.filter?.nodes?.audioInput && fullPresetData?.filter?.enabled !== false) {
+                    nextComponentAudioInput = allComponents.filter.nodes.audioInput;
+                     console.log("[OscillatorManager] Reconnecting new oscillator to Filter input.");
+                } else if (allComponents?.amplitudeEnv?.nodes?.audioInput) {
+                    nextComponentAudioInput = allComponents.amplitudeEnv.nodes.audioInput;
+                    console.log("[OscillatorManager] Reconnecting new oscillator to AmplitudeEnv input.");
+                }
+
+                if (nextComponentAudioInput && typeof nodes.oscillatorNode.connect === 'function') {
+                    nodes.oscillatorNode.connect(nextComponentAudioInput);
+                } else {
+                    console.warn("[OscillatorManager] Could not determine next component or connect new oscillator.");
+                    // Potentially, connect to main limiter as a fallback if nothing else, though this might not be desired.
+                    // nodes.oscillatorNode.connect(mainLimiter);
+                }
+                console.log("[OscillatorManager] New oscillator created and reconnected.");
+                // After recreation, we still need to apply any other non-type parameters from newSettings
+                // to the new node, as 'create' might only set defaults for some of them.
+                // The existing update logic below will handle this.
+            }
+
+            // Standard parameter update logic (applies to existing or newly created node)
+            const oscNode = nodes.oscillatorNode; // This is now the potentially new node
+            if (!oscNode) {
+                console.warn("[OscillatorManager] No oscillator node to update after potential recreation.");
+                return false;
+            }
+
+            const paramsToSet = {};
             if (newSettings.frequency !== undefined && oscNode.frequency?.value !== undefined) {
                 paramsToSet.frequency = newSettings.frequency;
             }
@@ -231,34 +311,24 @@ const oscillatorManager = {
                 paramsToSet.detune = newSettings.detune;
             }
 
-            switch (currentOscType) {
-                case 'pwm':
-                    if (newSettings.modulationFrequency !== undefined && oscNode.modulationFrequency?.value !== undefined) {
-                        paramsToSet.modulationFrequency = newSettings.modulationFrequency;
-                    }
-                    break;
-                case 'pulse':
-                    if (newSettings.width !== undefined && oscNode.width?.value !== undefined) {
-                        paramsToSet.width = newSettings.width;
-                    }
-                    break;
-                case 'amtriangle': case 'amsine': case 'amsquare': case 'amsawtooth':
-                    if (newSettings.harmonicity !== undefined && oscNode.harmonicity?.value !== undefined) {
-                        paramsToSet.harmonicity = newSettings.harmonicity;
-                    }
-                    break;
-                case 'fmtriangle': case 'fmsine': case 'fmsquare': case 'fmsawtooth':
-                    if (newSettings.harmonicity !== undefined && oscNode.harmonicity?.value !== undefined) {
-                        paramsToSet.harmonicity = newSettings.harmonicity;
-                    }
-                    if (newSettings.modulationIndex !== undefined && oscNode.modulationIndex?.value !== undefined) {
-                        paramsToSet.modulationIndex = newSettings.modulationIndex;
-                    }
-                    break;
+            const currentActualOscType = oscNode.type; // This is the actual type of the Tone.js node (e.g. 'sine', 'pwm')
+
+            // Type-specific parameters for batching with .set()
+            if (oscNode.modulationFrequency && newSettings.modulationFrequency !== undefined) { // For PWMOscillator
+                paramsToSet.modulationFrequency = newSettings.modulationFrequency;
+            }
+            if (oscNode.width && newSettings.width !== undefined) { // For PulseOscillator
+                paramsToSet.width = newSettings.width;
+            }
+            if (oscNode.harmonicity && newSettings.harmonicity !== undefined) { // For AM/FMOscillator
+                paramsToSet.harmonicity = newSettings.harmonicity;
+            }
+            if (oscNode.modulationIndex && newSettings.modulationIndex !== undefined) { // For FMOscillator
+                paramsToSet.modulationIndex = newSettings.modulationIndex;
             }
 
             if (Object.keys(paramsToSet).length > 0) {
-                oscNode.set(paramsToSet); // Applies changes immediately
+                oscNode.set(paramsToSet);
             }
 
             // Direct property assignments
@@ -269,41 +339,36 @@ const oscillatorManager = {
                 oscNode.portamento = newSettings.portamento;
             }
 
-            // Update oscillator's internal 'type' (waveform) if applicable and changed
-            if (newSettings.type !== undefined && oscNode.hasOwnProperty('type') && typeof oscNode.type === 'string') {
-                if (oscNode.type !== newSettings.type) {
+            // Update oscillator's internal 'type' (waveform for OmniOscillator, FatOscillator, AM/FM)
+            // This is different from the newOscTypeFromSettings which might trigger recreation.
+            // This handles changing, e.g., an OmniOscillator from 'sine' to 'square'.
+            if (newSettings.type !== undefined &&                      // A type is specified in settings
+                newOscTypeFromSettings === oldOscTypeCategory &&      // And it did NOT cause a full recreation
+                oscNode.hasOwnProperty('type') &&                     // The node has a settable 'type' property
+                typeof oscNode.type === 'string' &&                   // It's a string (like for OmniOsc)
+                oscNode.type !== newSettings.type) {                  // And it's different
                     oscNode.type = newSettings.type;
-                }
+                    console.log(`[OscillatorManager] Updated internal waveform type of existing '${oldOscTypeCategory}' to '${newSettings.type}'`);
             }
 
-            // Oscillator-specific direct property assignments
-            switch (currentOscType) {
-                case 'fatsine': case 'fatsquare': case 'fatsawtooth': case 'fattriangle':
-                    if (newSettings.count !== undefined && oscNode.hasOwnProperty('count')) {
-                        const maxFatCount = 5;
-                        const newCount = Math.max(1, Math.min(parseInt(newSettings.count, 10), maxFatCount));
-                        if (oscNode.count !== newCount) {
-                            oscNode.count = newCount;
-                        }
-                    }
-                    if (newSettings.spread !== undefined && oscNode.hasOwnProperty('spread')) {
-                         if (oscNode.spread !== newSettings.spread) {
-                            oscNode.spread = newSettings.spread;
-                        }
-                    }
-                    break;
-                case 'amtriangle': case 'amsine': case 'amsquare': case 'amsawtooth':
-                case 'fmtriangle': case 'fmsine': case 'fmsquare': case 'fmsawtooth':
-                    if (newSettings.modulationType !== undefined && oscNode.hasOwnProperty('modulationType')) {
-                        if (oscNode.modulationType !== newSettings.modulationType) {
-                            oscNode.modulationType = newSettings.modulationType;
-                        }
-                    }
-                    break;
+
+            // Oscillator-specific direct property assignments for FatOscillator, AM/FM
+            if (oscNode.count !== undefined && newSettings.count !== undefined) { // FatOscillator
+                const maxFatCount = 5;
+                const newCount = Math.max(1, Math.min(parseInt(newSettings.count, 10), maxFatCount));
+                if (oscNode.count !== newCount) oscNode.count = newCount;
             }
+            if (oscNode.spread !== undefined && newSettings.spread !== undefined) { // FatOscillator
+                if (oscNode.spread !== newSettings.spread) oscNode.spread = newSettings.spread;
+            }
+            if (oscNode.modulationType !== undefined && newSettings.modulationType !== undefined) { // AM/FMOscillator
+                if (oscNode.modulationType !== newSettings.modulationType) oscNode.modulationType = newSettings.modulationType;
+            }
+
             return true;
         } catch (err) {
-            console.error("[OscillatorManager] Error in update():", err);
+            console.error("[OscillatorManager] Error in update():", err, err.stack);
+            nodes.error = `Update failed: ${err.message}`;
             return false;
         }
     },

@@ -1,4 +1,4 @@
-class SpectrumRenderer {
+class CrystalGrottoRenderer {
     constructor() {
         this.ctx = null;
         this.canvas = null;
@@ -21,7 +21,7 @@ class SpectrumRenderer {
         this.themeColors = themeColors || {};
         this.globalVisualizerRef = globalVisualizerRef;
         this.analyserNodeRef = analyserNodeRef;
-        
+
         this.particles.forEach(p => { if (p.isActiveInPool) p.isActiveInPool = false; });
         this.particles = [];
         this.lastSpawn = 0;
@@ -32,7 +32,7 @@ class SpectrumRenderer {
         for (let i = 0; i < this.particlePoolSize; i++) {
             this.particlePool.push({ isActiveInPool: false });
         }
-        console.log(`[SpectrumRenderer v1.1-pool] Initialized with settings and pool size ${this.particlePoolSize}:`, this.settings);
+        console.log(`[CrystalGrottoRenderer v1.1-pool] Initialized with settings and pool size ${this.particlePoolSize}:`, this.settings);
     }
 
     _getParticleFromPool() {
@@ -40,11 +40,11 @@ class SpectrumRenderer {
             if (!this.particlePool[i].isActiveInPool) {
                 this.particlePool[i].isActiveInPool = true;
                 // Reset critical properties
-                this.particlePool[i].flashed = false; 
+                this.particlePool[i].flashed = false;
                 return this.particlePool[i];
             }
         }
-        console.warn("[SpectrumRenderer] Particle pool depleted. Consider increasing pool size.");
+        console.warn("[CrystalGrottoRenderer] Particle pool depleted. Consider increasing pool size.");
         return { isActiveInPool: true, flashed: false }; // Create new if pool empty
     }
 
@@ -181,7 +181,7 @@ class SpectrumRenderer {
         this.particles.length = writeIndex;
 
         // Limit total particles (optional, if pool size is the primary limiter)
-        // this.particles = this.particles.slice(-this.particlePoolSize); 
+        // this.particles = this.particles.slice(-this.particlePoolSize);
 
         // === Отрисовка частиц ===
         const now = performance.now() / 1000;
@@ -212,14 +212,14 @@ class SpectrumRenderer {
         // this.particlePool = []; // Optional: clear pool array itself if init rebuilds it
         this.ctx = null;
         this.canvas = null;
-        console.log("[SpectrumRenderer v1.1-pool] Disposed.");
+        console.log("[CrystalGrottoRenderer v1.1-pool] Disposed.");
     }
 }
 
 // Self-registration
 if (typeof visualizer !== 'undefined' && typeof visualizer.registerRenderer === 'function') {
-    visualizer.registerRenderer('SpectrumRenderer', SpectrumRenderer);
+    visualizer.registerRenderer('CrystalGrottoRenderer', CrystalGrottoRenderer);
 } else {
-    window.SpectrumRenderer = SpectrumRenderer;
-    console.warn('[SpectrumRenderer v1.1-pool] Registered globally as visualizer object was not available at load time.');
+    window.CrystalGrottoRenderer = CrystalGrottoRenderer;
+    console.warn('[CrystalGrottoRenderer v1.1-pool] Registered globally as visualizer object was not available at load time.');
 }

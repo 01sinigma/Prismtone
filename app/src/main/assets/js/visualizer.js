@@ -144,14 +144,28 @@ const visualizer = {
      * Generates a palette of 12 distinct HSL colors, typically used for note representation.
      * @private
      */
+    _hslToHex(h, s, l) {
+        s /= 100;
+        l /= 100;
+        const k = n => (n + h / 30) % 12;
+        const a = s * Math.min(l, 1 - l);
+        const f = n =>
+            l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+        const toHex = x => {
+            const hex = Math.round(x * 255).toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+        };
+        return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+    },
+
     _generateNoteColors() {
         this.noteColors = [];
         for (let i = 0; i < 12; i++) {
-            // Генерируем 12 цветов по цветовому кругу (HUE от 0 до 360)
             const hue = (i * 30) % 360; // 360 / 12 = 30
-            this.noteColors.push(`hsl(${hue}, 90%, 65%)`);
+            // Saturation: 90%, Lightness: 65% (same as before)
+            this.noteColors.push(this._hslToHex(hue, 90, 65));
         }
-        console.log("[Visualizer] Generated note color palette:", this.noteColors);
+        if (this.debugMode) console.log("[Visualizer] Generated note color palette (HEX):", this.noteColors);
     },
 
     /**
