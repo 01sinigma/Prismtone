@@ -146,8 +146,8 @@ class InkInZeroGRenderer {
         }
 
         // 2. Реакция на акселерометр (антигравитация)
-        // Наклон телефона вниз (beta > 0) -> капли всплывают вверх (vy += antiGravityForce)
-        const verticalTiltEffect = (deviceTilt.beta / 90); // beta: вперед/назад
+        // Наклон телефона вниз (pitch > 0) -> капли всплывают вверх (vy += antiGravityForce)
+        const verticalTiltEffect = (deviceTilt.pitch / 90); // pitch: вперед/назад
         let currentAntiGravity = 0;
         if (verticalTiltEffect > 0.2) { // Если наклон вниз достаточно сильный
             currentAntiGravity = this.antiGravityForce * (verticalTiltEffect - 0.2);

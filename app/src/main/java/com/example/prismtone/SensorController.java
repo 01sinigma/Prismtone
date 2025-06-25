@@ -1,5 +1,5 @@
 // Файл: app/src/main/java/com/example/prismtone/SensorController.java
-// ВЕРСИЯ 2.0: Стандартизированная и отказоустойчивая обработка наклона
+// ВЕРСИЯ 3.0: Полный контроль над осями и силой вынесен в настраиваемые переменные.
 
 package com.example.prismtone;
 
@@ -14,9 +14,9 @@ import android.view.Surface;
 import android.view.WindowManager;
 
 /**
- * Управляет сенсором ориентации устройства (Rotation Vector).
- * Его задача - получать данные о наклоне, корректно преобразовывать их
- * для ландшафтного режима, сглаживать и отправлять в JavaScript.
+ * Управляет сенсором ориентации, преобразует данные для ландшафтного режима,
+ * применяет пользовательские настройки (инверсия, сила) и отправляет
+ * финальные, готовые к использованию значения в JavaScript.
  */
 public class SensorController implements SensorEventListener {
     private static final String TAG = "SensorController";
@@ -30,15 +30,45 @@ public class SensorController implements SensorEventListener {
     private final float[] remappedRotationMatrix = new float[9];
     private final float[] orientationAngles = new float[3];
 
-    // Коэффициент для фильтра нижних частот для сглаживания "дрожания" данных
-    private static final float ALPHA = 0.15f;
+    // ====================================================================
+    // === USER-CONFIGURABLE SETTINGS (ПОЛЬЗОВАТЕЛЬСКИЕ НАСТРОЙКИ) ===
+    // ====================================================================
+
+    /**
+     * Коэффициент сглаживания "дрожания" данных.
+     * 0 < ALPHA < 1. Чем меньше значение, тем более плавными, но инертными будут данные.
+     * Хорошее значение: 0.15f
+     */
+    private static final float SMOOTHING_ALPHA = 0.15f;
+
+    /**
+     * Инвертировать вертикальную ось (Pitch: наклон вперед/назад)?
+     * false: Наклон "на себя" -> объекты движутся ВВЕРХ (интуитивно для "всплытия").
+     * true:  Наклон "на себя" -> объекты движутся ВНИЗ (интуитивно для "падения").
+     */
+    private static final boolean INVERT_PITCH_AXIS = true;
+
+    /**
+     * Инвертировать горизонтальную ось (Roll: наклон влево/вправо)?
+     * false: Наклон вправо -> объекты движутся ВПРАВО.
+     * true:  Наклон вправо -> объекты движутся ВЛЕВО.
+     */
+    private static final boolean INVERT_ROLL_AXIS = false;
+
+    /**
+     * Поменять оси местами?
+     * false: (Стандарт) Pitch -> Y, Roll -> X.
+     * true:  Pitch -> X, Roll -> Y. Полезно, если физика визуализатора этого требует.
+     */
+    private static final boolean SWAP_AXES = false;
+
+    // ====================================================================
+
     private float smoothedPitch = 0f;
     private float smoothedRoll = 0f;
 
     public SensorController(Context context, PrismtoneBridge bridge) {
         this.sensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
-        // Rotation Vector - лучший выбор для ориентации, так как он программно объединяет
-        // данные с акселерометра, гироскопа и магнитометра.
         this.rotationVectorSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
         this.bridge = bridge;
         this.windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
@@ -66,30 +96,80 @@ public class SensorController implements SensorEventListener {
             return;
         }
 
-        // 1. Получаем матрицу поворота из данных сенсора
+        // 1. Получаем матрицу поворота
         SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values);
 
-        // 2. Определяем текущую ориентацию дисплея
-        Display display = windowManager.getDefaultDisplay();
+        // 2. Переназначаем систему координат для ландшафтного режима
+        // Используем AXIS_X и AXIS_Z, так как это стандарт для большинства телефонов в ландшафте.
+        // Если телефон держится в "обратном" ландшафте, может потребоваться другая комбинация.
+        // Однако, getRotation() ниже должен это учитывать.
+        int rotation = 0;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            if (windowManager != null && windowManager.getDefaultDisplay() != null) {
+                rotation = windowManager.getDefaultDisplay().getRotation();
+            }
+        } else {
+            // Для старых версий API (до R)
+            if (windowManager != null && windowManager.getDefaultDisplay() != null) {
+                rotation = windowManager.getDefaultDisplay().getRotation();
+            }
+        }
 
-        // 3. Переназначаем систему координат, чтобы оси соответствовали ландшафтному виду
-        SensorManager.remapCoordinateSystem(rotationMatrix, SensorManager.AXIS_X, SensorManager.AXIS_Z, remappedRotationMatrix);
 
-        // 4. Получаем углы ориентации
+        int axisX = SensorManager.AXIS_X;
+        int axisY = SensorManager.AXIS_Z; // Обычно Z для ландшафта, Y для портрета
+
+        switch (rotation) {
+            case Surface.ROTATION_0: // Портретный режим (редко для этого приложения, но на всякий случай)
+                axisX = SensorManager.AXIS_X;
+                axisY = SensorManager.AXIS_Y;
+                break;
+            case Surface.ROTATION_90: // Ландшафтный режим (телефон повернут влево)
+                axisX = SensorManager.AXIS_Y;
+                axisY = SensorManager.AXIS_MINUS_X;
+                break;
+            case Surface.ROTATION_180: // Обратный портретный (редко)
+                axisX = SensorManager.AXIS_MINUS_X;
+                axisY = SensorManager.AXIS_MINUS_Y;
+                break;
+            case Surface.ROTATION_270: // Обратный ландшафтный (телефон повернут вправо)
+                axisX = SensorManager.AXIS_MINUS_Y;
+                axisY = SensorManager.AXIS_X;
+                break;
+        }
+        SensorManager.remapCoordinateSystem(rotationMatrix, axisX, axisY, remappedRotationMatrix);
+
+        // 3. Получаем углы ориентации
         SensorManager.getOrientation(remappedRotationMatrix, orientationAngles);
 
-        // 5. Конвертируем в градусы и стандартизируем
-        // Pitch (тангаж): Наклон верхнего края телефона "от себя" -> отрицательные значения. Наклон "на себя" -> положительные.
+        // 4. Конвертируем в градусы. Здесь знаки пока не трогаем.
+        // orientationAngles[1] - pitch, наклон вперед/назад
+        // orientationAngles[2] - roll, наклон влево/вправо
         float rawPitch = (float) Math.toDegrees(orientationAngles[1]);
-
-        // Roll (крен): Наклон правого края телефона "вниз" (наклон вправо) -> положительные значения. Наклон влево -> отрицательные.
         float rawRoll = (float) Math.toDegrees(orientationAngles[2]);
 
-        // 6. Сглаживаем "дрожащие" данные
-        smoothedPitch = smoothedPitch + ALPHA * (rawPitch - smoothedPitch);
-        smoothedRoll = smoothedRoll + ALPHA * (rawRoll - smoothedRoll);
+        // 5. Применяем пользовательские настройки инверсии и смены осей
+        float finalPitch = INVERT_PITCH_AXIS ? -rawPitch : rawPitch;
+        float finalRoll = INVERT_ROLL_AXIS ? -rawRoll : rawRoll;
 
-        // 7. Отправляем финальные данные в JavaScript
+        float valueForJsPitch;
+        float valueForJsRoll;
+
+        if (SWAP_AXES) {
+            // Если оси поменяны местами
+            valueForJsPitch = finalRoll;
+            valueForJsRoll = finalPitch;
+        } else {
+            // Стандартное сопоставление
+            valueForJsPitch = finalPitch;
+            valueForJsRoll = finalRoll;
+        }
+
+        // 6. Сглаживаем финальные значения
+        smoothedPitch = smoothedPitch + SMOOTHING_ALPHA * (valueForJsPitch - smoothedPitch);
+        smoothedRoll = smoothedRoll + SMOOTHING_ALPHA * (valueForJsRoll - smoothedRoll);
+
+        // 7. Отправляем готовые к использованию данные в JavaScript
         if (bridge != null) {
             bridge.sendDeviceTiltToJs(smoothedPitch, smoothedRoll);
         }

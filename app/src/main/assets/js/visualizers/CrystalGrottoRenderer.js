@@ -169,8 +169,8 @@ class CrystalGrottoRenderer {
         this._initParticlePool();
         this._initCrystals(); // This now calls _initializeHarmonicLinks and _cacheNearbyCrystals internally at the end
         this._initBackgroundDust();
-        const deviceTilt = globalVisualizerRef?.lastDeviceTilt || {beta:0,gamma:0,alpha:0}; // Get initial tilt if available
-        this.accelerometerData.lastX = deviceTilt.gamma/90; this.accelerometerData.lastY = deviceTilt.beta/90; this.accelerometerData.lastZ = (deviceTilt.alpha||0)/90;
+        const deviceTilt = globalVisualizerRef?.lastDeviceTilt || {pitch:0,roll:0,alpha:0}; // Get initial tilt if available
+        this.accelerometerData.lastX = deviceTilt.roll/90; this.accelerometerData.lastY = deviceTilt.pitch/90; this.accelerometerData.lastZ = (deviceTilt.alpha||0)/90;
         console.log("[CrystalGrottoRenderer] Initialized. Version 2.0 (Harmonic Resonance). Config:", this.config);
     }
 
@@ -558,7 +558,7 @@ class CrystalGrottoRenderer {
         this._updateAndDrawPhantomLights(now); // V2: Update phantom lights and their effect on crystals
 
 
-        const currentX = deviceTilt.gamma/90; const currentY = deviceTilt.beta/90; const currentZ = (deviceTilt.alpha||0)/90;
+        const currentX = deviceTilt.roll/90; const currentY = deviceTilt.pitch/90; const currentZ = (deviceTilt.alpha||0)/90;
         const deltaX = currentX - this.accelerometerData.lastX; const deltaY = currentY - this.accelerometerData.lastY; const deltaZ = currentZ - this.accelerometerData.lastZ;
         const accelChange = Math.sqrt(deltaX*deltaX + deltaY*deltaY + deltaZ*deltaZ);
         this.accelerometerData = { x:currentX, y:currentY, z:currentZ, lastX:currentX, lastY:currentY, lastZ:currentZ };

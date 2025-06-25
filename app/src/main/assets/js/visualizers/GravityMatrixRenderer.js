@@ -74,7 +74,7 @@ class GravityMatrixRenderer {
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
         const gravityStrength = this.settings.gravityStrength || 0.2;
-        const gravityX = (deviceTilt.roll / 90) * gravityStrength * -1;
+        const gravityX = (deviceTilt.roll / 90) * gravityStrength;
         const gravityY = (deviceTilt.pitch / 90) * gravityStrength;
 
         const friction = this.settings.friction || 0.98;

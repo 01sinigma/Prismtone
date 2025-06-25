@@ -163,9 +163,9 @@ class AuraStringsRenderer {
 
         // --- ИСПРАВЛЕНИЕ ОСЕЙ (v4 - Финальная версия) ---
         // Горизонтальный ветер (X) -> от наклона ВПЕРЕД/НАЗАД (pitch)
-        const windForceX = (deviceTilt.pitch / 90) * this.tiltWindForce * -1; // Use this.tiltWindForce
+        const windForceX = (deviceTilt.pitch / 90) * this.tiltWindForce; // Use this.tiltWindForce
         // Вертикальный ветер (Y) -> от наклона ВЛЕВО/ВПРАВО (roll)
-        const windForceY = (deviceTilt.roll / 90) * this.tiltWindForce * -1; // Use this.tiltWindForce
+        const windForceY = (deviceTilt.roll / 90) * this.tiltWindForce; // Use this.tiltWindForce
         // ---------------------------------------------
 
         const stiffness = this.stiffness; // Use this.stiffness

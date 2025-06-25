@@ -125,10 +125,10 @@ class GeometricCityscapeRenderer {
         if (!this.ctx || !this.canvas) return;
 
         // 1. Обновление камеры на основе наклона акселерометра
-        // Плавный наклон влево-вправо (roll -> gamma) -> поворот сцены (yaw)
-        this.camera.targetYaw = (deviceTilt.gamma / 90) * (Math.PI / 3); // gamma: -90 to 90. Max rotation PI/3.
-        // Плавный наклон вперед-назад (pitch -> beta) -> наклон сцены (pitch)
-        this.camera.targetPitch = Math.PI / 8 + (deviceTilt.beta / 90) * (Math.PI / 4); // beta: -90 to 90. Max additional pitch PI/4.
+        // Плавный наклон влево-вправо (roll) -> поворот сцены (yaw)
+        this.camera.targetYaw = (deviceTilt.roll / 90) * (Math.PI / 3); // roll: -90 to 90. Max rotation PI/3.
+        // Плавный наклон вперед-назад (pitch) -> наклон сцены (pitch)
+        this.camera.targetPitch = Math.PI / 8 + (deviceTilt.pitch / 90) * (Math.PI / 4); // pitch: -90 to 90. Max additional pitch PI/4.
         this.camera.targetPitch = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, this.camera.targetPitch)); // Ограничение
 
         this.camera.yaw += (this.camera.targetYaw - this.camera.yaw) * this.camera.lerpFactor;
