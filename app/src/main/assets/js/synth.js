@@ -142,8 +142,8 @@ const synth = {
      * Starts a silent notes check interval.
      * Clears and prepares the asynchronous update queue.
      */
-    init() {
-        console.log('[Synth v8 - AsyncQueue] Initializing...');
+    async init() { // <<< Made async
+        console.log('[Synth v8 Sampler - AsyncQueue] Initializing...');
         try {
             this.masterVolume = new Tone.Volume(Tone.gainToDb(1.0)).toDestination();
             this.limiter = new Tone.Limiter(-1).connect(this.masterVolume);
@@ -155,9 +155,10 @@ const synth = {
             const initialPreset = JSON.parse(JSON.stringify(this.config.defaultPreset));
 
             for (let i = 0; i < this.config.polyphony; i++) {
-                const voiceBuildResult = voiceBuilder.buildVoiceChain(initialPreset);
+                // voiceBuilder.buildVoiceChain is now async
+                const voiceBuildResult = await voiceBuilder.buildVoiceChain(initialPreset);
                 if (!voiceBuildResult || !voiceBuildResult.components?.outputGain || voiceBuildResult.errorState?.outputGain) {
-                    console.error(`[Synth v7] Failed to create initial voice slot ${i}. Errors:`, voiceBuildResult?.errorState);
+                    console.error(`[Synth v8 Sampler] Failed to create initial voice slot ${i}. Errors:`, voiceBuildResult?.errorState);
                     this.voices.push({ components: null, errorState: voiceBuildResult?.errorState || { critical: "Build failed" }, fxSend: null, currentPresetData: null });
                 } else {
                     const fxSend = new Tone.Channel({ volume: -Infinity, channelCount: 2 }).connect(this.fxBus);
@@ -165,7 +166,7 @@ const synth = {
                     if (outputNode) {
                         outputNode.fan(fxSend, this.analyser, this.limiter);
                     } else {
-                       console.error(`[Synth v7 init] Output node not found for voice ${i}! FX send disabled.`);
+                       console.error(`[Synth v8 Sampler init] Output node not found for voice ${i}! FX send disabled.`);
                        fxSend.dispose();
                        if(voiceBuildResult.errorState) voiceBuildResult.errorState.outputGain = "Output node missing";
                     }
@@ -178,103 +179,75 @@ const synth = {
                 }
                 this.voiceState.push({ isBusy: false, touchId: null, noteId: null, startTime: 0 });
             }
-            console.log(`[Synth v7 init] Initialized ${this.voices.filter(v => v.components).length}/${this.config.polyphony} voice slots.`);
+            console.log(`[Synth v8 Sampler init] Initialized ${this.voices.filter(v => v.components).length}/${this.config.polyphony} voice slots.`);
 
             if (this.analyser && this.limiter && !this.analyser.numberOfOutputs) {
-                 try { this.analyser.connect(this.limiter); } catch (e) { console.error("[Synth v7 init] Error connecting analyser (fallback):", e); }
+                 try { this.analyser.connect(this.limiter); } catch (e) { console.error("[Synth v8 Sampler init] Error connecting analyser (fallback):", e); }
             }
 
-            console.log("[Synth v7 init] Creating global effect instances...");
+            console.log("[Synth v8 Sampler init] Creating global effect instances...");
             this.effects = {};
             const globalEffectOrder = ['delay', 'chorus', 'distortion', 'filter', 'reverb']; // Определяем порядок
             for (const effectName of globalEffectOrder) {
                  const def = this.config.effectDefinitions[effectName];
                  if (def && def.constructor) {
                       try {
-                           // Для Tone.Filter и других эффектов, где 'wet' может быть проблемой в конструкторе,
-                           // создаем с дефолтами БЕЗ 'wet', а 'wet' устанавливаем отдельно.
                            const constructorParams = { ...def.defaults };
                            delete constructorParams.wet;
-
                            const effectInstance = new def.constructor(constructorParams);
-
-                           // Устанавливаем wet отдельно, если он есть в Tone.js API узла
                            if (effectInstance.wet && effectInstance.wet instanceof Tone.Param) {
                                effectInstance.wet.value = 0;
                            } else if (effectName === 'filter' && def.defaults.wet === 1) {
-                               // Для фильтра, если wet по умолчанию 1, это значит, он должен быть всегда "включен"
-                               // и не имеет стандартного .wet параметра для микса.
-                               // Его "включенность" регулируется только наличием в цепочке.
-                               // Поэтому здесь ничего не делаем с wet для Tone.Filter
+                               // No specific wet handling for Tone.Filter here.
                            }
-
                            this.effects[effectName] = effectInstance;
-                           console.log(`[Synth Init FX] Created global effect: ${effectName} (${effectInstance.constructor.name}), initial wet: ${effectInstance.wet ? effectInstance.wet.value.toFixed(2) : 'N/A (no wet param)'}`);
+                           console.log(`[Synth Sampler Init FX] Created global effect: ${effectName} (${effectInstance.constructor.name}), initial wet: ${effectInstance.wet ? effectInstance.wet.value.toFixed(2) : 'N/A (no wet param)'}`);
                       } catch (effectError) {
-                           console.error(`[Synth v7 init] Failed to create global effect '${effectName}':`, effectError);
+                           console.error(`[Synth v8 Sampler init] Failed to create global effect '${effectName}':`, effectError);
                       }
-                 } else if (def) { // Если определение есть, но нет конструктора
-                     console.warn(`[Synth v7 init] No constructor found for effect definition '${effectName}'. Skipping.`);
+                 } else if (def) {
+                     console.warn(`[Synth v8 Sampler init] No constructor found for effect definition '${effectName}'. Skipping.`);
                  }
-                 // Если def не найден, это нормально, если не все эффекты из списка реализованы
             }
 
             this.isReady = true;
-            console.log('[Synth v7 init] Synth engine marked as READY.');
+            console.log('[Synth v8 Sampler init] Synth engine marked as READY.');
 
-            this.applyFxChain([]); // Применяем пустую цепочку, чтобы корректно соединить fxBus с limiter
-            this.applyMasterVolumeSettings(); // Применяем начальные настройки мастер-громкости
+            this.applyFxChain([]);
+            this.applyMasterVolumeSettings();
             this.startSilentNotesCheck();
             this._previousActiveVoiceCount = 0;
-            this._updateQueue.clear(); // Очистим очередь при инициализации
+            this._updateQueue.clear();
             this._isProcessingQueue = false;
 
         } catch (error) {
-            console.error('[Synth v7 init] Initialization failed:', error, error.stack);
+            console.error('[Synth v8 Sampler init] Initialization failed:', error, error.stack);
             this.isReady = false;
         }
     },
 
-    /**
-     * Applies master volume settings, including ceiling and polyphony scaling.
-     * Reads settings from `app.state` and applies them to `this.masterVolume`.
-     */
     applyMasterVolumeSettings() {
         if (!this.isReady || !this.masterVolume || !app || !app.state) {
-            console.warn("[Synth applyMasterVolumeSettings] Not ready or masterVolume/app.state missing.");
+            // console.warn("[Synth Sampler applyMasterVolumeSettings] Not ready or masterVolume/app.state missing."); // Too noisy
             return;
         }
         let finalMasterGain = app.state.masterVolumeCeiling ?? 1.0;
 
         if (app.state.enablePolyphonyVolumeScaling) {
             const numTouches = this.activeVoices.size;
-            if (numTouches > 1) { // Уменьшение начинается со второго активного касания
+            if (numTouches > 1) {
                 const reductionFactor = Math.max(0.1, 1.0 - (numTouches - 1) * 0.05);
                 finalMasterGain *= reductionFactor;
             }
         }
-        // Преобразовать линейный гейн в dB для Tone.Volume
-        const finalMasterDb = Tone.gainToDb(Math.max(0.0001, finalMasterGain)); // Предотвращаем -Infinity
-        this.masterVolume.volume.value = finalMasterDb; // Используем .value для немедленного применения
+        const finalMasterDb = Tone.gainToDb(Math.max(0.0001, finalMasterGain));
+        this.masterVolume.volume.value = finalMasterDb;
 
-        if (this.config.debug) {
-            console.log(`[Synth MasterVol] Ceiling: ${app.state.masterVolumeCeiling.toFixed(2)}, PolyScale: ${app.state.enablePolyphonyVolumeScaling}, Touches: ${this.activeVoices.size}, Final Gain: ${finalMasterGain.toFixed(3)} (${finalMasterDb.toFixed(1)}dB)`);
-        }
+        // if (this.config.debug) { // Too noisy for regular operation
+        //     console.log(`[Synth Sampler MasterVol] Ceiling: ${app.state.masterVolumeCeiling.toFixed(2)}, PolyScale: ${app.state.enablePolyphonyVolumeScaling}, Touches: ${this.activeVoices.size}, Final Gain: ${finalMasterGain.toFixed(3)} (${finalMasterDb.toFixed(1)}dB)`);
+        // }
     },
 
-    /**
-     * Calculates a generic parameter value based on Y-axis position and a configuration object.
-     * Supports linear, exponential, logarithmic, and S-curve mappings.
-     * @param {number} yPosition - Normalized Y-axis position (0 to 1).
-     * @param {object} config - Configuration object for the calculation.
-     * @param {number} [config.minOutput=0] - The minimum output value.
-     * @param {number} [config.maxOutput=1] - The maximum output value.
-     * @param {number} [config.yThreshold=0.0] - The Y position below which `minOutput` is returned.
-     * @param {'linear'|'exponential'|'logarithmic'|'sCurve'} [config.curveType='linear'] - The type of curve to apply.
-     * @param {number} [config.curveFactor=1.0] - A factor influencing the shape of the curve.
-     * @param {'gain'|'db'} [config.outputType] - Optional. If 'db', -Infinity is used for values below threshold.
-     * @returns {number} The calculated parameter value.
-     */
     calculateGenericYParameter(yPosition, config) {
         const {
             minOutput = 0,
@@ -283,57 +256,36 @@ const synth = {
             curveType = 'linear',
             curveFactor = 1.0,
         } = config || {};
-
         const yNorm = Math.max(0, Math.min(1, yPosition));
-
         if (yNorm < yThreshold) {
             return (config?.outputType === 'db') ? -Infinity : minOutput;
         }
-
         const effectiveY = (yThreshold >= 1.0) ? 0 : (yNorm - yThreshold) / (1.0 - yThreshold);
         let scaledValue;
-
         switch (curveType) {
-            case 'exponential':
-                scaledValue = Math.pow(effectiveY, Math.max(0.1, curveFactor));
-                break;
-            case 'logarithmic':
-                scaledValue = 1 - Math.pow(1 - effectiveY, Math.max(0.1, curveFactor));
-                break;
+            case 'exponential': scaledValue = Math.pow(effectiveY, Math.max(0.1, curveFactor)); break;
+            case 'logarithmic': scaledValue = 1 - Math.pow(1 - effectiveY, Math.max(0.1, curveFactor)); break;
             case 'sCurve':
-                const k = (curveFactor - 0.1) / (5.0 - 0.1) * 10.0 - 5.0; // Преобразуем 0.1-5 в -5 до 5
+                const k = (curveFactor - 0.1) / (5.0 - 0.1) * 10.0 - 5.0;
                 const val = 1 / (1 + Math.exp(-k * (effectiveY - 0.5)));
                 const sMin = 1 / (1 + Math.exp(k * 0.5));
                 const sMax = 1 / (1 + Math.exp(-k * 0.5));
-                if (sMax - sMin !== 0) {
-                   scaledValue = (val - sMin) / (sMax - sMin);
-                } else {
-                   scaledValue = effectiveY;
-                }
+                scaledValue = (sMax - sMin !== 0) ? (val - sMin) / (sMax - sMin) : effectiveY;
                 break;
-            case 'linear':
-            default:
-                scaledValue = effectiveY;
-                break;
+            default: scaledValue = effectiveY; break;
         }
         scaledValue = Math.max(0, Math.min(1, scaledValue));
         let finalOutput = minOutput + scaledValue * (maxOutput - minOutput);
         return Math.max(minOutput, Math.min(maxOutput, finalOutput));
     },
 
-    /**
-     * Applies a sound preset to all voices in the synth.
-     * If `forceRecreation` is true, voices are completely rebuilt. Otherwise, parameters are updated.
-     * @param {object} presetData - The sound preset object containing component settings.
-     * @param {boolean} [forceRecreation=false] - Whether to force a full recreation of voice components.
-     */
-    applyPreset(presetData, forceRecreation = false) {
+    async applyPreset(presetData, forceRecreation = false) { // <<< Made async
         const t0 = performance.now();
         if (!this.isReady || !presetData) {
-            console.warn('[Synth v8 - AsyncQueue] Cannot apply preset. Synth not ready or presetData is null.');
+            console.warn('[Synth v8 Sampler - AsyncQueue] Cannot apply preset. Synth not ready or presetData is null.');
             return;
         }
-        if (this.config.debug) console.log('[Synth v8 - AsyncQueue] Applying preset to all voices:', presetData);
+        if (this.config.debug) console.log('[Synth v8 Sampler - AsyncQueue] Applying preset to all voices:', presetData);
 
         const safePresetData = {};
         const defaultPresetCopy = JSON.parse(JSON.stringify(this.config.defaultPreset));
@@ -361,47 +313,54 @@ const synth = {
             safePresetData.portamento = { ...defaultPresetCopy.portamento, ...presetData.portamento };
         }
 
-        let t1 = performance.now();
-        this.voices.forEach((voiceData, index) => {
-            if (!voiceData) return;
+        // Determine if sampler is being enabled/disabled, which forces recreation
+        const isSamplerBeingToggled = (voiceData) => {
+            const oldUsesSampler = voiceData?.currentPresetData?.sampler?.enabled === true;
+            const newUsesSampler = safePresetData.sampler?.enabled === true;
+            return oldUsesSampler !== newUsesSampler;
+        };
+
+
+        // Use a for...of loop to allow await inside for sequential processing of voices
+        for (let index = 0; index < this.voices.length; index++) {
+            const voiceData = this.voices[index];
+            if (!voiceData) continue;
+
             try {
                 const oldPresetData = voiceData.currentPresetData || this.config.defaultPreset;
-                let needsRecreation = forceRecreation || !voiceData.components;
-                let t2 = performance.now();
-                // Сравнение типа осциллятора с учетом undefined/null
-                // Проверка типа осциллятора теперь делегирована oscillatorManager.update
-                // const oldOscType = oldPresetData.oscillator?.params?.type ?? null;
-                // const newOscType = safePresetData.oscillator?.params?.type ?? null;
-                // if (!needsRecreation && oldOscType !== newOscType) {
-                // if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Oscillator type changed ('${oldOscType}' -> '${newOscType}')`);
-                // needsRecreation = true;
-                // }
-                const optionalComponents = ['pitchEnvelope', 'filterEnvelope', 'lfo1'];
-                for (const optCompId of optionalComponents) {
-                    const oldEnabled = oldPresetData[optCompId]?.enabled ?? (this.config.defaultPreset[optCompId]?.enabled ?? false);
-                    const newEnabled = safePresetData[optCompId]?.enabled ?? (this.config.defaultPreset[optCompId]?.enabled ?? false);
-                    if (oldEnabled !== newEnabled) {
-                        if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Optional component '${optCompId}' enabled state changed (${oldEnabled} -> ${newEnabled})`);
-                        needsRecreation = true;
-                        break;
+                let needsRecreation = forceRecreation || !voiceData.components || isSamplerBeingToggled(voiceData);
+
+                const optionalComponents = ['pitchEnvelope', 'filterEnvelope', 'lfo1']; // Add other optional components here
+                if (!needsRecreation) { // Only check these if not already needing recreation
+                    for (const optCompId of optionalComponents) {
+                        const oldEnabled = oldPresetData[optCompId]?.enabled ?? (this.config.defaultPreset[optCompId]?.enabled ?? false);
+                        const newEnabled = safePresetData[optCompId]?.enabled ?? (this.config.defaultPreset[optCompId]?.enabled ?? false);
+                        if (oldEnabled !== newEnabled) {
+                            if (this.config.debug) console.log(`[Synth Sampler applyPreset] Reason for recreation: Optional component '${optCompId}' enabled state changed (${oldEnabled} -> ${newEnabled})`);
+                            needsRecreation = true;
+                            break;
+                        }
                     }
                 }
                 if (!needsRecreation) {
                     const oldPortaEnabled = oldPresetData.portamento?.enabled ?? (this.config.defaultPreset.portamento?.enabled ?? false);
                     const newPortaEnabled = safePresetData.portamento?.enabled ?? (this.config.defaultPreset.portamento?.enabled ?? false);
                     if (oldPortaEnabled !== newPortaEnabled) {
-                        if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Portamento enabled state changed (${oldPortaEnabled} -> ${newPortaEnabled})`);
+                        if (this.config.debug) console.log(`[Synth Sampler applyPreset] Reason for recreation: Portamento enabled state changed (${oldPortaEnabled} -> ${newPortaEnabled})`);
                         needsRecreation = true;
                     }
                 }
-                let t3 = performance.now();
+
                 if (needsRecreation) {
-                    if (this.config.debug) console.log(`[Synth applyPreset] RECREATING voice ${index}.`);
+                    if (this.config.debug) console.log(`[Synth Sampler applyPreset] RECREATING voice ${index}.`);
                     if (this.voiceState[index]?.isBusy) { this.triggerRelease(this.voiceState[index].touchId); }
-                    voiceBuilder.disposeComponents(voiceData.components);
+
+                    // voiceBuilder.disposeComponents can be async now
+                    await voiceBuilder.disposeComponents(voiceData.components);
                     if (voiceData.fxSend) voiceData.fxSend.dispose();
 
-                    const newVoiceBuildResult = voiceBuilder.buildVoiceChain(safePresetData);
+                    // voiceBuilder.buildVoiceChain is now async
+                    const newVoiceBuildResult = await voiceBuilder.buildVoiceChain(safePresetData);
                     if (newVoiceBuildResult && newVoiceBuildResult.components?.outputGain && !newVoiceBuildResult.errorState?.outputGain) {
                         const fxSend = new Tone.Channel({ volume: -Infinity, channelCount: 2 }).connect(this.fxBus);
                         const outputNode = newVoiceBuildResult.components.outputGain.audioOutput;
@@ -415,43 +374,68 @@ const synth = {
                              };
                         } else { throw new Error("Output node missing after recreation for voice " + index); }
                     } else {
-                        console.error(`[Synth v7 applyPreset] Failed to recreate voice slot ${index}. Errors:`, newVoiceBuildResult?.errorState);
+                        console.error(`[Synth v8 Sampler applyPreset] Failed to recreate voice slot ${index}. Errors:`, newVoiceBuildResult?.errorState);
                         this.voices[index] = { components: null, errorState: newVoiceBuildResult?.errorState || { critical: "Recreation failed" }, fxSend: null, currentPresetData: null };
-                        this.releaseVoice(index);
+                        this.releaseVoice(index); // Ensure voice state is cleared
                     }
                 } else {
-                    if (this.config.debug) console.log(`[Synth applyPreset] UPDATING voice ${index} parameters.`);
+                    if (this.config.debug) console.log(`[Synth Sampler applyPreset] UPDATING voice ${index} parameters.`);
                     const components = voiceData.components;
                     const errorState = voiceData.errorState || {};
                     for (const componentId in safePresetData) {
                         const manager = audioConfig.getManager(componentId);
                         const compData = components[componentId];
                         const newSettings = safePresetData[componentId];
+
+                        // Skip update if manager/component data is missing, or if there's an existing error for the component
                         if (!manager || !compData || errorState[componentId]) continue;
+                        // Skip if component is sampler but preset uses oscillator, or vice-versa
+                        if ((componentId === 'sampler' && safePresetData.oscillator?.enabled) || (componentId === 'oscillator' && safePresetData.sampler?.enabled)) continue;
+
+
                         let paramsToUpdate = null;
                         if (newSettings.params) {
                             paramsToUpdate = { ...newSettings.params };
                         } else if (typeof newSettings === 'object' && newSettings !== null && !newSettings.hasOwnProperty('enabled')) {
-                            if (componentId === 'oscillator' || componentId === 'amplitudeEnv' || componentId === 'filter' || componentId === 'outputGain') {
+                             // Fallback for components that might not have a nested 'params' object in the preset
+                            if (['oscillator', 'amplitudeEnv', 'filter', 'outputGain', 'sampler'].includes(componentId)) {
                                 paramsToUpdate = { ...newSettings };
                             }
                         }
-                        if (componentId === 'oscillator') {
+
+                        const currentSourceIsSampler = voiceData.currentPresetData?.sampler?.enabled === true;
+                        const targetSourceType = currentSourceIsSampler ? 'sampler' : 'oscillator';
+
+                        if (componentId === targetSourceType) { // Only update parameters for the active source type
                             if (!paramsToUpdate) paramsToUpdate = {};
-                            // Передаем новый тип осциллятора, если он есть в пресете
-                            if (newSettings.params && newSettings.params.type) {
-                                paramsToUpdate.type = newSettings.params.type;
-                            } else if (newSettings.type) { // Если тип указан напрямую в newSettings (менее вероятно для пресетов)
-                                paramsToUpdate.type = newSettings.type;
+                            if (targetSourceType === 'oscillator') {
+                                if (newSettings.params && newSettings.params.type) {
+                                    paramsToUpdate.type = newSettings.params.type;
+                                } else if (newSettings.type) {
+                                    paramsToUpdate.type = newSettings.type;
+                                }
+                                paramsToUpdate.portamento = (safePresetData.portamento?.enabled && safePresetData.portamento.time !== undefined)
+                                                          ? safePresetData.portamento.time
+                                                          : 0;
                             }
-                            paramsToUpdate.portamento = (safePresetData.portamento?.enabled && safePresetData.portamento.time !== undefined)
-                                                      ? safePresetData.portamento.time
-                                                      : 0;
-                            if (this.config.debug) console.log(`[Synth applyPreset] Updating oscillator for voice ${index} with params:`, JSON.stringify(paramsToUpdate));
+                             // For sampler, params like attack/release might be directly in newSettings or newSettings.params
+                            if (targetSourceType === 'sampler') {
+                                // Example: if sampler params are attack, release, curve from sampler.json
+                                if (newSettings.params?.attack !== undefined) paramsToUpdate.attack = newSettings.params.attack;
+                                if (newSettings.params?.release !== undefined) paramsToUpdate.release = newSettings.params.release;
+                                if (newSettings.params?.curve !== undefined) paramsToUpdate.curve = newSettings.params.curve;
+                                // ... any other sampler-specific params
+                            }
+                            if (this.config.debug && Object.keys(paramsToUpdate).length > 0) {
+                                console.log(`[Synth Sampler applyPreset] Updating ${targetSourceType} for voice ${index} with params:`, JSON.stringify(paramsToUpdate));
+                            }
+                        } else if (componentId !== 'oscillator' && componentId !== 'sampler') { // For other components (envelopes, filters etc.)
+                           // Standard parameter update logic
                         }
+
+
                         if (paramsToUpdate && Object.keys(paramsToUpdate).length > 0 && typeof manager.update === 'function') {
-                            // Результат manager.update пока не используется, но может быть использован для флага reconnected
-                            if (!manager.update(compData.nodes, paramsToUpdate, components, voiceData.fxSend, this.analyser, this.limiter, safePresetData)) { // Передаем больше контекста менеджеру
+                            if (!manager.update(compData.nodes, paramsToUpdate, components, voiceData.fxSend, this.analyser, this.limiter, safePresetData)) {
                                 errorState[componentId] = "Update failed";
                             }
                         }
@@ -459,23 +443,19 @@ const synth = {
                     voiceData.currentPresetData = JSON.parse(JSON.stringify(safePresetData));
                     voiceData.errorState = errorState;
                 }
-                let t4 = performance.now();
-                if (this.config.debug) {
-                    console.log(`[Synth.applyPreset] Voice ${index} timings: prep=${(t2-t1).toFixed(2)}ms, checkRecreate=${(t3-t2).toFixed(2)}ms, buildOrUpdate=${(t4-t3).toFixed(2)}ms, totalVoice=${(t4-t1).toFixed(2)}ms`);
-                }
             } catch (error) {
-                console.error(`[Synth v7 applyPreset] Error applying preset to voice ${index}:`, error, error.stack);
-                this.releaseVoice(index);
-                if (voiceData) {
-                    voiceData.components = null;
+                console.error(`[Synth v8 Sampler applyPreset] Error applying preset to voice ${index}:`, error, error.stack);
+                this.releaseVoice(index); // Ensure voice state is cleared
+                if (voiceData) { // Check if voiceData is not null
+                    voiceData.components = null; // Mark components as null
                     voiceData.errorState = { critical: `Apply preset failed: ${error.message}` };
                 }
             }
-        });
-        if (this.config.debug) console.log('[Synth v7] Preset applied.');
-        const t2 = performance.now();
-        const duration = t2 - t0;
-        if (duration > 10) {
+        } // End of forEach loop for voices
+        if (this.config.debug) console.log('[Synth v8 Sampler] Preset applied to all voices.');
+        const t_end = performance.now();
+        const duration = t_end - t0;
+        if (duration > 20) { // Increased threshold slightly due to async operations
             console.warn(`[Synth.applyPreset] Long execution: ${duration.toFixed(2)}ms`);
         }
     },
@@ -540,12 +520,6 @@ const synth = {
     // === НОВЫЕ ПРИВАТНЫЕ МЕТОДЫ: Обработчик очереди и исполнители ===
     // ====================================================================
 
-    /**
-     * Processes tasks from the `_updateQueue` asynchronously using `requestAnimationFrame`.
-     * Ensures that synth updates happen smoothly without blocking the UI.
-     * Iterates through the `_updateQueue`, calling corresponding `_execute...` methods.
-     * @private
-     */
     _processUpdateQueue() {
         if (this._isProcessingQueue || this._updateQueue.size === 0) {
             return;
@@ -557,7 +531,7 @@ const synth = {
             this._updateQueue = new Map();
 
             if (this.config.debug && tasksToProcess.size > 0) {
-                console.log(`[Synth Queue] Processing ${tasksToProcess.size} tasks.`);
+                // console.log(`[Synth Sampler Queue] Processing ${tasksToProcess.size} tasks.`); // Can be noisy
             }
 
             tasksToProcess.forEach((task, touchId) => {
@@ -574,7 +548,7 @@ const synth = {
                             break;
                     }
                 } catch (e) {
-                    console.error(`[Synth Queue] Error processing task for touchId ${touchId}:`, task, e);
+                    console.error(`[Synth Sampler Queue] Error processing task for touchId ${touchId}:`, task, e);
                 }
             });
 
@@ -591,123 +565,164 @@ const synth = {
         });
     },
 
-    /**
-     * Executes the logic for starting a new note. Called by `_processUpdateQueue`.
-     * Finds a free voice, applies the preset, sets parameters, and triggers the attack phase.
-     * Manages `activeVoices` map.
-     * @param {number} frequency - The frequency of the note.
-     * @param {number} velocity - The velocity of the note.
-     * @param {number} yPosition - The Y-axis position for modulation.
-     * @param {string|number} touchId - The touch identifier.
-     * @param {string} noteId - A unique ID for this specific note instance.
-     * @private
-     */
     _executeStartNote(frequency, velocity, yPosition, touchId, noteId) {
         if (!this.isReady) return;
         const voiceIndex = this.getFreeVoiceIndex(touchId);
-        if (voiceIndex === -1) return;
+        if (voiceIndex === -1) {
+            // console.warn(`[Synth Sampler] No free voice for touchId ${touchId}`); // Can be noisy
+            return;
+        }
         const voiceData = this.voices[voiceIndex];
         if (!voiceData || !voiceData.components || voiceData.errorState?.critical) {
+           console.warn(`[Synth Sampler] Voice ${voiceIndex} not usable (no components or critical error). Releasing.`);
            this.releaseVoice(voiceIndex);
            return;
         }
         const components = voiceData.components;
         const calculatedVolume = this.calculateGenericYParameter(yPosition, app.state.yAxisControls.volume);
         const calculatedSendLevel = this.calculateGenericYParameter(yPosition, app.state.yAxisControls.effects);
+
         if (this.config.debug) {
-            console.log(`>>> EXECUTE START: Freq=${frequency.toFixed(1)}, Touch=${touchId}, Voice=${voiceIndex}, Vol=${calculatedVolume.toFixed(2)}, Send=${calculatedSendLevel.toFixed(1)}dB`);
+            console.log(`>>> EXECUTE START (Sampler Capable): Freq=${frequency.toFixed(1)}, Touch=${touchId}, Voice=${voiceIndex}, Vol=${calculatedVolume.toFixed(2)}, Send=${calculatedSendLevel.toFixed(1)}dB`);
         }
-        audioConfig.getManager('oscillator')?.update(components.oscillator.nodes, { frequency });
+
+        // Determine if using sampler or oscillator for this voice based on its current preset
+        const currentPreset = voiceData.currentPresetData || this.config.defaultPreset;
+        const useSampler = currentPreset.sampler?.enabled === true;
+        const soundSourceId = useSampler ? 'sampler' : 'oscillator';
+        const soundSourceManager = audioConfig.getManager(soundSourceId);
+        const soundSourceNodes = components[soundSourceId]?.nodes;
+
+        if (soundSourceManager && soundSourceNodes) {
+            if (useSampler) {
+                // For sampler, triggerAttack typically takes frequency (note name or Hz), time, velocity
+                soundSourceManager.triggerAttack(soundSourceNodes, frequency, Tone.now(), velocity);
+                 if (this.config.debug) console.log(`[Synth Sampler] Sampler triggered for voice ${voiceIndex}`);
+            } else {
+                // For oscillator, update frequency first, then trigger envelope
+                soundSourceManager.update(soundSourceNodes, { frequency });
+                 if (this.config.debug) console.log(`[Synth Sampler] Oscillator freq updated for voice ${voiceIndex}`);
+            }
+        } else {
+            console.warn(`[Synth Sampler] Sound source '${soundSourceId}' manager or nodes not found for voice ${voiceIndex}. Cannot start note.`);
+            this.releaseVoice(voiceIndex);
+            return;
+        }
+
         audioConfig.getManager('outputGain')?.update(components.outputGain.nodes, { gain: calculatedVolume });
-        if (voiceData.fxSend) voiceData.fxSend.volume.value = calculatedSendLevel;
-        audioConfig.getManager('amplitudeEnv')?.triggerAttack(components.amplitudeEnv.nodes, Tone.now(), velocity);
-        if (voiceData.currentPresetData?.pitchEnvelope?.enabled) {
+        if (voiceData.fxSend) voiceData.fxSend.volume.value = calculatedSendLevel; // Direct set, ramp can be added if needed
+
+        // Common components (envelopes, LFOs)
+        // Amplitude envelope is always expected, regardless of source
+        if (components.amplitudeEnv?.nodes) {
+            audioConfig.getManager('amplitudeEnv')?.triggerAttack(components.amplitudeEnv.nodes, Tone.now(), velocity);
+        } else {
+            console.warn(`[Synth Sampler] Amplitude envelope nodes not found for voice ${voiceIndex}. Note might not sound correctly.`);
+        }
+
+        if (currentPreset.pitchEnvelope?.enabled && components.pitchEnvelope?.nodes) {
             audioConfig.getManager('pitchEnvelope')?.triggerAttack(components.pitchEnvelope.nodes, Tone.now());
         }
-        if (voiceData.currentPresetData?.filterEnvelope?.enabled) {
+        if (currentPreset.filterEnvelope?.enabled && components.filterEnvelope?.nodes) {
             audioConfig.getManager('filterEnvelope')?.triggerAttack(components.filterEnvelope.nodes, Tone.now());
         }
-        if (voiceData.currentPresetData?.lfo1?.enabled) {
-            audioConfig.getManager('lfo1')?.enable(components.lfo1.nodes, true, { retrigger: voiceData.currentPresetData.lfo1.params?.retrigger ?? false });
+        if (currentPreset.lfo1?.enabled && components.lfo1?.nodes) {
+            audioConfig.getManager('lfo1')?.enable(components.lfo1.nodes, true, { retrigger: currentPreset.lfo1.params?.retrigger ?? false });
         }
+
         this.voiceState[voiceIndex] = { isBusy: true, touchId: touchId, noteId: noteId, startTime: Tone.now() };
         this.activeVoices.set(touchId, { frequency, noteId, voiceIndex, lastY: yPosition });
-            if (this.activeVoices.size !== this._previousActiveVoiceCount) {
+        if (this.activeVoices.size !== this._previousActiveVoiceCount) {
             this._activeVoiceCountChanged = true;
-                this._previousActiveVoiceCount = this.activeVoices.size;
+            this._previousActiveVoiceCount = this.activeVoices.size;
         }
     },
 
-    /**
-     * Executes the logic for updating an existing note. Called by `_processUpdateQueue`.
-     * Finds the active voice associated with `touchId` and updates its parameters.
-     * @param {number} frequency - The new frequency.
-     * @param {number} velocity - The new velocity.
-     * @param {number} yPosition - The new Y-axis position.
-     * @param {string|number} touchId - The touch identifier.
-     * @private
-     */
     _executeUpdateNote(frequency, velocity, yPosition, touchId) {
         if (!this.isReady) return;
-        const voiceIndex = this.findVoiceIndex(touchId);
-        if (voiceIndex === -1) return;
+        const activeVoiceDetails = this.activeVoices.get(touchId);
+        if (!activeVoiceDetails) return; // No active voice for this touchId
 
+        const voiceIndex = activeVoiceDetails.voiceIndex;
         const voiceData = this.voices[voiceIndex];
         if (!voiceData || !voiceData.components) return;
 
-        const activeVoice = this.activeVoices.get(touchId);
-
-        // >>> ОПТИМИЗАЦИЯ: Проверяем, изменилось ли что-то <<<
-        const yChanged = activeVoice && Math.abs(activeVoice.lastY - yPosition) > 0.001; // Порог для Y
-        const freqChanged = activeVoice && Math.abs(activeVoice.frequency - frequency) > 0.1; // Порог для частоты (в Гц)
+        const yChanged = Math.abs(activeVoiceDetails.lastY - yPosition) > 0.001;
+        const freqChanged = Math.abs(activeVoiceDetails.frequency - frequency) > 0.1;
 
         if (!yChanged && !freqChanged) {
-            return; // Ничего не изменилось, выходим
-        }
-        // --- КОНЕЦ ОПТИМИЗАЦИИ ---
-
-        if (activeVoice) activeVoice.lastY = yPosition;
-
-        const calculatedVolume = this.calculateGenericYParameter(yPosition, app.state.yAxisControls.volume);
-        const calculatedSendLevel = this.calculateGenericYParameter(yPosition, app.state.yAxisControls.effects);
-
-        if (freqChanged) { // Обновляем только если изменилось
-            audioConfig.getManager('oscillator')?.update(voiceData.components.oscillator.nodes, { frequency });
-            if (activeVoice) activeVoice.frequency = frequency;
+            return;
         }
 
-        // Громкость и посыл на эффекты обновляем, только если изменился Y
+        activeVoiceDetails.lastY = yPosition; // Update lastY regardless
+
+        const currentPreset = voiceData.currentPresetData || this.config.defaultPreset;
+        const useSampler = currentPreset.sampler?.enabled === true;
+        const soundSourceId = useSampler ? 'sampler' : 'oscillator';
+        const soundSourceManager = audioConfig.getManager(soundSourceId);
+        const soundSourceNodes = voiceData.components[soundSourceId]?.nodes;
+
+        if (freqChanged && soundSourceManager && soundSourceNodes) {
+            if (useSampler) {
+                // Sampler might not support frequency updates in the same way as an oscillator.
+                // It might retrigger or pitch bend if the manager supports it.
+                // For now, we'll assume the manager's update handles it if applicable.
+                // Or, if sampler's triggerAttack is idempotent and handles new freq, call it:
+                // soundSourceManager.triggerAttack(soundSourceNodes, frequency, Tone.now(), velocity); // If retriggering is desired
+                // This needs to be defined by how samplerManager.update or a potential samplerManager.updateFrequency is implemented.
+                // For now, let's log if it's a sampler and frequency changed.
+                 if (this.config.debug) console.log(`[Synth Sampler] Update note: Frequency changed for sampler voice ${voiceIndex}. Behavior depends on samplerManager.`);
+                 // If samplerManager has an 'update' method that can handle frequency:
+                 soundSourceManager.update?.(soundSourceNodes, { frequency }); // Optional chaining for update
+            } else { // Oscillator
+                soundSourceManager.update(soundSourceNodes, { frequency });
+            }
+            activeVoiceDetails.frequency = frequency;
+        }
+
         if (yChanged) {
+            const calculatedVolume = this.calculateGenericYParameter(yPosition, app.state.yAxisControls.volume);
+            const calculatedSendLevel = this.calculateGenericYParameter(yPosition, app.state.yAxisControls.effects);
             audioConfig.getManager('outputGain')?.update(voiceData.components.outputGain.nodes, { gain: calculatedVolume });
             if (voiceData.fxSend) {
-                // Вместо прямого присвоения используем rampTo для плавности
                 voiceData.fxSend.volume.rampTo(calculatedSendLevel, 0.02);
             }
         }
     },
 
-    /**
-     * Executes the logic for releasing a note. Called by `_processUpdateQueue`.
-     * Finds the active voice and triggers its release phase.
-     * Updates `activeVoices` map and `voiceState`.
-     * @param {string|number} touchId - The touch identifier.
-     * @private
-     */
     _executeTriggerRelease(touchId) {
         if (!this.isReady) return;
-            const voiceIndex = this.findVoiceIndex(touchId);
-        if (voiceIndex === -1) return;
-                const voiceData = this.voices[voiceIndex];
-                if (voiceData && voiceData.components) {
-            audioConfig.getManager('amplitudeEnv')?.triggerRelease(voiceData.components.amplitudeEnv.nodes, Tone.now());
-            if (voiceData.currentPresetData?.pitchEnvelope?.enabled) {
+        const activeVoiceDetails = this.activeVoices.get(touchId);
+        if (!activeVoiceDetails) return; // No active voice for this touchId
+
+        const voiceIndex = activeVoiceDetails.voiceIndex;
+        const voiceData = this.voices[voiceIndex];
+
+        if (voiceData && voiceData.components) {
+            const currentPreset = voiceData.currentPresetData || this.config.defaultPreset;
+            const useSampler = currentPreset.sampler?.enabled === true;
+            const soundSourceId = useSampler ? 'sampler' : 'oscillator';
+            const soundSourceManager = audioConfig.getManager(soundSourceId);
+            const soundSourceNodes = voiceData.components[soundSourceId]?.nodes;
+
+            if (useSampler && soundSourceManager && soundSourceNodes) {
+                // Sampler needs its own triggerRelease
+                soundSourceManager.triggerRelease(soundSourceNodes, Tone.now());
+                 if (this.config.debug) console.log(`[Synth Sampler] Sampler release triggered for voice ${voiceIndex}`);
+            }
+            // Amplitude envelope release is common
+            if (voiceData.components.amplitudeEnv?.nodes) {
+                 audioConfig.getManager('amplitudeEnv')?.triggerRelease(voiceData.components.amplitudeEnv.nodes, Tone.now());
+            }
+
+            if (currentPreset.pitchEnvelope?.enabled && voiceData.components.pitchEnvelope?.nodes) {
                 audioConfig.getManager('pitchEnvelope')?.triggerRelease(voiceData.components.pitchEnvelope.nodes, Tone.now());
             }
-            if (voiceData.currentPresetData?.filterEnvelope?.enabled) {
+            if (currentPreset.filterEnvelope?.enabled && voiceData.components.filterEnvelope?.nodes) {
                 audioConfig.getManager('filterEnvelope')?.triggerRelease(voiceData.components.filterEnvelope.nodes, Tone.now());
-                    }
-                }
-                this.releaseVoice(voiceIndex);
+            }
+        }
+        this.releaseVoice(voiceIndex); // Clears voiceState, LFOs etc.
         this.activeVoices.delete(touchId);
         if (this.activeVoices.size !== this._previousActiveVoiceCount) {
             this._activeVoiceCountChanged = true;

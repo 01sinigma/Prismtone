@@ -29,7 +29,7 @@ const voiceBuilder = {
      *                              component (e.g., `presetData.oscillator`, `presetData.amplitudeEnv`).
      *                              It should also include `enabled` flags for optional components like
      *                              `pitchEnvelope`, `filterEnvelope`, and LFOs.
-     * @returns {{ components: object, errorState: object } | null} 
+     * @returns {{ components: object, errorState: object } | null}
      *          An object containing two properties:
      *          - `components`: An object where keys are component IDs (e.g., 'oscillator') and values are
      *                          the result from the component manager's `create` method (usually including
@@ -39,53 +39,49 @@ const voiceBuilder = {
      *          Returns `null` if a critical error occurs that prevents voice creation (e.g., `voiceAudioChainOrder` is missing
      *          or the essential `outputGain` component cannot be created).
      */
-    buildVoiceChain(presetData) {
-        console.log("[VoiceBuilder v2] Building voice chain with preset:", presetData);
+    async buildVoiceChain(presetData) { // <<< Стал async
+        console.log("[VoiceBuilder v3 Sampler] Building voice chain with preset:", presetData);
         const components = {};
         const errorState = {};
         const chainOrder = audioConfig.voiceAudioChainOrder;
 
         if (!chainOrder || chainOrder.length === 0) {
-            console.error("[VoiceBuilder v2] voiceAudioChainOrder is empty in audioConfig! Cannot build chain.");
+            console.error("[VoiceBuilder v3 Sampler] voiceAudioChainOrder is empty in audioConfig! Cannot build chain.");
             return null;
         }
 
         // --- Шаг 1: Создание всех компонентов ---
-        console.log("[VoiceBuilder v2] --- Creating Components ---");
+        console.log("[VoiceBuilder v3 Sampler] --- Creating Components ---");
         let componentIdsToCreate = new Set(chainOrder);
 
         // Определяем, используется ли сэмплер
-        const useSampler = presetData.sampler?.enabled;
+        const useSampler = presetData.sampler?.enabled === true;
 
         if (useSampler) {
-            // Если сэмплер включен, удаляем осциллятор из списка создаваемых компонентов
-            // и добавляем сэмплер, если его еще нет в chainOrder (хотя по логике он должен там быть)
-            componentIdsToCreate.delete('oscillator');
-            if (!componentIdsToCreate.has('sampler')) { // Убедимся, что сэмплер будет создан
-                 if (chainOrder.includes('sampler')) { // Если sampler в chainOrder, добавляем его
-                    componentIdsToCreate.add('sampler');
-                 } else {
-                     // Если sampler не в chainOrder, но включен, это может быть ошибкой конфигурации.
-                     // Но для надежности добавим его в начало списка создаваемых компонентов,
-                     // предполагая, что он является источником звука.
-                     // Или можно выдать ошибку/предупреждение.
-                     console.warn("[VoiceBuilder v2] Sampler enabled in preset but not found in voiceAudioChainOrder. Adding it to components to create.");
-                     const tempSet = new Set(['sampler']);
-                     componentIdsToCreate.forEach(id => tempSet.add(id));
-                     componentIdsToCreate = tempSet;
+            componentIdsToCreate.delete('oscillator'); // Не создаем осциллятор, если есть сэмплер
+            // Убедимся, что сэмплер будет создан, если он указан в chainOrder или как замена осциллятору
+            if (chainOrder.includes('sampler')) {
+                componentIdsToCreate.add('sampler');
+            } else if (chainOrder.includes('oscillator')) { // Если осциллятор был, но заменяется сэмплером
+                componentIdsToCreate.add('sampler');
+            } else { // Если ни осциллятора, ни сэмплера не было в chainOrder, но sampler.enabled = true
+                 console.warn("[VoiceBuilder v3 Sampler] Sampler enabled in preset but neither 'sampler' nor 'oscillator' found in voiceAudioChainOrder. Adding 'sampler' to components to create.");
+                 // Добавляем 'sampler' в начало, если его нет, чтобы он был источником
+                 const tempArray = Array.from(componentIdsToCreate);
+                 if (!tempArray.includes('sampler')) {
+                    tempArray.unshift('sampler');
+                    componentIdsToCreate = new Set(tempArray);
                  }
             }
-            console.log("[VoiceBuilder v2] Sampler is enabled. 'oscillator' will be skipped. 'sampler' will be created.");
+            console.log("[VoiceBuilder v3 Sampler] Sampler is enabled. 'oscillator' will be skipped. 'sampler' will be created/prioritized.");
         } else {
-            // Если сэмплер не используется, убеждаемся, что осциллятор будет создан (если он в chainOrder)
-            // и сэмплер не будет создан, даже если он случайно попал в chainOrder.
-            componentIdsToCreate.delete('sampler');
-            if (chainOrder.includes('oscillator') && !componentIdsToCreate.has('oscillator')) {
+            componentIdsToCreate.delete('sampler'); // Не создаем сэмплер, если он не включен
+            // Убедимся, что осциллятор будет создан, если он в chainOrder и сэмплер не используется
+            if (chainOrder.includes('oscillator')) {
                 componentIdsToCreate.add('oscillator');
             }
-            console.log("[VoiceBuilder v2] Sampler is not enabled. 'oscillator' will be created (if in chain). 'sampler' will be skipped.");
+            console.log("[VoiceBuilder v3 Sampler] Sampler is not enabled. 'oscillator' will be created (if in chain). 'sampler' will be skipped.");
         }
-
 
         // Добавляем опциональные компоненты, если они включены в пресете
         if (presetData.pitchEnvelope?.enabled) componentIdsToCreate.add('pitchEnvelope');
@@ -93,128 +89,140 @@ const voiceBuilder = {
         if (presetData.lfo1?.enabled) componentIdsToCreate.add('lfo1');
         // Добавить другие LFO (lfo2, etc.) или VoiceFX по аналогии
 
-        for (const componentId of componentIdsToCreate) {
-            // Пропускаем создание осциллятора, если используется сэмплер
+        // Используем Promise.all для параллельного создания компонентов
+        const creationPromises = Array.from(componentIdsToCreate).map(async (componentId) => {
+            // Пропускаем создание осциллятора, если используется сэмплер (дополнительная проверка, хотя set должен был это учесть)
             if (useSampler && componentId === 'oscillator') {
-                console.log(`[VoiceBuilder v2] Skipping oscillator component creation because sampler is active.`);
-                continue;
+                console.log(`[VoiceBuilder v3 Sampler] Skipping oscillator component creation because sampler is active.`);
+                return; // Promise разрешится как undefined, отфильтруется позже или обработается
             }
             // Пропускаем создание сэмплера, если он не включен
             if (!useSampler && componentId === 'sampler') {
-                console.log(`[VoiceBuilder v2] Skipping sampler component creation because it's not enabled.`);
-                continue;
+                console.log(`[VoiceBuilder v3 Sampler] Skipping sampler component creation because it's not enabled.`);
+                return;
             }
 
             const manager = audioConfig.getManager(componentId);
-            if (componentId === 'filterEnvelope') {
-                console.log(`[VoiceBuilder DEBUG] Attempting to create 'filterEnvelope'. Manager found: ${!!manager}, manager.create is func: ${typeof manager?.create === 'function'}`);
-                console.log(`[VoiceBuilder DEBUG] Settings for 'filterEnvelope':`, JSON.parse(JSON.stringify(presetData[componentId]?.params || presetData[componentId] || {})));
-            }
             if (!manager || typeof manager.create !== 'function') {
-                console.error(`[VoiceBuilder v2] Manager not found or invalid for component ID: ${componentId}`);
+                console.error(`[VoiceBuilder v3 Sampler] Manager not found or invalid for component ID: ${componentId}`);
                 errorState[componentId] = `Manager not found or invalid for ${componentId}`;
                 components[componentId] = { nodes: null, error: errorState[componentId] };
-                continue;
+                return;
             }
 
             const componentSettings = presetData[componentId]?.params || presetData[componentId] || {};
             if (presetData[componentId]?.hasOwnProperty('enabled')) {
                  componentSettings.enabled = presetData[componentId].enabled;
             }
-            // Специальная обработка для Portamento (если он часть oscillator)
             if (componentId === 'oscillator' && presetData.portamento?.enabled && presetData.portamento.time !== undefined) {
                 componentSettings.portamento = presetData.portamento.time;
             }
 
-
-            console.log(`[VoiceBuilder v2] Creating component: ${componentId} with settings:`, componentSettings);
+            console.log(`[VoiceBuilder v3 Sampler] Creating component: ${componentId} with settings:`, componentSettings);
             try {
-                const result = manager.create(componentSettings);
+                // manager.create теперь может быть async
+                const result = await manager.create(componentSettings);
                 components[componentId] = result;
                 errorState[componentId] = result.error;
-                if (componentId === 'filterEnvelope') {
-                    // Безопасное логирование результата создания компонента
-                    if (components[componentId]) {
-                        const compResult = components[componentId];
-                        console.log(`[VoiceBuilder DEBUG] Result for '${componentId}': error='${compResult.error}', hasNodes=${!!compResult.nodes}, hasModOutputs=${!!compResult.modOutputs}, modOutputsKeys=${compResult.modOutputs ? Object.keys(compResult.modOutputs).join(',') : 'N/A'}`);
-                    } else {
-                        console.warn(`[VoiceBuilder DEBUG] Component '${componentId}' was null/undefined after create attempt.`);
-                    }
-                }
                 if (result.error) {
-                    console.error(`[VoiceBuilder v2] Error creating component ${componentId}: ${result.error}`);
+                    console.error(`[VoiceBuilder v3 Sampler] Error creating component ${componentId}: ${result.error}`);
                 } else {
-                    console.log(`[VoiceBuilder v2] Component ${componentId} created successfully.`);
+                    console.log(`[VoiceBuilder v3 Sampler] Component ${componentId} created successfully.`);
                 }
             } catch (e) {
-                console.error(`[VoiceBuilder v2] Critical error calling manager.create for ${componentId}:`, e);
+                console.error(`[VoiceBuilder v3 Sampler] Critical error calling manager.create for ${componentId}:`, e);
                 const errorMsg = `Critical error in manager.create for ${componentId}: ${e.message}`;
                 components[componentId] = { nodes: null, error: errorMsg };
                 errorState[componentId] = errorMsg;
             }
+        });
+
+        await Promise.all(creationPromises);
+
+        // Удаляем компоненты, которые могли быть пропущены (их значение будет undefined после map)
+        // или если components[componentId] не был установлен из-за раннего return
+        for (const componentId of componentIdsToCreate) {
+            if (!components[componentId]) {
+                 if ((useSampler && componentId === 'oscillator') || (!useSampler && componentId === 'sampler')) {
+                    // Это ожидаемо, просто убедимся, что они не вызывают проблем дальше
+                 } else if (!errorState[componentId]) { // Если нет ошибки, но компонент отсутствует, это странно
+                    console.warn(`[VoiceBuilder v3 Sampler] Component ${componentId} was expected but not created and no error was logged.`)
+                 }
+            }
         }
+
 
         // --- Шаг 2: Соединение аудио-цепочки ---
-        console.log("[VoiceBuilder v2] --- Connecting Audio Chain ---");
+        // Логика соединения остается почти такой же, но теперь она должна
+        // правильно обработать либо components.oscillator.audioOutput,
+        // либо components.sampler.audioOutput как начало цепи.
+        console.log("[VoiceBuilder v3 Sampler] --- Connecting Audio Chain ---");
         let previousOutputNode = null;
-        // Используем динамический chainOrder в зависимости от того, используется сэмплер или осциллятор
-        const currentChainOrder = useSampler
-            ? chainOrder.map(id => id === 'oscillator' ? 'sampler' : id).filter(id => id !== 'oscillator' || !chainOrder.includes('sampler') ) // заменяем осциллятор на сэмплер
-            : chainOrder.filter(id => id !== 'sampler'); // удаляем сэмплер, если он не используется
 
-        // Убедимся, что если sampler используется, он есть в currentChainOrder, а oscillator - нет.
-        // И наоборот.
+        // Определяем актуальный порядок цепочки на основе использования сэмплера
+        let effectiveChainOrder = [...chainOrder]; // Копируем оригинальный chainOrder
         if (useSampler) {
-            if (!currentChainOrder.includes('sampler') && chainOrder.includes('sampler')) { // если sampler был в оригинальном chainOrder
-                // Пытаемся вставить sampler на место oscillator, если oscillator был, или в начало
-                const oscIndex = chainOrder.indexOf('oscillator');
-                if (oscIndex !== -1) {
-                     const tempOrder = [...chainOrder];
-                     tempOrder.splice(oscIndex, 1, 'sampler'); // Заменяем
-                     currentChainOrder = tempOrder.filter(id => id !== 'oscillator' || id === 'sampler'); // Удаляем дубликаты oscillator
-                } else if (!currentChainOrder.includes('sampler')) { // Если sampler не был добавлен и oscillator тоже не был
-                     currentChainOrder.unshift('sampler'); // Добавляем в начало как источник
-                }
+            // Если используется сэмплер, заменяем 'oscillator' на 'sampler' или добавляем 'sampler'
+            const oscIndex = effectiveChainOrder.indexOf('oscillator');
+            if (oscIndex !== -1) {
+                effectiveChainOrder.splice(oscIndex, 1, 'sampler'); // Заменяем осциллятор сэмплером
+            } else if (!effectiveChainOrder.includes('sampler')) {
+                // Если осциллятора не было, и сэмплера тоже нет, добавляем сэмплер в начало
+                effectiveChainOrder.unshift('sampler');
             }
-             // Удаляем oscillator, если он все еще там
-            const oscIdx = currentChainOrder.indexOf('oscillator');
-            if (oscIdx !== -1) currentChainOrder.splice(oscIdx, 1);
-
+            // Удаляем дубликаты 'sampler', если они появились, и все 'oscillator'
+            effectiveChainOrder = effectiveChainOrder.filter(id => id !== 'oscillator');
+            effectiveChainOrder = [...new Set(effectiveChainOrder)]; // Убираем дубликаты sampler, если что
         } else {
-            const samplerIdx = currentChainOrder.indexOf('sampler');
-            if (samplerIdx !== -1) currentChainOrder.splice(samplerIdx, 1);
-            if (!currentChainOrder.includes('oscillator') && chainOrder.includes('oscillator')) {
-                 currentChainOrder.unshift('oscillator'); // Восстанавливаем осциллятор, если он был в chainOrder
+            // Если сэмплер не используется, удаляем 'sampler' и убеждаемся, что 'oscillator' на месте
+            effectiveChainOrder = effectiveChainOrder.filter(id => id !== 'sampler');
+            if (!effectiveChainOrder.includes('oscillator') && chainOrder.includes('oscillator')) {
+                // Если осциллятор был в оригинальном chainOrder, но исчез (маловероятно тут), добавляем его
+                 const firstSoundSourceIndex = chainOrder.findIndex(id => audioConfig.getManager(id)?.create({})?.audioOutput); // Примерный поиск первого источника
+                 if (firstSoundSourceIndex !== -1) {
+                    effectiveChainOrder.splice(firstSoundSourceIndex, 0, 'oscillator');
+                 } else {
+                    effectiveChainOrder.unshift('oscillator');
+                 }
             }
+             effectiveChainOrder = [...new Set(effectiveChainOrder)];
         }
-        // Очистка от дубликатов, если они появились
-        // currentChainOrder = [...new Set(currentChainOrder)];
 
+        console.log("[VoiceBuilder v3 Sampler] Effective audio chain order:", effectiveChainOrder);
 
-        console.log("[VoiceBuilder v2] Effective audio chain order:", currentChainOrder);
+        for (let i = 0; i < effectiveChainOrder.length; i++) {
+            const componentId = effectiveChainOrder[i];
+            // Пропускаем компоненты, которые не должны были быть созданы
+            if (useSampler && componentId === 'oscillator') continue;
+            if (!useSampler && componentId === 'sampler') continue;
 
-
-        for (let i = 0; i < currentChainOrder.length; i++) {
-            const componentId = currentChainOrder[i];
             const componentData = components[componentId];
-            // const manager = audioConfig.getManager(componentId); // manager не используется в этой секции
 
-            if (!componentData || componentData.error || !componentData.nodes) {
-                console.warn(`[VoiceBuilder v2] Skipping connection for broken/missing component: ${componentId}`);
-                if (componentId === (useSampler ? 'sampler' : 'oscillator') && i === 0) {
-                     console.error(`[VoiceBuilder v2] Critical: Main sound source (${componentId}) is broken or missing. Voice will likely be silent.`);
-                     // Можно установить флаг ошибки для всей цепочки
+            if (!componentData || !componentData.nodes) { // Error for this component already logged during creation.
+                console.warn(`[VoiceBuilder v3 Sampler] Skipping connection for component ${componentId} as it has no nodes or data (possibly due to creation error or being skipped).`);
+                if (componentData && componentData.error) {
+                     console.warn(`[VoiceBuilder v3 Sampler] Error for ${componentId} was: ${componentData.error}`);
+                }
+                 // If the primary sound source (sampler or oscillator) is missing at the start of the chain, it's critical.
+                if (i === 0 && (componentId === (useSampler ? 'sampler' : 'oscillator'))) {
+                    console.error(`[VoiceBuilder v3 Sampler] Critical: Main sound source (${componentId}) is missing or failed. Voice will likely be silent.`);
                 }
                 continue;
             }
 
-            if (previousOutputNode === null) { // Первый активный компонент в цепочке
+            // This check is important: if a component failed but still has some data structure, don't try to use its (potentially null) audio nodes.
+            if (componentData.error) {
+                console.warn(`[VoiceBuilder v3 Sampler] Skipping connection for component ${componentId} due to earlier error: ${componentData.error}`);
+                continue;
+            }
+
+
+            if (previousOutputNode === null) {
                 if (componentData.audioOutput) {
                     previousOutputNode = componentData.audioOutput;
-                    console.log(`[VoiceBuilder v2] Chain starts with output of: ${componentId}`);
+                    console.log(`[VoiceBuilder v3 Sampler] Chain starts with output of: ${componentId}`);
                 } else {
-                     // Если первый компонент (осциллятор/сэмплер) не имеет аудио выхода, это проблема.
-                    console.warn(`[VoiceBuilder v2] First component ${componentId} in chain has no audio output. Chain might be broken.`);
+                    console.warn(`[VoiceBuilder v3 Sampler] First component ${componentId} in chain has no audio output. Chain might be broken.`);
                     if (componentId === (useSampler ? 'sampler' : 'oscillator')) {
                          errorState[componentId] = (errorState[componentId] || "") + " Component is first in chain but has no audioOutput.";
                     }
@@ -222,123 +230,149 @@ const voiceBuilder = {
                 continue;
             }
 
-            // Последующие компоненты в цепочке
             if (componentData.audioInput) {
-                console.log(`[VoiceBuilder v2] Connecting output of previous node to input of: ${componentId}`);
+                console.log(`[VoiceBuilder v3 Sampler] Connecting output of previous node to input of: ${componentId}`);
                 try {
                     previousOutputNode.connect(componentData.audioInput);
-                    console.log(`[VoiceBuilder v2] Connected: Previous -> ${componentId}.Input`);
+                    console.log(`[VoiceBuilder v3 Sampler] Connected: Previous -> ${componentId}.Input`);
                 } catch (e) {
-                    console.error(`[VoiceBuilder v2] Error connecting Previous -> ${componentId}.Input:`, e);
+                    console.error(`[VoiceBuilder v3 Sampler] Error connecting Previous -> ${componentId}.Input:`, e);
                     errorState[componentId] = (errorState[componentId] || "") + ` Connection error: ${e.message}`;
-                    continue; // Пропускаем обновление previousOutputNode, если соединение не удалось
+                    continue;
                 }
             } else {
-                 console.log(`[VoiceBuilder v2] Component ${componentId} has no audio input. Skipping input connection.`);
+                 console.log(`[VoiceBuilder v3 Sampler] Component ${componentId} has no audio input. Skipping input connection.`);
             }
 
-            // Обновляем previousOutputNode, если текущий компонент имеет аудио выход
-            // Это важно, чтобы следующий компонент подключался к выходу текущего,
-            // а не к выходу предыдущего, если у текущего нет собственного audioInput, но есть audioOutput (например, FX Send)
             if (componentData.audioOutput) {
                 previousOutputNode = componentData.audioOutput;
-                console.log(`[VoiceBuilder v2] Output for next connection is now from: ${componentId}`);
+                console.log(`[VoiceBuilder v3 Sampler] Output for next connection is now from: ${componentId}`);
             } else {
-                 console.log(`[VoiceBuilder v2] Component ${componentId} has no audio output. Previous output node remains unchanged.`);
+                 console.log(`[VoiceBuilder v3 Sampler] Component ${componentId} has no audio output. Previous output node remains unchanged.`);
             }
         }
 
         // --- Шаг 3: Соединение модуляторов ---
-        console.log("[VoiceBuilder v2] --- Connecting Modulators ---");
-
-        // Убедимся, что audioConfig.modulatorComponents существует и является массивом
+        console.log("[VoiceBuilder v3 Sampler] --- Connecting Modulators ---");
         const modulatorComponentIds = Array.isArray(audioConfig.modulatorComponents) ? audioConfig.modulatorComponents : [];
         if (modulatorComponentIds.length === 0) {
-            console.warn("[VoiceBuilder v2] audioConfig.modulatorComponents is empty or not an array. No modulators to connect.");
+            console.warn("[VoiceBuilder v3 Sampler] audioConfig.modulatorComponents is empty or not an array. No modulators to connect.");
         }
 
         for (const modId of modulatorComponentIds) {
             const modComp = components[modId];
 
             if (!presetData[modId]?.enabled) {
-                console.log(`[VB ConnectMod] ${modId} is not enabled in preset. Skipping connection.`);
+                console.log(`[VB3 ConnectMod] ${modId} is not enabled in preset. Skipping connection.`);
                 continue;
             }
             if (!modComp) {
-                console.warn(`[VB ConnectMod] ${modId} component data not found in 'components' object. Skipping connection.`);
+                console.warn(`[VB3 ConnectMod] ${modId} component data not found in 'components' object. Skipping connection.`);
                 continue;
             }
             if (modComp.error) {
-                console.warn(`[VB ConnectMod] ${modId} has an error: '${modComp.error}'. Skipping connection.`);
+                console.warn(`[VB3 ConnectMod] ${modId} has an error: '${modComp.error}'. Skipping connection.`);
+                continue;
+            }
+             if (!modComp.nodes) { // Added check
+                console.warn(`[VB3 ConnectMod] ${modId} component has no nodes. Skipping connection.`);
                 continue;
             }
 
             let modulatorOutputNode = null;
-            let expectedModOutputName = 'output'; // Стандартное имя
+            let expectedModOutputName = 'output';
 
             if (modId === 'pitchEnvelope') {
                 expectedModOutputName = 'pitch';
-                if (modComp.modOutputs?.pitch) {
-                    modulatorOutputNode = modComp.modOutputs.pitch;
-                }
-            } else if (modId === 'filterEnvelope') { // Пример, если filterEnvelope использует 'output'
-                expectedModOutputName = 'output'; // или другое специфичное имя, если есть
-                if (modComp.modOutputs?.output) { // Предполагаем 'output'
+                modulatorOutputNode = modComp.modOutputs?.pitch;
+            } else if (modId === 'filterEnvelope') {
+                expectedModOutputName = 'output';
+                if (modComp.modOutputs?.output) {
                     modulatorOutputNode = modComp.modOutputs.output;
-                } else if (modComp.modOutputs?.amount) { // Альтернативное имя, если используется
+                } else if (modComp.modOutputs?.amount) {
                      expectedModOutputName = 'amount';
                      modulatorOutputNode = modComp.modOutputs.amount;
                 }
-            } else if (modId.startsWith('lfo')) { // Для lfo1, lfo2 и т.д.
-                expectedModOutputName = 'output'; // Обычно LFO выдают 'output'
-                if (modComp.modOutputs?.output) {
-                    modulatorOutputNode = modComp.modOutputs.output;
-                }
+            } else if (modId.startsWith('lfo')) {
+                expectedModOutputName = 'output';
+                modulatorOutputNode = modComp.modOutputs?.output;
             }
-            // Добавьте другие else if для других модуляторов со специфичными именами выходов
 
             if (!modulatorOutputNode) {
-                 console.warn(`[VB ConnectMod] ${modId}: Modulator output node '${expectedModOutputName}' not found in modComp.modOutputs. Available: ${modComp.modOutputs ? Object.keys(modComp.modOutputs).join(', ') : 'none'}. Skipping.`);
+                 console.warn(`[VB3 ConnectMod] ${modId}: Modulator output node '${expectedModOutputName}' not found in modComp.modOutputs. Available: ${modComp.modOutputs ? Object.keys(modComp.modOutputs).join(', ') : 'none'}. Skipping.`);
                  errorState[modId] = (errorState[modId] || "") + ` Modulator output '${expectedModOutputName}' not found;`;
                  continue;
             }
 
-            // Определяем целевой компонент и параметр для подключения
             let targetInfo = null;
             let targetComponentId = null;
             let targetParamName = null;
 
             if (modId === 'pitchEnvelope') {
-                targetComponentId = 'oscillator';
-                targetParamName = 'detune'; // Или 'frequency', в зависимости от предпочтений
+                // Pitch envelope should target the active sound source (sampler or oscillator)
+                targetComponentId = useSampler ? 'sampler' : 'oscillator';
+                // Sampler does not have 'detune'. For simplicity, we might need a different approach or parameter.
+                // For now, let's assume if it's a sampler, pitch envelope might not be directly applicable in the same way,
+                // or it would require a different parameter on the sampler if supported (e.g., a global pitch shift).
+                // This part might need refinement based on Sampler's capabilities for pitch modulation.
+                // If Sampler doesn't have a direct equivalent, we might log a warning or skip.
+                if (useSampler) {
+                    console.warn(`[VB3 ConnectMod] Pitch envelope connection to Sampler's 'detune' is not standard. This might not work as expected or needs a specific sampler parameter.`);
+                    // Potentially skip or look for a 'pitch' or similar parameter on the sampler if available.
+                    // For now, we'll attempt 'detune' for consistency, but it likely won't work for Sampler.
+                    targetParamName = 'detune'; // This will likely fail for sampler, or needs a specific sampler implementation detail.
+                                                // A better approach would be to check if components[targetComponentId].modInputs has 'detune'
+                } else {
+                    targetParamName = 'detune';
+                }
+
             } else if (modId === 'filterEnvelope') {
                 targetComponentId = 'filter';
-                targetParamName = 'frequency'; // Обычно модулирует частоту среза фильтра
-            } else if (modId.startsWith('lfo')) { // lfo1, lfo2 etc.
+                targetParamName = 'frequency';
+            } else if (modId.startsWith('lfo')) {
                 const lfoSettings = presetData[modId]?.params;
                 if (lfoSettings?.target) {
                     const parts = lfoSettings.target.split('.');
                     if (parts.length === 2) {
                         targetComponentId = parts[0];
+                        // If LFO target is 'oscillator' but we are using 'sampler', retarget.
+                        if (targetComponentId === 'oscillator' && useSampler) {
+                            console.log(`[VB3 ConnectMod] LFO target was 'oscillator', retargeting to 'sampler' as it is active.`);
+                            targetComponentId = 'sampler';
+                        }
                         targetParamName = parts[1];
                     } else {
-                        console.warn(`[VB ConnectMod] ${modId}: Invalid target format '${lfoSettings.target}'. Expected 'componentId.paramName'.`);
+                        console.warn(`[VB3 ConnectMod] ${modId}: Invalid target format '${lfoSettings.target}'. Expected 'componentId.paramName'.`);
                         errorState[modId] = (errorState[modId] || "") + ` Invalid LFO target format: ${lfoSettings.target};`;
                         continue;
                     }
                 } else {
-                    console.warn(`[VB ConnectMod] ${modId}: LFO target not specified in preset. Skipping.`);
+                    console.warn(`[VB3 ConnectMod] ${modId}: LFO target not specified in preset. Skipping.`);
                     errorState[modId] = (errorState[modId] || "") + ` LFO target not specified;`;
                     continue;
                 }
             }
-            // Добавьте другие else if для других типов модуляторов
 
             if (!targetComponentId || !targetParamName) {
-                 console.warn(`[VB ConnectMod] ${modId}: Target component or parameter name could not be determined. Skipping.`);
+                 console.warn(`[VB3 ConnectMod] ${modId}: Target component or parameter name could not be determined. Skipping.`);
                  errorState[modId] = (errorState[modId] || "") + ` Target component/param undetermined;`;
                  continue;
             }
+
+            // If the determined targetComponentId is 'oscillator' but we're using a sampler,
+            // and it wasn't already retargeted (like in LFO), then this modulation cannot apply.
+            if (targetComponentId === 'oscillator' && useSampler && modId !== 'pitchEnvelope' /* pitchEnvelope handled above */) {
+                console.warn(`[VB3 ConnectMod] ${modId} targets 'oscillator', but 'sampler' is active. Modulation skipped for this target.`);
+                errorState[modId] = (errorState[modId] || "") + ` Target 'oscillator' inactive (sampler used);`;
+                continue;
+            }
+            // Conversely, if target is 'sampler' but sampler is not in use.
+            if (targetComponentId === 'sampler' && !useSampler) {
+                 console.warn(`[VB3 ConnectMod] ${modId} targets 'sampler', but 'oscillator' is active. Modulation skipped for this target.`);
+                 errorState[modId] = (errorState[modId] || "") + ` Target 'sampler' inactive (oscillator used);`;
+                 continue;
+            }
+
 
             const targetComponentData = components[targetComponentId];
             const targetManager = audioConfig.getManager(targetComponentId);
@@ -347,30 +381,28 @@ const voiceBuilder = {
                 comp: targetComponentData,
                 param: targetParamName,
                 manager: targetManager,
-                id: targetComponentId // Для логирования
+                id: targetComponentId
             };
 
-
-            if ( targetInfo && targetInfo.comp && !targetInfo.comp.error &&
+            if ( targetInfo && targetInfo.comp && !targetInfo.comp.error && targetInfo.comp.nodes && // Added targetInfo.comp.nodes check
                  targetInfo.manager?.connectModulator &&
-                 modulatorOutputNode && // Уже проверено выше, но для полноты
+                 modulatorOutputNode &&
                  targetInfo.comp.modInputs?.[targetInfo.param] )
             {
-                console.log(`[VoiceBuilder v2] Attempting to connect ${modId} (${expectedModOutputName}) -> ${targetInfo.id}.${targetInfo.param}`);
+                console.log(`[VoiceBuilder v3 Sampler] Attempting to connect ${modId} (${expectedModOutputName}) -> ${targetInfo.id}.${targetInfo.param}`);
                 if (!targetInfo.manager.connectModulator(targetInfo.comp.nodes, targetInfo.param, modulatorOutputNode)) {
                     const errorMsg = `Failed to connect ${modId} to ${targetInfo.id}.${targetInfo.param}.`;
-                    console.error(`[VoiceBuilder v2] ${errorMsg}`);
+                    console.error(`[VoiceBuilder v3 Sampler] ${errorMsg}`);
                     errorState[modId] = (errorState[modId] || "") + ` ${errorMsg};`;
                 } else {
-                    console.log(`[VoiceBuilder v2] Successfully connected ${modId} to ${targetInfo.id}.${targetInfo.param}.`);
+                    console.log(`[VoiceBuilder v3 Sampler] Successfully connected ${modId} to ${targetInfo.id}.${targetInfo.param}.`);
                 }
             } else {
-                console.warn(`[VB ConnectMod] ${modId} -> ${targetInfo.id}.${targetInfo.param}: Target not found or not connectable. Details:`, {
+                console.warn(`[VB3 ConnectMod] ${modId} -> ${targetInfo.id}.${targetInfo.param}: Target not found or not connectable. Details:`, {
                     modulatorId: modId,
                     targetComponentId: targetInfo.id,
                     targetParam: targetInfo.param,
-                    targetCompExists: !!targetInfo.comp,
-                    targetCompError: targetInfo.comp?.error,
+                    targetCompExistsAndValid: !!(targetInfo.comp && targetInfo.comp.nodes && !targetInfo.comp.error),
                     targetManagerHasConnectModulator: typeof targetInfo.manager?.connectModulator === 'function',
                     modulatorOutputNodeExists: !!modulatorOutputNode,
                     targetCompModInputsExistsAndHasParam: !!targetInfo.comp?.modInputs?.[targetInfo.param],
@@ -381,13 +413,14 @@ const voiceBuilder = {
         }
 
         // --- Финальная проверка ---
-        if (!components.outputGain || components.outputGain.error) {
-            console.error("[VoiceBuilder v2] Critical error: OutputGain component is missing or failed to create. Voice unusable.");
-            this.disposeComponents(components);
+        if (!components.outputGain || components.outputGain.error || !components.outputGain.nodes) {
+            console.error("[VoiceBuilder v3 Sampler] Critical error: OutputGain component is missing, failed to create, or has no nodes. Voice unusable.");
+            // Ensure components created so far are disposed if outputGain fails critically
+            await this.disposeComponents(components); // Make sure disposeComponents is async or handles async if managers do
             return null;
         }
 
-        console.log("[VoiceBuilder v2] Voice chain build process completed.");
+        console.log("[VoiceBuilder v3 Sampler] Voice chain build process completed.");
         return { components, errorState };
     },
 
@@ -405,70 +438,87 @@ const voiceBuilder = {
      *                                   or the property is not found.
      */
     findParamByPath(components, pathString) {
-        // ... (без изменений) ...
         if (!components || !pathString) return null;
         const parts = pathString.split('.');
         let target = null;
         let currentComponentId = null;
         try {
             currentComponentId = parts[0];
+            // Handle potential retargeting if oscillator was replaced by sampler
+            const activeSourceId = components.sampler?.nodes ? 'sampler' : (components.oscillator?.nodes ? 'oscillator' : null);
+            if (currentComponentId === 'oscillator' && activeSourceId === 'sampler') {
+                // console.log(`[VB3 findParamByPath] Retargeting path from 'oscillator' to 'sampler'.`);
+                currentComponentId = 'sampler';
+            }
+
+
             const componentData = components[currentComponentId];
-            if (!componentData || !componentData.nodes) return null;
+            if (!componentData || !componentData.nodes) {
+                 // console.warn(`[VB3 findParamByPath] Component ${currentComponentId} or its nodes not found for path '${pathString}'.`);
+                 return null;
+            }
             target = componentData.nodes;
             for (let i = 1; i < parts.length; i++) {
                 const part = parts[i];
-                if (target && target.hasOwnProperty(part)) {
+                if (target && typeof target === 'object' && target !== null && target.hasOwnProperty(part)) {
                     target = target[part];
                 } else {
+                    // console.warn(`[VB3 findParamByPath] Path part '${part}' not found in component ${currentComponentId} for path '${pathString}'.`);
                     target = null;
                     break;
                 }
             }
             if (parts.length === 1 && target === componentData.nodes) {
-                 console.warn(`[VoiceBuilder v2.findParamByPath] Path '${pathString}' points to the component nodes object, not a specific parameter.`);
-                 return null;
+                 console.warn(`[VoiceBuilder v3 Sampler.findParamByPath] Path '${pathString}' points to the component nodes object, not a specific parameter.`);
+                 return null; // Or return target if accessing the whole nodes object is intended by a single part path
             }
             return target;
         } catch (e) {
-            console.error(`[VoiceBuilder v2.findParamByPath] Error accessing path '${pathString}':`, e);
+            console.error(`[VoiceBuilder v3 Sampler.findParamByPath] Error accessing path '${pathString}':`, e);
             return null;
         }
     },
 
-    /**
-     * Disposes of all Tone.js nodes within the provided components object.
-     * This is crucial for freeing up audio resources when a voice is no longer needed.
-     * It iterates through each component, retrieves its manager from `audioConfig`,
-     * and calls the manager's `dispose` method if available. If a manager or its `dispose` method
-     * is not found, it attempts to call `dispose()` on individual nodes within `componentData.nodes` directly.
-     *
-     * @param {object} components - The `components` object returned by `buildVoiceChain`,
-     *                              containing the audio nodes to be disposed.
-     */
-    disposeComponents(components) {
-        // ... (без изменений) ...
+    async disposeComponents(components) { // Made async if manager.dispose can be async
         if (!components) return;
-        console.log("[VoiceBuilder v2] Disposing voice components...");
+        console.log("[VoiceBuilder v3 Sampler] Disposing voice components...");
+        const disposePromises = [];
+
         for (const componentId in components) {
             const componentData = components[componentId];
+            // Ensure componentData and componentData.nodes exist before trying to dispose
+            if (!componentData || !componentData.nodes) {
+                // console.log(`[VB3 Dispose] Skipping disposal for ${componentId}, no data or nodes.`);
+                continue;
+            }
+
             const manager = audioConfig.getManager(componentId);
-            if (manager && typeof manager.dispose === 'function' && componentData && componentData.nodes) {
+            if (manager && typeof manager.dispose === 'function') {
                 try {
-                    console.log(`[VoiceBuilder v2] Disposing component: ${componentId}`);
-                    manager.dispose(componentData.nodes);
+                    console.log(`[VoiceBuilder v3 Sampler] Disposing component: ${componentId} using manager.`);
+                    const disposeResult = manager.dispose(componentData.nodes);
+                    if (disposeResult instanceof Promise) {
+                        disposePromises.push(disposeResult.catch(e => console.error(`[VoiceBuilder v3 Sampler] Async error disposing component ${componentId} via manager:`, e)));
+                    }
                 } catch (e) {
-                    console.error(`[VoiceBuilder v2] Error disposing component ${componentId}:`, e);
+                    console.error(`[VoiceBuilder v3 Sampler] Sync error disposing component ${componentId} via manager:`, e);
                 }
-            } else if (componentData && componentData.nodes) {
-                 console.warn(`[VoiceBuilder v2] Cannot dispose component ${componentId}: Manager or dispose method not found.`);
+            } else if (componentData.nodes) { // Fallback to direct disposal if no manager.dispose
+                 console.warn(`[VoiceBuilder v3 Sampler] Manager or dispose method not found for ${componentId}. Attempting direct node disposal.`);
                  for (const nodeKey in componentData.nodes) {
                       const node = componentData.nodes[nodeKey];
                       if (node && typeof node.dispose === 'function') {
-                           try { node.dispose(); } catch(e) {}
+                           try {
+                                node.dispose();
+                                // console.log(`[VB3 Dispose] Directly disposed node ${nodeKey} in ${componentId}`);
+                           } catch(e) {
+                                console.error(`[VB3 Dispose] Error directly disposing node ${nodeKey} in ${componentId}:`, e);
+                           }
                       }
                  }
             }
         }
-        console.log("[VoiceBuilder v2] Voice components disposal complete.");
+        await Promise.all(disposePromises);
+        console.log("[VoiceBuilder v3 Sampler] Voice components disposal process completed.");
     }
 };

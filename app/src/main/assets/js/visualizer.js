@@ -80,58 +80,89 @@ const visualizer = {
      * @async
      */
     async init(canvasElement, analyserInstance = null) {
-        if (this.debugMode) console.log('[Visualizer v4.1 Modular with PadHints] Initializing...');
+        if (this.debugMode) console.log('[Visualizer LOG init] Initializing visualizer...');
         if (!canvasElement) {
-            if (this.debugMode) console.error('[Visualizer v4.1] Canvas element not provided!');
+            if (this.debugMode) console.error('[Visualizer LOG init] Canvas element not provided!');
             this.isReady = false;
             return;
         }
         this.canvas = canvasElement;
-        this.activeTouchPointsMap = new Map(); // Инициализируем здесь, если не было
+        this.activeTouchPointsMap = new Map();
         try {
             this.ctx = this.canvas.getContext('2d');
             if (!this.ctx) throw new Error("Failed to get 2D context.");
         } catch (error) {
-            if (this.debugMode) console.error('[Visualizer v4.1] Failed to get canvas context:', error);
+            if (this.debugMode) console.error('[Visualizer LOG init] Failed to get canvas context:', error);
             this.isReady = false;
             return;
         }
 
-        this.isReady = false; // Устанавливаем в false, пока не получим analyser
+        this.isReady = false;
         this.analyser = analyserInstance;
+        if (this.debugMode && this.analyser) console.log('[Visualizer LOG init] Analyser instance provided directly:', this.analyser);
 
         if (!this.analyser) {
-            if (this.debugMode) console.warn('[Visualizer v4.1 init] Analyser instance not provided directly.');
-            if (typeof synth !== 'undefined' && typeof synth.getAnalyser === 'function' && synth.isReady) {
-                this.analyser = synth.getAnalyser();
+            if (this.debugMode) console.warn('[Visualizer LOG init] Analyser instance not provided directly. Polling for synth readiness...');
+            let attempts = 0;
+            const maxAttempts = 10; // Poll for up to 2 seconds (10 * 200ms)
+            while (attempts < maxAttempts && !this.analyser) {
+                if (typeof synth !== 'undefined' && typeof synth.getAnalyser === 'function') {
+                    if (this.debugMode) console.log(`[Visualizer LOG init] Poll attempt ${attempts + 1}: Synth found. synth.isReady = ${synth.isReady}`);
+                    if (synth.isReady) {
+                        this.analyser = synth.getAnalyser();
+                        if (this.debugMode && this.analyser) console.log('[Visualizer LOG init] Analyser obtained from synth on attempt ' + (attempts + 1) + ':', this.analyser);
+                    } else {
+                        if (this.debugMode) console.warn(`[Visualizer LOG init] Poll attempt ${attempts + 1}: Synth is not ready yet.`);
+                    }
+                } else {
+                     if (this.debugMode) console.warn(`[Visualizer LOG init] Poll attempt ${attempts + 1}: Synth or synth.getAnalyser is not available.`);
+                }
+
+                if (!this.analyser) {
+                    attempts++;
+                    if (attempts < maxAttempts) {
+                        if (this.debugMode) console.log(`[Visualizer LOG init] Waiting 200ms before next poll attempt...`);
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                    }
+                }
             }
         }
 
         if (this.analyser) {
-            if (this.debugMode) console.log('[Visualizer v4.1 init] Analyser obtained/provided.');
+            if (this.debugMode) console.log('[Visualizer LOG init] Analyser is available.');
             this.isReady = true;
         } else {
-            if (this.debugMode) console.error('[Visualizer v4.1 init] Analyser node still not available!');
+            if (this.debugMode) console.error('[Visualizer LOG init] Analyser node still not available after polling attempts!');
         }
+        console.log(`[Visualizer LOG init] visualizer.isReady set to: ${this.isReady}`);
 
-        this._padHintsToDraw = []; // Инициализируем пустым массивом
+        this._padHintsToDraw = [];
+
+        // Only proceed with parts that depend on canvas/ctx if they are valid
+        if (this.ctx && this.canvas) {
+            if (this.isReady) { // Only if analyser is also ready for things that might depend on it
+                if (typeof padHintsRenderer !== 'undefined' && typeof padHintsRenderer.init === 'function') {
+                    this.padHintsRendererInstance = Object.create(padHintsRenderer);
+                    this.padHintsRendererInstance.init(this.ctx, this.canvas, this.themeColors, this);
+                    if (this.debugMode) console.log('[Visualizer LOG init] PadHintsRenderer initialized.');
+                } else {
+                    if (this.debugMode) console.warn('[Visualizer LOG init] padHintsRenderer.js not found or invalid.');
+                }
+            } // end if this.isReady (for analyser dependent parts)
+
+            this.resizeCanvas();
+            this.resizeCanvasBound = this.resizeCanvas.bind(this);
+            window.addEventListener('resize', this.resizeCanvasBound);
+            if (this.debugMode) console.log('[Visualizer LOG init] Canvas setup and resize listener added.');
+        } else {
+             if (this.debugMode) console.error('[Visualizer LOG init] Canvas or context is null, skipping further UI setup in init.');
+        }
 
         if (this.isReady) {
-            if (typeof padHintsRenderer !== 'undefined' && typeof padHintsRenderer.init === 'function') {
-                this.padHintsRendererInstance = Object.create(padHintsRenderer);
-                this.padHintsRendererInstance.init(this.ctx, this.canvas, this.themeColors, this);
-                if (this.debugMode) console.log('[Visualizer v4.1] PadHintsRenderer initialized.');
-            } else {
-                if (this.debugMode) console.warn('[Visualizer v4.1] padHintsRenderer.js not found or invalid.');
-            }
-            this.resizeCanvas();
-            this.resizeCanvasBound = this.resizeCanvas.bind(this); // Store bound function
-            window.addEventListener('resize', this.resizeCanvasBound);
-            if (this.debugMode) console.log('[Visualizer v4.1] Initialized successfully (isReady=true).');
+            if (this.debugMode) console.log('[Visualizer LOG init] Initialized successfully (isReady=true).');
         } else {
-            if (this.debugMode) console.error('[Visualizer v4.1] Failed to initialize fully due to missing analyser (isReady=false).');
+            if (this.debugMode) console.error('[Visualizer LOG init] Failed to initialize fully (isReady=false), likely due to missing analyser.');
         }
-
         // FPS Manager
         this.fpsManager = Object.create(fpsManager);
         this.fpsManager.init(this.draw.bind(this));
