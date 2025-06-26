@@ -83,8 +83,52 @@ const synth = {
                 constructor: Tone.Filter,
                 params: ['frequency', 'Q', 'type', 'gain', 'rolloff', 'wet'],
                 defaults: { frequency: 1000, Q: 1, type: 'lowpass', gain: 0, rolloff: -12, wet: 1 }
+            },
+            pingPongDelay: {
+                constructor: Tone.PingPongDelay,
+                params: ['delayTime', 'feedback', 'wet'], // Основные параметры для управления
+                defaults: { delayTime: "8n", feedback: 0.2, wet: 0, maxDelay: 2 } // "8n" - восьмая нота, синхронизируется с темпом
+            },
+            phaser: {
+                constructor: Tone.Phaser,
+                params: ['frequency', 'octaves', 'baseFrequency', 'Q', 'wet'],
+                defaults: { frequency: 0.5, octaves: 3, baseFrequency: 350, Q: 10, wet: 0 }
+            },
+            flanger: {
+                constructor: Tone.Flanger,
+                params: ['delayTime', 'depth', 'feedback', 'frequency', 'wet'],
+                defaults: { delayTime: 0.005, depth: 0.5, feedback: 0.1, frequency: 0.5, wet: 0 }
+            },
+            vibrato: {
+                constructor: Tone.Vibrato,
+                params: ['frequency', 'depth', 'wet'],
+                defaults: { frequency: 5, depth: 0.1, wet: 0 }
+            },
+            tremolo: {
+                constructor: Tone.Tremolo,
+                params: ['frequency', 'depth', 'wet', 'type'], // Добавим type
+                defaults: { frequency: 10, depth: 0.5, wet: 0, type: 'sine' }
+            },
+            autoWah: {
+                constructor: Tone.AutoWah,
+                params: ['baseFrequency', 'octaves', 'sensitivity', 'Q', 'wet'],
+                defaults: { baseFrequency: 100, octaves: 6, sensitivity: -10, Q: 2, wet: 0 }
+            },
+            eq3: {
+                constructor: Tone.EQ3,
+                params: ['low', 'mid', 'high', 'lowFrequency', 'highFrequency'], // wet не нужен, эквалайзер всегда в цепи
+                defaults: { low: 0, mid: 0, high: 0, lowFrequency: 400, highFrequency: 2500 }
+            },
+            compressor: {
+                constructor: Tone.Compressor,
+                params: ['threshold', 'ratio', 'attack', 'release', 'knee'], // wet не нужен, компрессор всегда в цепи
+                defaults: { threshold: -24, ratio: 12, attack: 0.003, release: 0.25, knee: 30 }
+            },
+            pitchShift: {
+                constructor: Tone.PitchShift,
+                params: ['pitch', 'windowSize', 'wet'],
+                defaults: { pitch: 0, windowSize: 0.1, wet: 0 }
             }
-            // Можно добавить Phaser, Flanger и т.д. позже
         },
         debug: true
     },

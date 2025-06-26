@@ -31,6 +31,9 @@ const pad = {
     cachedRect: null,
     lastInteractionTime: 0,
     _lastDrawnTonic: null, // Для оптимизации drawZones
+    _lastLabelVisibility: true, // НОВОЕ
+    _lastLinesVisibility: true, // НОВОЕ
+    _lastHighlightSharpsFlats: false, // НОВОЕ - для отслеживания состояния подсветки диезов/бемолей
 
     // >>> OPTIMIZATION: Свойства для троттлинга pointermove <<<
     _isMoveProcessingQueued: false,
@@ -230,14 +233,19 @@ const pad = {
         // >>> ОПТИМИЗАЦИЯ: Проверка на реальные изменения <<<
         // Сравнение может быть сложным, если объекты содержат функции или сложные структуры.
         // Простая проверка по длине и MIDI первой ноты может отсечь большинство ненужных перерисовок.
+        // >>> ОПТИМИЗАЦИЯ v2: Проверка на реальные изменения данных И конфигурации <<<
         if (this._currentDisplayedZones && zonesData &&
             this._currentDisplayedZones.length === zonesData.length &&
             this._currentDisplayedZones[0]?.midiNote === zonesData[0]?.midiNote &&
-            this._lastDrawnTonic === currentTonicNoteName) {
-             // console.log("[Pad.drawZones] Zone data appears unchanged. Skipping DOM redraw.");
+            this._lastDrawnTonic === currentTonicNoteName &&
+            this._lastLabelVisibility === this.config.labelVisibility &&
+            this._lastLinesVisibility === this.config.linesVisibility &&
+            this._lastHighlightSharpsFlats === app.state.highlightSharpsFlats) // <-- ДОБАВЛЕНО
+        {
+             console.log("[Pad.drawZones] Zone data and config unchanged. Skipping DOM redraw.");
              return;
         }
-        this._lastDrawnTonic = currentTonicNoteName; // Сохраняем для следующей проверки
+        // this._lastDrawnTonic = currentTonicNoteName; // Сохраняем для следующей проверки -- ПЕРЕМЕЩЕНО В КОНЕЦ ФУНКЦИИ
         // --- КОНЕЦ ОПТИМИЗАЦИИ ---
 
         console.log(`[Pad.drawZones v10] Drawing ${zonesData.length} zones. Current tonic: ${currentTonicNoteName}`);
@@ -321,6 +329,12 @@ const pad = {
             this.zonesContainer.appendChild(lastLine);
         }
         // this.applyVisualHints(this._currentVisualHints); // Раскомментируйте, если нужно
+
+        // >>> Сохраняем последнее состояние отрисовки для следующей оптимизации <<<
+        this._lastDrawnTonic = currentTonicNoteName;
+        this._lastLabelVisibility = this.config.labelVisibility;
+        this._lastLinesVisibility = this.config.linesVisibility;
+        this._lastHighlightSharpsFlats = app.state.highlightSharpsFlats; // <-- ДОБАВЛЕНО
     },
 
     /**

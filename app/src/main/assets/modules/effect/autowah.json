@@ -1,0 +1,17 @@
+{
+  "id": "autoWah",
+  "type": "effect",
+  "name": "Auto Wah",
+  "version": "1.0.0",
+  "description": "A wah-wah effect that is automatically controlled by an envelope follower.",
+  "active": true,
+  "data": {
+    "parameters": [
+      { "name": "wet", "label": "Mix", "min": 0, "max": 1, "default": 0, "step": 0.01 },
+      { "name": "baseFrequency", "label": "Base Freq (Hz)", "min": 50, "max": 1000, "default": 100, "step": 1 },
+      { "name": "octaves", "label": "Octaves", "min": 1, "max": 8, "default": 6, "step": 0.1 },
+      { "name": "sensitivity", "label": "Sensitivity (dB)", "min": -40, "max": 0, "default": -10, "step": 1 },
+      { "name": "Q", "label": "Resonance", "min": 0.1, "max": 20, "default": 2, "step": 0.1 }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "flanger",
+  "type": "effect",
+  "name": "Flanger",
+  "version": "1.0.0",
+  "description": "Creates a whooshing, jet-plane-like sound effect.",
+  "active": true,
+  "data": {
+    "parameters": [
+      { "name": "wet", "label": "Mix", "min": 0, "max": 1, "default": 0, "step": 0.01 },
+      { "name": "delayTime", "label": "Delay Time (ms)", "min": 0.001, "max": 0.02, "default": 0.005, "step": 0.0001 },
+      { "name": "depth", "label": "Depth", "min": 0, "max": 1, "default": 0.5, "step": 0.01 },
+      { "name": "feedback", "label": "Feedback", "min": 0, "max": 0.95, "default": 0.1, "step": 0.01 },
+      { "name": "frequency", "label": "LFO Rate (Hz)", "min": 0.1, "max": 20, "default": 0.5, "step": 0.01, "logScale": true }
+    ]
+  }
+}
