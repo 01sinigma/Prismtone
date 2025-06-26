@@ -461,7 +461,8 @@ const pad = {
             }
 
             if (noteAction.type === 'note_on' && noteAction.note) {
-                // ВАЖНО: Вызываем неблокирующий метод synth.js
+                // >>> ИЗМЕНЕНИЕ: ВЫЗЫВАЕМ НЕБЛОКИРУЮЩИЙ МЕТОД ОЧЕРЕДИ <<<
+                // This call is already correct as per the new synth.js structure
                 synth.startNote(noteAction.note.frequency, 0.7, touchInfo.y, event.pointerId);
 
                 let zoneIndex = -1;
@@ -558,8 +559,11 @@ const pad = {
                 if (internalTouchData) internalTouchData.previousZoneIndex = newZoneIndex;
             }
 
+            // >>> ИЗМЕНЕНИЕ: ВЫЗЫВАЕМ НЕБЛОКИРУЮЩИЕ МЕТОДЫ ОЧЕРЕДИ <<<
             if (noteAction.type === 'note_change') {
-                synth.updateNote(noteAction.newNote.frequency, 0.7, touchInfo.y, pointerId);
+                // ВАЖНО: для re-trigger при скольжении
+                synth.triggerRelease(pointerId);
+                synth.startNote(noteAction.newNote.frequency, 0.7, touchInfo.y, pointerId);
             } else if (noteAction.type === 'note_update') {
                 synth.updateNote(noteAction.note.frequency, 0.7, touchInfo.y, pointerId);
             } else if (noteAction.type === 'note_off') {
@@ -593,6 +597,7 @@ const pad = {
         // Важно: Удаляем отложенное событие move для этого пальца, если оно есть.
         this._pendingMoveEvents.delete(pointerId);
 
+        // >>> ИЗМЕНЕНИЕ: ВЫЗЫВАЕМ НЕБЛОКИРУЮЩИЙ МЕТОД ОЧЕРЕДИ <<<
         // Отправляем команду на затухание в очередь synth.js.
         synth.triggerRelease(pointerId);
 
