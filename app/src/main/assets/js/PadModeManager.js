@@ -133,5 +133,24 @@ const PadModeManager = {
     },
     getAvailableModeIds() {
         return Object.keys(this.strategies);
+    },
+    /**
+     * Совместимость: activateMode(modeName, initialPadLayout, services)
+     * Делегирует на setActiveMode, игнорируя дополнительные параметры для совместимости с простыми стратегиями.
+     */
+    async activateMode(modeName, initialPadLayout, services) {
+        // Для совместимости: просто вызываем setActiveMode
+        return await this.setActiveMode(modeName);
+    },
+
+    /**
+     * Совместимость: getAvailableModes()
+     * Возвращает массив { name, displayName } для всех зарегистрированных стратегий.
+     */
+    getAvailableModes() {
+        return Object.values(this.strategies).map(s => ({
+            name: s.getName(),
+            displayName: typeof s.getDisplayName === 'function' ? s.getDisplayName() : s.getName()
+        }));
     }
 };

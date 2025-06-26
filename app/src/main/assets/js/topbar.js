@@ -26,6 +26,7 @@ const topbar = {
         this.buttons.effects = document.getElementById('effects-button');
         this.buttons.reloadApp = document.getElementById('reload-app-button'); // ID из HTML
         this.buttons.padModes = document.getElementById('pad-modes-button'); // Инициализация новой кнопки
+        this.buttons.mic = document.getElementById('mic-btn'); // Added for microphone button
 
         // Инициализация элементов прогрессии аккордов
         this.buttons.progressionDisplay = document.getElementById('chord-progression-display');
@@ -83,6 +84,16 @@ const topbar = {
         addPanelToggleListener(this.buttons.tonality, 'tonality');
         addPanelToggleListener(this.buttons.effects, 'effects');
         addPanelToggleListener(this.buttons.padModes, 'padModes'); // Добавляем обработчик для новой кнопки
+
+        if (this.buttons.mic) {
+            this.buttons.mic.addEventListener('click', () => {
+                if (typeof app !== 'undefined' && app.toggleMicrophoneInput) {
+                    app.toggleMicrophoneInput();
+                } else {
+                    console.error("[Topbar] app.toggleMicrophoneInput is not available!");
+                }
+            });
+        }
         // --- КОНЕЦ ИЗМЕНЕНИЯ ---
 
         if (this.buttons.reloadApp) {

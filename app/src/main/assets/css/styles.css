@@ -1956,3 +1956,44 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
     }
 }
 
+/* Styles for Drum Pad Mode (Added for Step 4.1) */
+.drum-pad-cell {
+    position: absolute; /* Needed for top, left, width, height set in JS */
+    box-sizing: border-box;
+    border: 1px solid var(--color-border, #ccc);
+    background-color: var(--color-surface-variant, #e0e0e0); /* A slightly different surface color */
+    display: flex; /* Helps if label were inside, but label is separate */
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background-color 0.05s ease-out; /* Quick feedback */
+}
+
+.drum-pad-cell.active { /* Visual feedback on touch */
+    background-color: var(--color-primary-light, #64b5f6); /* A lighter primary color for active state */
+    border-color: var(--color-primary, #2196f3);
+}
+
+/* Additional styling for labels if they are part of drum pad cells,
+   but current JS places them in #xy-labels container.
+   The JS for labels in drum pad mode already centers them using transform.
+*/
+#xy-labels .xy-label { /* Ensure existing label styles don't conflict heavily */
+    /* transform: translate(-50%, -50%) is set by JS for drum pad labels */
+    /* border-bottom: 2px solid transparent; is existing, JS might override for drum pads */
+}
+
+/* Ensure the main pad zone area class doesn't conflict with drum pad cells if they share it */
+.xy-pad-zone-area {
+    /* Existing styles are fine, drum_pad type will override positioning */
+}
+
+/* Style for active microphone button (Added for Step 4.2) */
+.topbar-button#mic-btn.active {
+    color: red;
+    /* Optional: Add a more distinct background or border for active mic state */
+    /* background-color: rgba(255, 0, 0, 0.1); */
+    /* border-color: red; */
+}
+

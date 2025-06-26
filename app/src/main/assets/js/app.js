@@ -71,7 +71,8 @@ const app = {
             invertPitchAxis: true,
             invertRollAxis: false,
             swapAxes: false
-        }
+        },
+        microphone: null,
     },
     elements: {
         loadingOverlay: null,
@@ -2013,12 +2014,8 @@ const app = {
         const expandBtn = document.getElementById('chord-panel-expand-btn');
         if (!panel || !expandBtn) return;
 
-        // +++ ИЗМЕНЕНИЕ: Логика теперь проще и надежнее +++
-        // Эта функция вызывается только когда мы уже в режиме 'chord',
-        // поэтому она только переключает классы.
         panel.classList.toggle('collapsed', shouldBeCollapsed);
         expandBtn.classList.toggle('visible', shouldBeCollapsed);
-        // --- КОНЕЦ ИЗМЕНЕНИЯ ---
 
         localStorage.setItem('isChordPanelCollapsed', shouldBeCollapsed);
     },
@@ -2546,7 +2543,7 @@ const app = {
             }
 
             const currentIndex = Math.max(0, chords.findIndex(c => c.id === currentId));
-            
+
             const prevChord = chords.length > 1 ? chords[(currentIndex - 1 + chords.length) % chords.length] : null;
             const currentChord = chords[currentIndex];
             const nextChord = chords.length > 1 ? chords[(currentIndex + 1) % chords.length] : null;
@@ -2607,6 +2604,51 @@ const app = {
             this.state.deviceTilt.roll = tiltData.roll;
             // Optionally, you might want to log this or trigger other updates if needed immediately
             // console.log(`[App.onDeviceTilt] Pitch: ${this.state.deviceTilt.pitch}, Roll: ${this.state.deviceTilt.roll}`);
+        }
+    },
+
+    async toggleMicrophoneInput() {
+        if (this.microphone) {
+            // Микрофон включен, выключаем его
+            this.microphone.close();
+            this.microphone.dispose();
+            this.microphone = null;
+            const micBtn = document.getElementById('mic-btn');
+            if (micBtn) micBtn.classList.remove('active');
+            console.log("[App] Microphone input disabled.");
+            // Ensure synth input is restored if it was changed
+            // This part depends on how synth input was managed before mic
+            return;
+        }
+
+        try {
+            // Микрофон выключен, включаем
+            if (!Tone || !Tone.Microphone) {
+                console.error("[App] Tone.Microphone is not available.");
+                alert("Microphone functionality is not available (Tone.js missing component).");
+                return;
+            }
+            this.microphone = new Tone.Microphone();
+            await this.microphone.open(); // Запрашивает разрешение у пользователя
+
+            // Успешно открыли, подключаем к шине эффектов
+            if (synth && synth.fxBus) {
+                this.microphone.connect(synth.fxBus);
+                const micBtn = document.getElementById('mic-btn');
+                if (micBtn) micBtn.classList.add('active');
+                console.log("[App] Microphone input enabled and connected to FX bus.");
+            } else {
+                throw new Error("Synth FX Bus is not available.");
+            }
+        } catch (err) {
+            console.error("[App] Failed to open microphone:", err);
+            alert("Could not access microphone. Please check permissions or ensure it's not in use by another app.");
+            if (this.microphone) {
+                this.microphone.dispose();
+                this.microphone = null;
+            }
+            const micBtn = document.getElementById('mic-btn');
+            if (micBtn) micBtn.classList.remove('active');
         }
     },
 };

@@ -286,45 +286,80 @@ const pad = {
 
             const zoneElement = document.createElement('div');
             zoneElement.className = 'xy-pad-zone-area';
-            zoneElement.style.left = `${zone.startX * 100}%`;
-            zoneElement.style.width = `${(zone.endX - zone.startX) * 100}%`;
+            zoneElement.id = zone.id || `zone-${index}`; // Assign ID from zone data or generate one
 
-            if (app.state.highlightSharpsFlats && zone.isSharpFlat) {
-                zoneElement.classList.add('sharp-flat-zone');
-            }
-            if (zone.noteName === currentTonicNoteName) {
-                zoneElement.classList.add('tonic-zone');
+            if (zone.type === 'drum_pad') {
+                zoneElement.classList.add('drum-pad-cell');
+                // For drum pads, use startY and endY for vertical positioning
+                zoneElement.style.left = `${zone.startX * 100}%`;
+                zoneElement.style.width = `${(zone.endX - zone.startX) * 100}%`;
+                zoneElement.style.top = `${zone.startY * 100}%`; // Y is 0 at top, 1 at bottom for layout
+                zoneElement.style.height = `${(zone.endY - zone.startY) * 100}%`;
+                // Drum pads generally don't have tonic/sharp/flat highlighting
+            } else {
+                // Existing logic for melodic pads
+                zoneElement.style.left = `${zone.startX * 100}%`;
+                zoneElement.style.width = `${(zone.endX - zone.startX) * 100}%`;
+                // Melodic pads take full height by default, unless specified otherwise
+                zoneElement.style.top = '0%';
+                zoneElement.style.height = '100%';
+
+
+                if (app.state.highlightSharpsFlats && zone.isSharpFlat) {
+                    zoneElement.classList.add('sharp-flat-zone');
+                }
+                if (zone.noteName === currentTonicNoteName) {
+                    zoneElement.classList.add('tonic-zone');
+                }
             }
 
             this.zonesContainer.appendChild(zoneElement);
 
-            if (this.config.linesVisibility && index > 0) {
+            // Dividers for melodic zones (vertical lines)
+            if (zone.type !== 'drum_pad' && this.config.linesVisibility && index > 0) {
                 const lineElement = document.createElement('div');
                 lineElement.className = 'xy-zone-divider';
                 lineElement.style.left = `${zone.startX * 100}%`;
                 lineElement.style.borderLeftColor = zoneLineColor;
                 this.zonesContainer.appendChild(lineElement);
             }
+            // For drum_pad, grid lines would ideally be part of the cell's border or pseudo-elements
+            // Or handled by a separate grid drawing function if more complex lines are needed
 
             if (this.config.labelVisibility) {
                 const label = document.createElement('div');
                 label.className = 'xy-label';
-                label.textContent = zone.labelOverride || zone.noteName || '?';
+                // For drum pads, labelOverride (soundName) is preferred.
+                label.textContent = zone.labelOverride || zone.noteName || (zone.type === 'drum_pad' && zone.soundName ? zone.soundName : '?');
                 label.style.color = textColor;
+
                 const labelX = ((zone.startX + zone.endX) / 2) * 100;
                 label.style.left = `${labelX}%`;
 
-                if (zone.midiNote !== undefined && noteColorsForLabels) {
-                    const noteIndex = zone.midiNote % 12;
-                    label.style.borderBottomColor = noteColorsForLabels[noteIndex] || 'transparent';
+                if (zone.type === 'drum_pad') {
+                    // Center label vertically within the drum pad cell
+                    const labelY = ((zone.startY + zone.endY) / 2) * 100;
+                    label.style.top = `${labelY}%`;
+                    label.style.transform = 'translate(-50%, -50%)'; // Adjust for centering
+                    // Remove bottom border for drum pad labels or make it specific
+                    label.style.borderBottomColor = 'transparent';
+                } else {
+                    // Existing label positioning for melodic pads
+                    if (zone.midiNote !== undefined && noteColorsForLabels) {
+                        const noteIndex = zone.midiNote % 12;
+                        label.style.borderBottomColor = noteColorsForLabels[noteIndex] || 'transparent';
+                    }
                 }
-
                 this.labelsContainer.appendChild(label);
             }
         });
-        if (this.config.linesVisibility && this._currentDisplayedZones.length > 0) {
+
+        // Last vertical line for melodic zones
+        if (this.config.linesVisibility && this._currentDisplayedZones.length > 0 &&
+            this._currentDisplayedZones.some(z => z.type !== 'drum_pad')) {
             const lastLine = document.createElement('div');
-            lastLine.className = 'xy-zone-divider'; lastLine.style.left = `100%`;
+            lastLine.className = 'xy-zone-divider';
+            lastLine.style.left = `100%`;
             lastLine.style.borderLeftColor = zoneLineColor;
             this.zonesContainer.appendChild(lastLine);
         }
@@ -332,9 +367,56 @@ const pad = {
 
         // >>> Сохраняем последнее состояние отрисовки для следующей оптимизации <<<
         this._lastDrawnTonic = currentTonicNoteName;
+    },
+
+    /**
+     * Clears all drawn zones and labels from the pad.
+     * Resets internal state related to displayed zones.
+     */
+    clearZones() {
+        if (!this.isReady || !this.zonesContainer || !this.labelsContainer) {
+            console.warn("[Pad.clearZones] Pad not ready or containers missing.");
+            return;
+        }
+        console.log("[Pad.clearZones] Clearing all zones and labels.");
+        this.zonesContainer.innerHTML = '';
+        this.labelsContainer.innerHTML = '';
+        this._currentDisplayedZones = [];
+        this._zoneMidiNoteToIndexMap.clear();
+        this.applyVisualHints([]); // Clear any visual hints
+
+        // Reset optimization flags as the state is now clean
+        this._lastDrawnTonic = null;
+        // this._lastLabelVisibility and this._lastLinesVisibility can remain as they reflect config, not drawn content.
+        // this._lastHighlightSharpsFlats can also remain.
         this._lastLabelVisibility = this.config.labelVisibility;
         this._lastLinesVisibility = this.config.linesVisibility;
         this._lastHighlightSharpsFlats = app.state.highlightSharpsFlats; // <-- ДОБАВЛЕНО
+    },
+
+    /**
+     * Clears all drawn zones and labels from the pad.
+     * Resets internal state related to displayed zones.
+     */
+    clearZones() {
+        if (!this.isReady || !this.zonesContainer || !this.labelsContainer) {
+            console.warn("[Pad.clearZones] Pad not ready or containers missing.");
+            return;
+        }
+        console.log("[Pad.clearZones] Clearing all zones and labels.");
+        this.zonesContainer.innerHTML = '';
+        this.labelsContainer.innerHTML = '';
+        this._currentDisplayedZones = [];
+        this._zoneMidiNoteToIndexMap.clear();
+        this.applyVisualHints([]); // Clear any visual hints
+
+        // Reset optimization flags as the state is now clean.
+        // _lastDrawnTonic is reset because the tonic highlighting is gone.
+        this._lastDrawnTonic = null;
+        // The visibility flags for labels/lines and highlightSharpsFlats reflect config,
+        // so they don't need to be reset here as they weren't part of the *drawn content* state
+        // that this._currentDisplayedZones represented.
+        console.log("[Pad.clearZones] Pad cleared.");
     },
 
     /**
