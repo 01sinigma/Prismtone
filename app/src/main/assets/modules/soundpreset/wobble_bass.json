@@ -1,0 +1,55 @@
+{
+  "id": "wobble_bass",
+  "type": "soundpreset",
+  "name": "Wobble Bass",
+  "version": "1.0.0",
+  "data": {
+    "oscillator": {
+      "params": {
+        "type": "square",
+        "harmonicity": 1,
+        "modulationIndex": 0
+      }
+    },
+    "amplitudeEnv": {
+      "params": {
+        "attack": 0.01,
+        "decay": 0.2,
+        "sustain": 1.0,
+        "release": 0.1
+      }
+    },
+    "filter": {
+      "enabled": true,
+      "params": {
+        "type": "lowpass",
+        "frequency": 1000,
+        "Q": 2.5
+      }
+    },
+    "pitchEnvelope": {
+      "enabled": false,
+      "params": {
+        "attack": 0.001,
+        "decay": 0.05,
+        "sustain": 0,
+        "release": 0.01,
+        "amount": 1200
+      }
+    },
+    "lfo1": {
+      "enabled": true,
+      "params": {
+        "type": "sine",
+        "rate": 8,
+        "depth": 800
+      }
+    },
+    "yAxisControls": {
+      "effects": {
+        "filter_frequency_lfo_rate": true
+      }
+    },
+    "colors": { "primary": "#D50000", "text": "#FF8A80" }
+  }
+}

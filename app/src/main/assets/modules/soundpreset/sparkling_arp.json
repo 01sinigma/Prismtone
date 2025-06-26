@@ -1,0 +1,55 @@
+{
+  "id": "sparkling_arp",
+  "type": "soundpreset",
+  "name": "Sparkling Arp",
+  "version": "1.0.0",
+  "data": {
+    "oscillator": {
+      "params": {
+        "type": "fmtriangle",
+        "harmonicity": 3.5,
+        "modulationIndex": 5
+      }
+    },
+    "amplitudeEnv": {
+      "params": {
+        "attack": 0.005,
+        "decay": 0.1,
+        "sustain": 0.0,
+        "release": 0.05
+      }
+    },
+    "filter": {
+      "enabled": true,
+      "params": {
+        "type": "highpass",
+        "frequency": 1500,
+        "Q": 0.5
+      }
+    },
+    "pitchEnvelope": {
+      "enabled": false,
+      "params": {
+        "attack": 0.001,
+        "decay": 0.03,
+        "sustain": 0,
+        "release": 0.01,
+        "amount": 1200
+      }
+    },
+    "lfo1": {
+      "enabled": false,
+      "params": {
+        "type": "sine",
+        "rate": 5,
+        "depth": 0
+      }
+    },
+    "yAxisControls": {
+      "effects": {
+        "reverb_decay_time": true
+      }
+    },
+    "colors": { "primary": "#00B0FF", "text": "#E1F5FE" }
+  }
+}

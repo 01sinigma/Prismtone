@@ -179,13 +179,35 @@ const oscillatorManager = {
             }
             nodes.oscillatorNode = oscNode;
             audioOutput = oscNode;
+            // Очищаем modInputs перед заполнением для данного экземпляра
+            modInputs = {};
+
             if (oscNode.frequency && (oscNode.frequency instanceof Tone.Param || oscNode.frequency instanceof Tone.Signal)) {
                 modInputs.frequency = oscNode.frequency;
             }
             if (oscNode.detune && (oscNode.detune instanceof Tone.Param || oscNode.detune instanceof Tone.Signal)) {
                 modInputs.detune = oscNode.detune;
             }
-            console.log("[OscillatorManager] create() finished. Node type:", oscNode.constructor.name);
+
+            // Добавляем специфичные для типов параметры в modInputs
+            if (nodes.oscillatorType === 'pwm' && oscNode.modulationFrequency) {
+                modInputs.modulationFrequency = oscNode.modulationFrequency;
+            }
+            if (nodes.oscillatorType === 'pulse' && oscNode.width) {
+                modInputs.width = oscNode.width;
+            }
+            if (nodes.oscillatorType.startsWith('am')) {
+                if (oscNode.harmonicity) modInputs.harmonicity = oscNode.harmonicity;
+                // AM Oscillator также имеет modulationType, но это строка, а не AudioParam
+            }
+            if (nodes.oscillatorType.startsWith('fm')) {
+                if (oscNode.harmonicity) modInputs.harmonicity = oscNode.harmonicity;
+                if (oscNode.modulationIndex) modInputs.modulationIndex = oscNode.modulationIndex;
+                 // FM Oscillator также имеет modulationType, но это строка, а не AudioParam
+            }
+            // FatOscillator параметры (count, spread) не являются AudioParam и управляются напрямую.
+
+            console.log("[OscillatorManager] create() finished. Node type:", oscNode.constructor.name, "ModInputs:", Object.keys(modInputs));
         } catch (err) {
             console.error("[OscillatorManager] Error in create():", err, err.stack);
             error = `Failed to create oscillator: ${err.message}`;
@@ -430,7 +452,49 @@ const oscillatorManager = {
      * @returns {boolean} True if the connection was successful, false otherwise (e.g., if `targetParamPath` is invalid or not modulatable).
      */
     connectModulator(nodes, targetParamPath, sourceNode) {
-        return true;
+        if (!nodes?.oscillatorNode || !targetParamPath || !sourceNode) {
+            console.warn("[OscillatorManager.connectModulator] Invalid arguments.", { nodes, targetParamPath, sourceNode });
+            return false;
+        }
+
+        // Используем modInputs, который был заполнен в create()
+        const targetParamInstance = nodes.modInputs ? nodes.modInputs[targetParamPath] : null;
+
+        if (targetParamInstance && (targetParamInstance instanceof Tone.Param || targetParamInstance instanceof Tone.Signal)) {
+            try {
+                console.log(`[OscillatorManager.connectModulator] Connecting source to oscillator.${targetParamPath}`);
+                sourceNode.connect(targetParamInstance);
+                return true;
+            } catch (e) {
+                console.error(`[OscillatorManager.connectModulator] Error connecting modulator to oscillator.${targetParamPath}:`, e);
+                return false;
+            }
+        } else {
+            // Если параметр не найден в modInputs, дополнительно проверим основные параметры напрямую на узле осциллятора
+            // Это может быть полезно, если modInputs по какой-то причине не был полностью заполнен,
+            // но предпочтительно, чтобы все модулируемые параметры были в modInputs.
+            let fallbackTargetParam = null;
+            if (targetParamPath === 'frequency' && nodes.oscillatorNode.frequency) {
+                fallbackTargetParam = nodes.oscillatorNode.frequency;
+            } else if (targetParamPath === 'detune' && nodes.oscillatorNode.detune) {
+                fallbackTargetParam = nodes.oscillatorNode.detune;
+            }
+            // Добавьте другие специфичные параметры здесь, если необходимо, но это должно быть в modInputs
+
+            if (fallbackTargetParam && (fallbackTargetParam instanceof Tone.Param || fallbackTargetParam instanceof Tone.Signal)) {
+                 console.warn(`[OscillatorManager.connectModulator] Target parameter 'oscillator.${targetParamPath}' not found in modInputs, but found directly on node. Connecting.`);
+                 try {
+                    sourceNode.connect(fallbackTargetParam);
+                    return true;
+                } catch (e) {
+                    console.error(`[OscillatorManager.connectModulator] Error connecting modulator to fallback oscillator.${targetParamPath}:`, e);
+                    return false;
+                }
+            }
+
+            console.warn(`[OscillatorManager.connectModulator] Target parameter 'oscillator.${targetParamPath}' not found in modInputs or directly on node, or not a connectable Param/Signal. Instance from modInputs:`, targetParamInstance);
+            return false;
+        }
     },
     /**
      * Disconnects a modulator source from a specified parameter of the oscillator.
@@ -441,7 +505,46 @@ const oscillatorManager = {
      * @returns {boolean} True if disconnection was attempted (Tone.js disconnects silently).
      */
     disconnectModulator(nodes, targetParamPath, sourceNode) {
-        return true;
+        if (!nodes?.oscillatorNode || !targetParamPath || !sourceNode) {
+            console.warn("[OscillatorManager.disconnectModulator] Invalid arguments for disconnect.", { nodes, targetParamPath, sourceNode });
+            return false;
+        }
+
+        const targetParamInstance = nodes.modInputs ? nodes.modInputs[targetParamPath] : null;
+
+        if (targetParamInstance && (targetParamInstance instanceof Tone.Param || targetParamInstance instanceof Tone.Signal)) {
+            try {
+                console.log(`[OscillatorManager.disconnectModulator] Disconnecting source from oscillator.${targetParamPath}`);
+                sourceNode.disconnect(targetParamInstance);
+                return true;
+            } catch (e) {
+                // Tone.js может выдавать ошибку, если sourceNode не был подключен к targetParamInstance,
+                // но мы все равно считаем это "успешной" попыткой отсоединения.
+                console.warn(`[OscillatorManager.disconnectModulator] Error or warning during disconnection from oscillator.${targetParamPath}: ${e.message}`);
+                return true; // Продолжаем, так как цель - отсоединить
+            }
+        } else {
+             // Фоллбэк, если параметр не в modInputs
+            let fallbackTargetParam = null;
+            if (targetParamPath === 'frequency' && nodes.oscillatorNode.frequency) {
+                fallbackTargetParam = nodes.oscillatorNode.frequency;
+            } else if (targetParamPath === 'detune' && nodes.oscillatorNode.detune) {
+                fallbackTargetParam = nodes.oscillatorNode.detune;
+            }
+
+            if (fallbackTargetParam && (fallbackTargetParam instanceof Tone.Param || fallbackTargetParam instanceof Tone.Signal)) {
+                console.warn(`[OscillatorManager.disconnectModulator] Target 'oscillator.${targetParamPath}' not in modInputs, using fallback. Disconnecting.`);
+                try {
+                    sourceNode.disconnect(fallbackTargetParam);
+                    return true;
+                } catch (e) {
+                    console.warn(`[OscillatorManager.disconnectModulator] Error/Warning disconnecting from fallback oscillator.${targetParamPath}: ${e.message}`);
+                    return true;
+                }
+            }
+            console.warn(`[OscillatorManager.disconnectModulator] Target parameter 'oscillator.${targetParamPath}' not found or not disconnectable.`);
+            return false; // Параметр не найден
+        }
     }
 };
 

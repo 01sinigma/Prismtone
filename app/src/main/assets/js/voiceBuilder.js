@@ -161,33 +161,132 @@ const voiceBuilder = {
         // --- Шаг 3: Соединение модуляторов ---
         console.log("[VoiceBuilder v2] --- Connecting Modulators ---");
 
-        for (const modId of audioConfig.modulatorComponents) {
+        // Убедимся, что audioConfig.modulatorComponents существует и является массивом
+        const modulatorComponentIds = Array.isArray(audioConfig.modulatorComponents) ? audioConfig.modulatorComponents : [];
+        if (modulatorComponentIds.length === 0) {
+            console.warn("[VoiceBuilder v2] audioConfig.modulatorComponents is empty or not an array. No modulators to connect.");
+        }
+
+        for (const modId of modulatorComponentIds) {
             const modComp = components[modId];
-            if (!presetData[modId]?.enabled || !modComp || modComp.error) {
-                console.warn(`[VB ConnectMod] ${modId} is not enabled or has error. Skipping connection.`);
+
+            if (!presetData[modId]?.enabled) {
+                console.log(`[VB ConnectMod] ${modId} is not enabled in preset. Skipping connection.`);
                 continue;
             }
-            // Определяем целевой компонент и параметр для подключения
-            let targetInfo = null;
+            if (!modComp) {
+                console.warn(`[VB ConnectMod] ${modId} component data not found in 'components' object. Skipping connection.`);
+                continue;
+            }
+            if (modComp.error) {
+                console.warn(`[VB ConnectMod] ${modId} has an error: '${modComp.error}'. Skipping connection.`);
+                continue;
+            }
+
+            let modulatorOutputNode = null;
+            let expectedModOutputName = 'output'; // Стандартное имя
+
             if (modId === 'pitchEnvelope') {
-                targetInfo = { comp: components['oscillator'], param: 'detune', manager: audioConfig.getManager('oscillator') };
-            } else if (modId === 'filterEnvelope') {
-                targetInfo = { comp: components['filter'], param: 'frequency', manager: audioConfig.getManager('filter') };
-            } else if (modId === 'lfo1') {
-                const lfoSettings = presetData.lfo1?.params;
-                if (lfoSettings?.target) {
-                    const [targetComponentId, targetParamName] = lfoSettings.target.split('.');
-                    targetInfo = { comp: components[targetComponentId], param: targetParamName, manager: audioConfig.getManager(targetComponentId) };
+                expectedModOutputName = 'pitch';
+                if (modComp.modOutputs?.pitch) {
+                    modulatorOutputNode = modComp.modOutputs.pitch;
+                }
+            } else if (modId === 'filterEnvelope') { // Пример, если filterEnvelope использует 'output'
+                expectedModOutputName = 'output'; // или другое специфичное имя, если есть
+                if (modComp.modOutputs?.output) { // Предполагаем 'output'
+                    modulatorOutputNode = modComp.modOutputs.output;
+                } else if (modComp.modOutputs?.amount) { // Альтернативное имя, если используется
+                     expectedModOutputName = 'amount';
+                     modulatorOutputNode = modComp.modOutputs.amount;
+                }
+            } else if (modId.startsWith('lfo')) { // Для lfo1, lfo2 и т.д.
+                expectedModOutputName = 'output'; // Обычно LFO выдают 'output'
+                if (modComp.modOutputs?.output) {
+                    modulatorOutputNode = modComp.modOutputs.output;
                 }
             }
-            if (targetInfo && targetInfo.comp && !targetInfo.comp.error && targetInfo.manager?.connectModulator && modComp.modOutputs?.output && targetInfo.comp.modInputs?.[targetInfo.param]) {
-                console.log(`[VoiceBuilder v2] Attempting to connect ${modId} -> ${targetInfo.comp ? targetInfo.comp : 'UNKNOWN'}.${targetInfo.param}`);
-                if (!targetInfo.manager.connectModulator(targetInfo.comp.nodes, targetInfo.param, modComp.modOutputs.output)) {
-                    console.error(`[VoiceBuilder v2] Failed to connect ${modId} to ${targetInfo.comp ? targetInfo.comp : 'UNKNOWN'}.${targetInfo.param}.`);
-                    errorState[modId] = (errorState[modId] || "") + ` Failed to connect to ${targetInfo.comp ? targetInfo.comp : 'UNKNOWN'}.${targetInfo.param};`;
+            // Добавьте другие else if для других модуляторов со специфичными именами выходов
+
+            if (!modulatorOutputNode) {
+                 console.warn(`[VB ConnectMod] ${modId}: Modulator output node '${expectedModOutputName}' not found in modComp.modOutputs. Available: ${modComp.modOutputs ? Object.keys(modComp.modOutputs).join(', ') : 'none'}. Skipping.`);
+                 errorState[modId] = (errorState[modId] || "") + ` Modulator output '${expectedModOutputName}' not found;`;
+                 continue;
+            }
+
+            // Определяем целевой компонент и параметр для подключения
+            let targetInfo = null;
+            let targetComponentId = null;
+            let targetParamName = null;
+
+            if (modId === 'pitchEnvelope') {
+                targetComponentId = 'oscillator';
+                targetParamName = 'detune'; // Или 'frequency', в зависимости от предпочтений
+            } else if (modId === 'filterEnvelope') {
+                targetComponentId = 'filter';
+                targetParamName = 'frequency'; // Обычно модулирует частоту среза фильтра
+            } else if (modId.startsWith('lfo')) { // lfo1, lfo2 etc.
+                const lfoSettings = presetData[modId]?.params;
+                if (lfoSettings?.target) {
+                    const parts = lfoSettings.target.split('.');
+                    if (parts.length === 2) {
+                        targetComponentId = parts[0];
+                        targetParamName = parts[1];
+                    } else {
+                        console.warn(`[VB ConnectMod] ${modId}: Invalid target format '${lfoSettings.target}'. Expected 'componentId.paramName'.`);
+                        errorState[modId] = (errorState[modId] || "") + ` Invalid LFO target format: ${lfoSettings.target};`;
+                        continue;
+                    }
+                } else {
+                    console.warn(`[VB ConnectMod] ${modId}: LFO target not specified in preset. Skipping.`);
+                    errorState[modId] = (errorState[modId] || "") + ` LFO target not specified;`;
+                    continue;
+                }
+            }
+            // Добавьте другие else if для других типов модуляторов
+
+            if (!targetComponentId || !targetParamName) {
+                 console.warn(`[VB ConnectMod] ${modId}: Target component or parameter name could not be determined. Skipping.`);
+                 errorState[modId] = (errorState[modId] || "") + ` Target component/param undetermined;`;
+                 continue;
+            }
+
+            const targetComponentData = components[targetComponentId];
+            const targetManager = audioConfig.getManager(targetComponentId);
+
+            targetInfo = {
+                comp: targetComponentData,
+                param: targetParamName,
+                manager: targetManager,
+                id: targetComponentId // Для логирования
+            };
+
+
+            if ( targetInfo && targetInfo.comp && !targetInfo.comp.error &&
+                 targetInfo.manager?.connectModulator &&
+                 modulatorOutputNode && // Уже проверено выше, но для полноты
+                 targetInfo.comp.modInputs?.[targetInfo.param] )
+            {
+                console.log(`[VoiceBuilder v2] Attempting to connect ${modId} (${expectedModOutputName}) -> ${targetInfo.id}.${targetInfo.param}`);
+                if (!targetInfo.manager.connectModulator(targetInfo.comp.nodes, targetInfo.param, modulatorOutputNode)) {
+                    const errorMsg = `Failed to connect ${modId} to ${targetInfo.id}.${targetInfo.param}.`;
+                    console.error(`[VoiceBuilder v2] ${errorMsg}`);
+                    errorState[modId] = (errorState[modId] || "") + ` ${errorMsg};`;
+                } else {
+                    console.log(`[VoiceBuilder v2] Successfully connected ${modId} to ${targetInfo.id}.${targetInfo.param}.`);
                 }
             } else {
-                console.warn(`[VB ConnectMod] ${modId} target not found or not connectable.`);
+                console.warn(`[VB ConnectMod] ${modId} -> ${targetInfo.id}.${targetInfo.param}: Target not found or not connectable. Details:`, {
+                    modulatorId: modId,
+                    targetComponentId: targetInfo.id,
+                    targetParam: targetInfo.param,
+                    targetCompExists: !!targetInfo.comp,
+                    targetCompError: targetInfo.comp?.error,
+                    targetManagerHasConnectModulator: typeof targetInfo.manager?.connectModulator === 'function',
+                    modulatorOutputNodeExists: !!modulatorOutputNode,
+                    targetCompModInputsExistsAndHasParam: !!targetInfo.comp?.modInputs?.[targetInfo.param],
+                    expectedModOutputName: expectedModOutputName
+                });
+                errorState[modId] = (errorState[modId] || "") + ` Target ${targetInfo.id}.${targetInfo.param} not connectable;`;
             }
         }
 
