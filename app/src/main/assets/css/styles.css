@@ -1542,7 +1542,56 @@ input:checked + .toggle-slider:before { transform: translateX(24px); background-
     width: 100%;
 }
 
+.hidden { display: none !important; }
 
+#sequencer-container {
+    position: absolute;
+    top: var(--topbar-height);
+    left: 0;
+    width: 100%;
+    height: calc(100% - var(--topbar-height));
+    background-color: var(--color-background);
+    overflow-x: auto; /* Горизонтальный скролл для длинных паттернов */
+}
+
+#sequencer-grid {
+    display: flex;
+    flex-direction: column-reverse; /* Ноты идут снизу вверх, как на пианино */
+}
+
+.sequencer-row {
+    display: flex;
+    flex-direction: row;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.sequencer-row.sharp-flat-row { background-color: rgba(var(--color-surface-rgb), 0.5); }
+
+.sequencer-cell {
+    flex-shrink: 0;
+    width: 40px; /* Ширина одного шага */
+    height: 25px; /* Высота одной ноты */
+    border-right: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: background-color 0.1s;
+}
+
+.sequencer-cell:hover { background-color: rgba(var(--color-primary-rgb), 0.1); }
+.sequencer-cell.active { background-color: var(--color-primary); }
+
+#sequencer-playhead {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 2px;
+    height: 100%;
+    background-color: var(--color-accent);
+    pointer-events: none;
+}
+
+#transport-controls { /* Стили для контейнера кнопок */ }
+#bpm-input { width: 60px; text-align: center; /* ... прочие стили ... */ }
+.record-button.recording { color: red; animation: pulse 1s infinite; }
 .prism-modal .modal-actions {
     display: flex;
     justify-content: flex-end;

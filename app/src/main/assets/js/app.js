@@ -174,6 +174,15 @@ const app = {
             synth.init();
             if(synth.isReady) synth.applyMasterVolumeSettings();
             console.log("[App._initAudioAndVisuals] Synth initialized.");
+
+            // === Инициализация Sequencer Core ===
+            if (typeof sequencer === 'undefined') {
+                console.warn("[App._initAudioAndVisuals] sequencer.js not loaded or sequencer object not found.");
+            } else {
+                sequencer.init(); // Initialize sequencer core after synth
+                console.log("[App._initAudioAndVisuals] Sequencer core initialized.");
+            }
+
             // === Инициализация Tone.Transport BPM ===
             if (typeof Tone !== 'undefined' && Tone.Transport) {
                 Tone.Transport.bpm.value = this.state.transportBpm;
@@ -1267,26 +1276,86 @@ const app = {
      * @returns {Promise<void>}
      */
     async updateZoneLayout() {
-        // Полный цикл: layout + визуальные подсказки
-        if (!this.state.isInitialized || !PadModeManager || !PadModeManager.getCurrentStrategy() || !pad?.isReady) {
-            console.warn(`[App.updateZoneLayout] Aborting: Not ready, no strategy, or pad not ready.`);
+        console.log('[App.updateZoneLayout] Called. Current app.state.padMode:', this.state.padMode);
+        if (!this.state.isInitialized || !PadModeManager || !pad?.isReady) {
+            console.warn(`[App.updateZoneLayout] Aborting: App not initialized, PadModeManager missing, or pad not ready.`);
             return;
         }
+
+        const currentStrategy = PadModeManager.getCurrentStrategy();
+        if (!currentStrategy) {
+            console.error('[App.updateZoneLayout] No active strategy from PadModeManager!');
+            pad.clearZones();
+            await this.updateZoneVisuals([]);
+            return;
+        }
+
+        console.log('[App.updateZoneLayout] currentStrategy NAME:', currentStrategy.name, 'isStandardLayout:', currentStrategy.isStandardLayout, 'typeof getZoneLayoutOptions:', typeof currentStrategy.getZoneLayoutOptions);
+
+        if (currentStrategy.isStandardLayout === false) {
+            console.log('[App.updateZoneLayout] Non-standard layout detected for ' + currentStrategy.name + ' based on isStandardLayout property. Clearing zones and returning.');
+            pad.clearZones();
+            await this.updateZoneVisuals([]);
+            return;
+        }
+
+        if (typeof currentStrategy.getZoneLayoutOptions !== 'function') {
+            console.error('[App.updateZoneLayout] FATAL: currentStrategy.getZoneLayoutOptions is NOT a function for ' + (currentStrategy.name || 'Unnamed Strategy') + '. Clearing zones and returning.');
+            pad.clearZones();
+            await this.updateZoneVisuals([]);
+            return;
+        }
+
         try {
-            const currentStrategy = PadModeManager.getCurrentStrategy();
-            const layoutContext = await currentStrategy.getZoneLayoutOptions(this.state);
-            if (!layoutContext) {
-                pad.drawZones([], this.state.currentTonic);
-                await this.updateZoneVisuals([]); // Обновляем визуализацию с пустыми зонами
-                return;
+            const layoutOptions = await currentStrategy.getZoneLayoutOptions(this.state); // getZoneLayoutOptions might be async
+
+            if (layoutOptions && layoutOptions.isStandardLayout === false) {
+                 console.log('[App.updateZoneLayout] Non-standard layout detected for ' + currentStrategy.name + ' based on getZoneLayoutOptions().isStandardLayout. Clearing zones and returning.');
+                 pad.clearZones();
+                 await this.updateZoneVisuals([]);
+                 return;
             }
-            const servicesForStrategy = PadModeManager._getServicesBundle();
-            const zonesData = await currentStrategy.generateZoneData(layoutContext, this.state, servicesForStrategy);
+
+            const padContext = {
+                tonic: this.state.currentTonic,
+                scale: this.state.scale,
+                octave: this.state.octaveOffset,
+                zoneCount: this.state.zoneCount,
+                showLines: this.state.showLines,
+                highlightSharpsFlats: this.state.highlightSharpsFlats,
+                currentChordName: this.state.currentChordName,
+                musicContext: this.state.musicContext // Ensure this is populated
+            };
+
+            let zonesData = [];
+            // Check if currentStrategy itself is the generator (like in ClassicModeStrategy)
+            if (typeof currentStrategy.generateZoneData === 'function') { // Updated to generateZoneData as per strategy structure
+                const servicesForStrategy = PadModeManager._getServicesBundle();
+                zonesData = await currentStrategy.generateZoneData(layoutOptions, this.state, servicesForStrategy);
+            } else if (layoutOptions && typeof layoutOptions.generator === 'function') { // Check for generator on layoutOptions (less likely now)
+                zonesData = await layoutOptions.generator(padContext, layoutOptions);
+            } else {
+                // Fallback or default if no specific generator on strategy or options
+                console.warn('[App.updateZoneLayout] No specific zone generator found for strategy ' + currentStrategy.name + '. Using fallback ClassicModeStrategy.generateZones.');
+                let classicStrategy = PadModeManager.strategies['classic'];
+                if (classicStrategy && typeof classicStrategy.init === 'function' && !classicStrategy.isInitialized) {
+                    classicStrategy.init(this, MusicTheoryService, harmonicMarkerEngine);
+                    classicStrategy.isInitialized = true;
+                }
+                // Ensure ClassicModeStrategy.generateZones exists and is callable
+                if (ClassicModeStrategy && typeof ClassicModeStrategy.generateZones === 'function') {
+                     zonesData = ClassicModeStrategy.generateZones(padContext, { zoneCount: this.state.zoneCount, showLines: this.state.showLines, scale: padContext.scale, tonic: padContext.tonic, isNudgeMode: false });
+                } else {
+                    console.error("[App.updateZoneLayout] Fallback ClassicModeStrategy.generateZones is not available!");
+                    zonesData = [];
+                }
+            }
+
             pad.drawZones(zonesData, this.state.currentTonic);
-            await this.updateZoneVisuals(zonesData); // ГАРАНТИРОВАННО обновляем hints для актуальных зон
+            await this.updateZoneVisuals(zonesData);
         } catch (error) {
-            console.error('[App.updateZoneLayout] Error:', error, error.stack);
-            if (pad?.isReady) pad.drawZones([], this.state.currentTonic);
+            console.error('[App.updateZoneLayout] Error during zone layout for strategy ' + (currentStrategy.name || 'Unnamed Strategy') + ':', error, error.stack);
+            if (pad?.isReady) pad.clearZones(); // Use clearZones on error
             await this.updateZoneVisuals([]);
         }
     },

@@ -48,13 +48,28 @@ const PadModeManager = {
         const oldStrategy = this.currentStrategy;
 
         // 1. Ленивая инициализация: если стратегия используется впервые, инициализируем ее.
+        console.log('[PadModeManager.setActiveMode] Setting mode to:', modeId);
+        console.log('[PadModeManager.setActiveMode] Found newStrategy ' + modeId + '. isStandardLayout:', newStrategy.isStandardLayout, 'getZoneLayoutOptions type:', typeof newStrategy.getZoneLayoutOptions);
+
         if (!this._initializedStrategies.has(modeId)) {
             if (typeof newStrategy.init === 'function') {
-                console.log(`[PadModeManager] Lazily initializing strategy '${modeId}'...`);
+                console.log(`[PadModeManager.setActiveMode] LAZILY INITIALIZING '${modeId}' with appReference type:`, typeof this.appRef);
                 // Передаем все необходимые зависимости
                 newStrategy.init(this.appRef, this.musicTheoryServiceRef, this.harmonicMarkerEngineRef);
                 this._initializedStrategies.add(modeId);
+                newStrategy.isInitialized = true; // Explicitly mark as initialized
+                console.log('[PadModeManager.setActiveMode] After lazy init for ' + modeId + ': isStandardLayout:', newStrategy.isStandardLayout, 'getZoneLayoutOptions type:', typeof newStrategy.getZoneLayoutOptions, 'appRef exists:', !!newStrategy.appRef, '_padContext exists:', !!newStrategy._padContext);
             }
+        } else if (newStrategy.isInitialized && typeof newStrategy.updatePadContext === 'function') {
+            // Если стратегия уже инициализирована и имеет метод updatePadContext, вызываем его
+            console.log('[PadModeManager.setActiveMode] Strategy ' + modeId + ' already initialized. Calling updatePadContext.');
+            if (this.appRef && this.appRef.state && this.appRef.state.padContext) {
+                newStrategy.updatePadContext(this.appRef.state.padContext);
+            } else {
+                console.error('[PadModeManager.setActiveMode] Cannot call updatePadContext for ' + modeId + ': appRef or padContext is missing.');
+            }
+        } else {
+            console.log('[PadModeManager.setActiveMode] Strategy ' + modeId + ' already initialized but no updatePadContext method, or no init method found initially.');
         }
 
         // 2. ДОЖИДАЕМСЯ деактивации СТАРОЙ стратегии, если она была.

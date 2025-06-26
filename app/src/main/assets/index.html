@@ -34,6 +34,13 @@
             <button id="menu-button" class="round-button topbar-button" data-i18n-title="menu_button" title="Menu">☰</button>
             <button id="sound-library-button" class="text-button topbar-button" data-i18n="sound_library_button">Sound Library</button>
         </div>
+        <!-- ... внутри #topbar, возможно, рядом с #app-title ... -->
+        <div id="transport-controls" class="topbar-group hidden">
+            <button id="play-btn" class="round-button topbar-button" title="Play">▶</button>
+            <button id="stop-btn" class="round-button topbar-button" title="Stop">■</button>
+            <button id="rec-btn" class="round-button topbar-button record-button" title="Record">●</button>
+            <input type="number" id="bpm-input" value="120" min="40" max="240" title="BPM">
+        </div>
         <div id="topbar-center-content" class="topbar-group center">
             <div id="app-title" data-i18n="app_title">Prismtone</div>
             <div id="chord-progression-display" class="hidden">
@@ -104,6 +111,12 @@
             <div class="timer-progress-bar left"></div>
             <div class="timer-progress-bar right"></div>
         </div>
+    </div>
+
+    <!-- ... после xy-pad-container ... -->
+    <div id="sequencer-container" class="hidden">
+        <div id="sequencer-grid"></div>
+        <div id="sequencer-playhead"></div>
     </div>
 
     <div id="settings-panel" class="side-panel left-panel">
@@ -419,6 +432,7 @@
 <script src="js/padModes/ClassicModeStrategy.js"></script>
 <script src="js/padModes/ChordModeStrategy.js"></script>
 <script src="js/padModes/FlowModeStrategy.js"></script>
+<script src="js/padModes/SequencerModeStrategy.js"></script>
 
 <script src="js/bridge-fix.js"></script>
 <script src="js/config/audioConfig.js"></script>
@@ -427,6 +441,8 @@
 <script src="js/VibrationService.js"></script>
 <script src="js/voiceBuilder.js"></script>
 <script src="js/synth.js"></script>
+<script src="js/sequencer.js"></script>
+<script src="js/sequencerPersistence.js"></script>
 <script src="js/fpsManager.js"></script>
 <script src="js/visualizer.js"></script>
 <script src="js/visualizers/wavesRenderer.js"></script>
