@@ -21,7 +21,10 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonNull; // <<<--- ДОБАВЛЕН ИМПОРТ
 import com.google.gson.reflect.TypeToken;
+import java.io.IOException;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -548,6 +551,35 @@ public class PrismtoneBridge {
             Log.e(TAG, "Error parsing sensor settings JSON: " + jsonSettings, e);
         } catch (Exception e) {
             Log.e(TAG, "Unexpected error updating sensor settings: " + jsonSettings, e);
+        }
+    }
+
+    @JavascriptInterface
+    public String getAssetList(String path) {
+        if (path == null || path.isEmpty()) {
+            Log.e(TAG, "getAssetList called with empty path.");
+            return "[]";
+        }
+        try {
+            // Ensure path doesn't start or end with a slash for consistency with assets.list()
+            String cleanedPath = path;
+            if (cleanedPath.startsWith("/")) {
+                cleanedPath = cleanedPath.substring(1);
+            }
+            if (cleanedPath.endsWith("/")) {
+                cleanedPath = cleanedPath.substring(0, cleanedPath.length() - 1);
+            }
+
+            String[] files = context.getAssets().list(cleanedPath);
+            if (files == null) { // list() can return null if path is not a directory or doesn't exist
+                Log.w(TAG, "No assets found or path is not a directory: " + cleanedPath);
+                return "[]";
+            }
+            // Возвращаем JSON-массив строк
+            return gson.toJson(files);
+        } catch (IOException e) {
+            Log.e(TAG, "Error listing assets for path: " + path, e);
+            return "[]"; // Возвращаем пустой массив в случае ошибки
         }
     }
 }
