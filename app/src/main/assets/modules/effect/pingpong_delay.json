@@ -1,0 +1,16 @@
+{
+  "id": "pingPongDelay",
+  "type": "effect",
+  "name": "Ping Pong Delay",
+  "version": "1.0.0",
+  "description": "A stereo delay effect where the repeats bounce between the left and right channels.",
+  "active": true,
+  "data": {
+    "parameters": [
+      { "name": "wet", "label": "Mix", "min": 0, "max": 1, "default": 0, "step": 0.01 },
+      { "name": "delayTime", "label": "Delay Time", "min": 0, "max": 2, "default": "8n", "step": 0.01, "isTimeSignature": true },
+      { "name": "feedback", "label": "Feedback", "min": 0, "max": 0.95, "default": 0.2, "step": 0.01 },
+      { "name": "maxDelay", "label": "Max Delay (s)", "min": 0.1, "max": 5, "default": 2, "step": 0.1, "advanced": true }
+    ]
+  }
+}

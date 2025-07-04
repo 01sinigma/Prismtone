@@ -1,4 +1,13 @@
-// Файл: app/src/main/assets/js/app.js
+/**
+ * @file app.js
+ * @description
+ * This is the main application file for Prismtone. It orchestrates the initialization of all modules,
+ * manages the application's global state, handles user interactions, and coordinates communication
+ * between different components like the synthesizer (synth.js), the XY pad (pad.js),
+ * UI panels (sidepanel.js, topbar.js), visualizers, and the native Android bridge.
+ * It's responsible for loading settings, themes, sound presets, FX chains, and managing
+ * the overall application lifecycle.
+ */
 
 const app = {
     state: {
@@ -56,6 +65,14 @@ const app = {
         isApplyingChange: false,
         vibrationEnabled: true,
         vibrationIntensity: 'weak',
+        deviceTilt: { pitch: 0, roll: 0 }, // Начальное состояние
+        sensorSettings: {
+            smoothingAlpha: 0.15,
+            invertPitchAxis: true,
+            invertRollAxis: false,
+            swapAxes: false
+        },
+        microphone: null,
     },
     elements: {
         loadingOverlay: null,
@@ -81,8 +98,212 @@ const app = {
     // Добавляем в начало файла, где определяются свойства
     _chordPanelResizeTimeout: null,
 
+    /**
+     * Initializes the entire Prismtone application.
+     * This function coordinates the loading of all modules, settings, and UI components.
+     * It ensures that the DOM is ready, the native bridge is connected,
+     * and all necessary services are up and running before the user can interact with the app.
+     * Key steps include:
+     * - Setting up loading screen animations and audio.
+     * - Waiting for DOMContentLoaded and the Android bridge.
+     * - Loading initial settings from native storage.
+     * - Initializing i18n for internationalization.
+     * - Initializing core modules: moduleManager, MusicTheoryService, pad, PadModeManager, synth, visualizer.
+     * - Initializing UI components: sidePanel, topbar, soundPresets, fxChains.
+     * - Applying initial theme, sound preset, FX chain, and other settings.
+     * - Setting up event listeners and final UI updates.
+     * @async
+     * @returns {Promise<void>} A promise that resolves when initialization is complete or logs an error if it fails.
+     */
+    async _loadCoreData() {
+        console.log('[App._loadCoreData] Loading core data...');
+        this.updateLoadingText('loading_settings', 'Loading settings...');
+
+        const loadPromises = [
+            this.loadInitialSettings(), // Запрос настроек с нативной стороны
+            (async () => { // Загрузка языкового пакета
+                if (typeof i18n !== 'undefined' && i18n.loadLanguage) {
+                    console.log('[App._loadCoreData] Initializing i18n with loaded language...');
+                    await i18n.loadLanguage(this.state.language);
+                } else {
+                    console.warn("[App._loadCoreData] i18n.loadLanguage not available.");
+                }
+            })(),
+            (async () => { // Предварительная загрузка основных модулей
+                this.updateLoadingText('loading_modules', 'Loading modules...');
+                if (typeof moduleManager === 'undefined') throw new Error("moduleManager.js is not loaded!");
+                await moduleManager.init();
+                // moduleManager.getModules('soundpreset'), moduleManager.getModules('theme'), moduleManager.getModules('scale'), moduleManager.getModules('fxChain')
+                // Эти модули будут загружены по мере необходимости через moduleManager.getModule(),
+                // здесь достаточно инициализации самого moduleManager.
+            })()
+        ];
+
+        await Promise.all(loadPromises);
+        console.log("[App._loadCoreData] Core data loaded.");
+        console.log("[App._loadCoreData] Initial currentTonic:", this.state.currentTonic);
+    },
+
+    async _initAudioAndVisuals() {
+        console.log('[App._initAudioAndVisuals] Initializing audio and visuals...');
+        this.updateLoadingText('loading_audio_viz', 'Initializing Audio & Visuals...');
+
+        // MusicTheoryService (должен быть до PadModeManager)
+        if (typeof MusicTheoryService === 'undefined') throw new Error("MusicTheoryService is not loaded!");
+        await MusicTheoryService.init(moduleManager); // moduleManager уже должен быть инициализирован
+        console.log("[App._initAudioAndVisuals] MusicTheoryService initialized. isTonalJsLoaded:", MusicTheoryService.isTonalJsLoaded, "Scale defs count:", Object.keys(MusicTheoryService.scaleDefinitions).length);
+
+        // Pad.js - ИНИЦИАЛИЗИРУЕМ ДО PadModeManager, чтобы pad.isReady было true
+        if (typeof pad === 'undefined') throw new Error("pad.js is not loaded!");
+        pad.init(document.getElementById('xy-pad-container'));
+        console.log("[App._initAudioAndVisuals] Pad initialized. pad.isReady:", pad.isReady);
+
+        // PadModeManager (зависит от MusicTheoryService и pad)
+        console.log('[App._initAudioAndVisuals] Initializing PadModeManager...');
+        if (typeof PadModeManager === 'undefined') throw new Error("PadModeManager.js is not loaded!");
+        if (typeof harmonicMarkerEngine === 'undefined') throw new Error("harmonicMarkerEngine.js is not loaded!");
+        harmonicMarkerEngine.init(MusicTheoryService);
+        console.log("[App._initAudioAndVisuals] HarmonicMarkerEngine initialized.");
+        PadModeManager.init(this, MusicTheoryService, harmonicMarkerEngine);
+        console.log("[App._initAudioAndVisuals] PadModeManager initialized.");
+
+        // Synth & Visualizer (могут инициализироваться параллельно)
+        const audioVisualPromises = [];
+
+        audioVisualPromises.push((async () => {
+            if (typeof synth === 'undefined') throw new Error("synth.js is not loaded!");
+            synth.init();
+            if(synth.isReady) synth.applyMasterVolumeSettings();
+            console.log("[App._initAudioAndVisuals] Synth initialized.");
+
+            // === Инициализация Sequencer Core ===
+            if (typeof sequencer === 'undefined') {
+                console.warn("[App._initAudioAndVisuals] sequencer.js not loaded or sequencer object not found.");
+            } else {
+                sequencer.init(); // Initialize sequencer core after synth
+                console.log("[App._initAudioAndVisuals] Sequencer core initialized.");
+            }
+
+            // === Инициализация Tone.Transport BPM ===
+            if (typeof Tone !== 'undefined' && Tone.Transport) {
+                Tone.Transport.bpm.value = this.state.transportBpm;
+                console.log(`[App._initAudioAndVisuals] Tone.Transport initialized with BPM: ${this.state.transportBpm}`);
+            }
+        })());
+
+        audioVisualPromises.push((async () => {
+            let analyserNode = (synth?.isReady) ? synth.getAnalyser() : null;
+            // Если synth еще не isReady, analyserNode будет null, visualizer.init должен это обработать
+            // или мы можем подождать synth.init() явно, если это критично для visualizer.
+            if (!analyserNode && synth && typeof synth.waitForReady === 'function') { // Пример ожидания
+                await synth.waitForReady(); // Предположим, есть такой метод
+                analyserNode = synth.getAnalyser();
+            }
+            if (typeof visualizer === 'undefined') throw new Error("visualizer.js is not loaded!");
+            await visualizer.init(document.getElementById('xy-visualizer'), analyserNode);
+            console.log("[App._initAudioAndVisuals] Visualizer initialized.");
+            if (visualizer.isReady) {
+                // Эти вызовы могут быть параллельными, если setVisualizerType и setTouchEffectType независимы
+                await Promise.all([
+                    visualizer.setVisualizerType(this.state.visualizer),
+                    visualizer.setTouchEffectType(this.state.touchEffect)
+                ]);
+                console.log("[App._initAudioAndVisuals] Visualizer and TouchEffect types set.");
+            }
+        })());
+
+        // UI Panels (могут инициализироваться параллельно)
+        this.updateLoadingText('loading_ui', 'Initializing UI...');
+        const uiPromises = [];
+
+        uiPromises.push((async () => {
+            if (typeof sidePanel === 'undefined') throw new Error("sidepanel.js is not loaded!");
+            sidePanel.init(); // populateStaticSelects и populatePadModeSelectDisplay вызовутся здесь
+            console.log("[App._initAudioAndVisuals] sidePanel initialized.");
+        })());
+
+        uiPromises.push((async () => {
+            if (typeof topbar === 'undefined') throw new Error("topbar.js is not loaded!");
+            topbar.init();
+            console.log("[App._initAudioAndVisuals] topbar initialized.");
+        })());
+
+        uiPromises.push((async () => {
+            if (typeof soundPresets === 'undefined') throw new Error("soundpresets.js is not loaded!");
+            soundPresets.init();
+            console.log("[App._initAudioAndVisuals] soundPresets initialized.");
+        })());
+
+        uiPromises.push((async () => {
+            if (typeof fxChains === 'undefined') throw new Error("fxchains.js is not loaded!");
+            fxChains.init();
+            console.log("[App._initAudioAndVisuals] fxChains initialized.");
+        })());
+
+        await Promise.all([...audioVisualPromises, ...uiPromises]);
+        console.log('[App._initAudioAndVisuals] Audio, visuals, and UI panels initialized.');
+    },
+
+    async _applyInitialState() {
+        console.log('[App._applyInitialState] Applying initial application state...');
+        this.updateLoadingText('loading_presets', 'Applying settings...');
+
+        // Установка активного режима пэда ПЕРЕД применением пресетов и тем,
+        // так как это может влиять на UI и доступные опции
+        // this.state.isInitialized должен быть true до вызова setPadMode, если он от него зависит.
+        // В оригинальном коде isInitialized ставился до sidePanel.init(), который теперь в _initAudioAndVisuals
+        // Перенесем установку isInitialized сюда, чтобы быть уверенным, что все базовые модули загружены.
+        this.state.isInitialized = true;
+        console.log('[App._applyInitialState] Core services initialized (isInitialized = true).');
+
+
+        // Порядок важен: тема, затем пресеты/эффекты, которые могут зависеть от UI, созданного темой
+        this.applyTheme(this.state.theme);
+
+        // Применение пресета и FX Chain могут быть параллельными, если они не влияют друг на друга критично на этом этапе.
+        // Однако, applySoundPreset и applyFxChain вызывают _determineEffectiveYAxisControls,
+        // что может привести к гонкам, если они меняют одни и те же состояния.
+        // Безопаснее выполнить их последовательно или убедиться, что _determineEffectiveYAxisControls защищен.
+        // Для начала оставим последовательно.
+        await this.applySoundPreset(this.state.soundPreset);
+        await this.applyFxChain(this.state.fxChain);
+        console.log('[App._applyInitialState] Initial sound preset and FX chain applied.');
+
+        // Установка активного режима пэда. Должна быть после инициализации sidePanel и PadModeManager
+        await this.setPadMode(this.state.padMode, true); // true для initialLoad
+        console.log('[App._applyInitialState] Initial pad mode set.');
+
+        // После того как режим установлен и стратегия активна:
+        if (typeof sidePanel !== 'undefined' && sidePanel.displayModeSpecificControls) {
+            sidePanel.displayModeSpecificControls(this.state.padMode);
+        }
+
+        this._updateSidePanelSettingsUI(); // Обновляем все настройки UI на основе загруженных и примененных состояний
+        if (sidePanel?.updateTonalityControls) { // Добавим проверку существования sidePanel
+             sidePanel.updateTonalityControls(this.state.octaveOffset, this.state.scale, this.state.zoneCount);
+        }
+        if (fxChains?.updateMasterOutputControlsUI) fxChains.updateMasterOutputControlsUI(this.state.masterVolumeCeiling);
+        if (fxChains?.updateYAxisControlsUI && this.state.fxChain === null) { // Если нет FX цепочки, Y-axis управляется глобально
+            fxChains.updateYAxisControlsUI(this.state.yAxisControls);
+        }
+        // app.updateZones() уже был вызван из PadModeManager.setActiveMode() -> app.setPadMode()
+
+        // Инициализация VibrationService
+        if (typeof VibrationService !== 'undefined') {
+            VibrationService.init(this);
+            console.log('[App._applyInitialState] VibrationService initialized.');
+            VibrationService.setEnabled(this.state.vibrationEnabled);
+            VibrationService.setIntensity(this.state.vibrationIntensity);
+            console.log(`[App._applyInitialState] VibrationService configured with state: enabled=${this.state.vibrationEnabled}, intensity=${this.state.vibrationIntensity}`);
+        } else {
+            console.error('[App._applyInitialState] VibrationService not found!');
+        }
+
+        console.log('[App._applyInitialState] Initial application state applied.');
+    },
+
     async init() {
-        console.log('[App.init v2.5.1 PadModeManager] Starting application initialization...');
+        console.log('[App.init vNext] Starting application initialization...');
         this.elements.body = document.body;
         this.elements.appContainer = document.getElementById('app-container');
 
@@ -92,15 +313,15 @@ const app = {
         this.elements.loadingPrompt = document.querySelector('.loading-prompt');
 
         if (!this.elements.loadingOverlay || !this.elements.loadingText || !this.elements.loadingTitle || !this.elements.loadingPrompt) {
-            console.error("[App.init v6] Critical error: Loading overlay elements not found!");
+            console.error("[App.init] Critical error: Loading overlay elements not found!");
             if (this.elements.loadingText) this.elements.loadingText.textContent = "Initialization Error: UI elements missing.";
             return;
         }
 
         if (typeof i18n !== 'undefined') {
-            i18n.init(this.state.language);
+            i18n.init(this.state.language); // Базовая инициализация i18n (синхронная)
             this.updateLoadingText('initializing', 'Initializing...');
-        } else { console.warn("[App.init v6] i18n module not found."); }
+        } else { console.warn("[App.init] i18n module not found."); }
 
         let audioInitPromise = Promise.resolve(false);
         try {
@@ -114,21 +335,21 @@ const app = {
                     idle_loop: audioBaseUrl + 'audio/loading/idle_loop.mp3'
                 };
                 audioInitPromise = this.loadingAudio.init(audioUrls);
-            } else { console.warn("[App.init v6] loadingAudio module not found."); }
+            } else { console.warn("[App.init] loadingAudio module not found."); }
 
             if (typeof starsAnimation !== 'undefined') {
                 this.starsAnimation = starsAnimation;
-                if (!this.starsAnimation.init('loading-stars-canvas')) { console.error("App.init v6: Failed to initialize stars animation."); }
+                if (!this.starsAnimation.init('loading-stars-canvas')) { console.error("App.init: Failed to initialize stars animation."); }
                 else { this.starsAnimation.start(); }
-            } else { console.warn("[App.init v6] starsAnimation module not found."); }
+            } else { console.warn("[App.init] starsAnimation module not found."); }
 
             if (typeof prismEffect !== 'undefined') {
                 this.prismEffect = prismEffect;
-                if (!this.prismEffect.init('loading-prism-canvas')) { console.error("App.init v6: Failed to initialize prism effect."); }
-            } else { console.warn("[App.init v6] prismEffect module not found."); }
+                if (!this.prismEffect.init('loading-prism-canvas')) { console.error("App.init: Failed to initialize prism effect."); }
+            } else { console.warn("[App.init] prismEffect module not found."); }
 
         } catch (loadingModulesError) {
-             console.error("App.init v6: Error initializing loading animation/audio modules:", loadingModulesError);
+             console.error("App.init: Error initializing loading animation/audio modules:", loadingModulesError);
         }
 
         audioInitPromise.then(audioInitialized => {
@@ -136,114 +357,30 @@ const app = {
         });
 
         try {
-            console.log('[App.init v6] Waiting for DOM Ready...');
+            console.log('[App.init] Waiting for DOM Ready...');
             if (document.readyState === 'loading') { await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve)); }
-            console.log('[App.init v6] DOM Ready.');
+            console.log('[App.init] DOM Ready.');
 
-            console.log('[App.init v6] Waiting for bridge...');
+            console.log('[App.init] Waiting for bridge...');
             this.updateLoadingText('loading_bridge', 'Connecting...');
             await this.waitForBridge();
-            console.log('[App.init v6] Bridge Ready.');
+            console.log('[App.init] Bridge Ready.');
 
-            console.log('[App.init v6] Starting main initialization sequence...');
-            this.updateLoadingText('loading_settings', 'Loading settings...');
-            await this.loadInitialSettings();
-            console.log("[App.init v6] Initial currentTonic:", this.state.currentTonic);
+            console.log('[App.init] Starting main initialization sequence...');
 
-            console.log('[App.init v6] Initializing i18n with loaded language...');
-            await i18n.loadLanguage(this.state.language);
+            // Этап 1: Загрузка основных данных
+            await this._loadCoreData();
 
-            this.updateLoadingText('loading_modules', 'Loading modules...');
-            if (typeof moduleManager === 'undefined') throw new Error("moduleManager.js is not loaded!");
-            await moduleManager.init();
+            // Этап 2: Инициализация аудио, визуальных эффектов и базовых UI компонентов
+            await this._initAudioAndVisuals();
 
-            // MusicTheoryService
-            if (typeof MusicTheoryService === 'undefined') throw new Error("MusicTheoryService is not loaded!");
-            await MusicTheoryService.init(moduleManager);
-            console.log("[App.init v2.5.1] MusicTheoryService initialized. isTonalJsLoaded:", MusicTheoryService.isTonalJsLoaded, "Scale defs count:", Object.keys(MusicTheoryService.scaleDefinitions).length);
+            // Этап 3: Применение начального состояния и настроек UI
+            await this._applyInitialState();
 
-            // Pad.js - ИНИЦИАЛИЗИРУЕМ ДО PadModeManager, чтобы pad.isReady было true
-            if (typeof pad === 'undefined') throw new Error("pad.js is not loaded!");
-            pad.init(document.getElementById('xy-pad-container'));
-            console.log("[App.init v2.5.1] Pad initialized. pad.isReady:", pad.isReady);
-
-            // PadModeManager
-            console.log('[App.init] Before PadModeManager.init, this (app) is:', this);
-            console.log('[App.init PadModes] Initializing PadModeManager...');
-            if (typeof PadModeManager === 'undefined') throw new Error("PadModeManager.js is not loaded!");
-            if (typeof harmonicMarkerEngine === 'undefined') throw new Error("harmonicMarkerEngine.js is not loaded!");
-            harmonicMarkerEngine.init(MusicTheoryService);
-            console.log("[App.init] HarmonicMarkerEngine initialized.");
-            PadModeManager.init(this, MusicTheoryService, harmonicMarkerEngine);
-            console.log("[App.init] PadModeManager initialized.");
-
-            this.state.isInitialized = true; // Перемещаем сюда, если sidePanel зависит от isInitialized
-            console.log('[App.init PadModes] Core services initialized (isInitialized = true).');
-            
-            // Инициализация UI Panels (включая sidePanel)
-            if (typeof sidePanel === 'undefined') throw new Error("sidepanel.js is not loaded!");
-            sidePanel.init(); // populateStaticSelects и populatePadModeSelectDisplay вызовутся здесь
-            
-            // Установка активного режима пэда (это вызовет app.updateZones() И sidePanel.displayModeSpecificControls())
-            await this.setPadMode(this.state.padMode, true); // true для initialLoad
-
-            // После того как режим установлен и стратегия активна:
-            if (typeof sidePanel !== 'undefined' && sidePanel.displayModeSpecificControls) {
-                sidePanel.displayModeSpecificControls(this.state.padMode); // <--- ДОБАВЛЕН ВЫЗОВ
-            }
-
-            // Synth
-            if (typeof synth === 'undefined') throw new Error("synth.js is not loaded!");
-            synth.init();
-            if(synth.isReady) synth.applyMasterVolumeSettings();
-
-            // === ДОБАВЛЕНО: Инициализация Tone.Transport BPM ===
-            if (typeof Tone !== 'undefined' && Tone.Transport) {
-                Tone.Transport.bpm.value = this.state.transportBpm;
-                console.log(`[App.init] Tone.Transport initialized with BPM: ${this.state.transportBpm}`);
-            }
-
-            // Visualizer
-            let analyserNode = (synth?.isReady) ? synth.getAnalyser() : null;
-            if (typeof visualizer === 'undefined') throw new Error("visualizer.js is not loaded!");
-            await visualizer.init(document.getElementById('xy-visualizer'), analyserNode);
-            if (visualizer.isReady) {
-                await visualizer.setVisualizerType(this.state.visualizer);
-                await visualizer.setTouchEffectType(this.state.touchEffect);
-            }
-
-            // UI Panels
-            this.updateLoadingText('loading_ui', 'Initializing UI...');
-            if (typeof sidePanel === 'undefined') throw new Error("sidepanel.js is not loaded!");
-            sidePanel.init(); // populateStaticSelects вызовется здесь
-            // populatePadModeSelect уже вызван выше
-            console.log('[App.init v2.5.1] UI modules initialized.');
-
-            if (typeof topbar === 'undefined') throw new Error("topbar.js is not loaded!");
-            topbar.init();
-            if (typeof soundPresets === 'undefined') throw new Error("soundpresets.js is not loaded!");
-            soundPresets.init();
-            if (typeof fxChains === 'undefined') throw new Error("fxchains.js is not loaded!");
-            fxChains.init();
-
-            // Применение начального UI состояния
-            this.updateLoadingText('loading_presets', 'Applying settings...');
-            this.applyTheme(this.state.theme);
-            await this.applySoundPreset(this.state.soundPreset); // Этот вызов уже содержит _determineEffectiveYAxisControls и обновление UI
-            await this.applyFxChain(this.state.fxChain); // Этот вызов также должен содержать _determineEffectiveYAxisControls и обновление UI
-            console.log('[App.init v2.5.1] Initial UI state applied.');
-
-            this._updateSidePanelSettingsUI(); // Обновляем все настройки UI
-            sidePanel.updateTonalityControls(this.state.octaveOffset, this.state.scale, this.state.zoneCount);
-            if (fxChains.updateMasterOutputControlsUI) fxChains.updateMasterOutputControlsUI(this.state.masterVolumeCeiling);
-            if (fxChains.updateYAxisControlsUI && this.state.fxChain === null) {
-                fxChains.updateYAxisControlsUI(this.state.yAxisControls);
-            }
-            // app.updateZones() уже был вызван из PadModeManager.setActiveMode()
 
             this.elements.body.classList.add('landscape-mode');
             console.log('-----------------------------------------');
-            console.log('[App.init v2.5.1] Core Initialization Complete.');
+            console.log('[App.init] Core Initialization Complete.');
             console.log('Waiting for user interaction or timeout...');
             console.log('-----------------------------------------');
 
@@ -255,7 +392,7 @@ const app = {
             }
             this.elements.loadingTitle?.classList.add('show');
             this.elements.loadingPrompt?.classList.add('show');
-            if (typeof i18n !== 'undefined') i18n.updateUI();
+            if (typeof i18n !== 'undefined' && i18n.updateUI) i18n.updateUI(); // Обновляем UI после загрузки языка
 
             this.loadingTimeoutId = setTimeout(() => { this.triggerAppStart(); }, 14500);
             this.elements.loadingOverlay.addEventListener('click', this.handleOverlayClick, { once: true });
@@ -269,22 +406,8 @@ const app = {
                 this.elements.statusCurrentPhase = document.getElementById('status-current-phase');
             }
 
-            // ... после инициализации i18n и moduleManager ...
-            if (typeof VibrationService !== 'undefined') {
-                VibrationService.init(this);
-                console.log('[App.init] VibrationService initialized.');
-                // >>> НАЧАЛО НОВОГО КОДА <<<
-                // Явно конфигурируем сервис на основе загруженного или дефолтного состояния
-                VibrationService.setEnabled(this.state.vibrationEnabled);
-                VibrationService.setIntensity(this.state.vibrationIntensity);
-                console.log(`[App.init] VibrationService configured with state: enabled=${this.state.vibrationEnabled}, intensity=${this.state.vibrationIntensity}`);
-                // >>> КОНЕЦ НОВОГО КОДА <<<
-            } else {
-                console.error('[App.init] VibrationService not found!');
-            }
-
         } catch (error) {
-            console.error('[App.init v2.5.1] Initialization sequence failed:', error, error.stack);
+            console.error('[App.init] Initialization sequence failed:', error, error.stack);
             this.state.isInitialized = false;
             this.updateLoadingText('error_init_failed_details', `Initialization Error: ${error.message}. Check console.`, true);
             this.starsAnimation?.stop();
@@ -296,6 +419,12 @@ const app = {
         }
     },
 
+    /**
+     * Updates the text displayed on the loading overlay.
+     * @param {string} key - The i18n key for the loading message.
+     * @param {string} fallback - The fallback text if i18n key is not found.
+     * @param {boolean} [isError=false] - If true, styles the message as an error.
+     */
     updateLoadingText(key, fallback, isError = false) {
         if (this.elements.loadingText) {
             const message = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate(key, fallback) : fallback;
@@ -305,12 +434,19 @@ const app = {
         }
     },
 
+    /**
+     * Handles clicks on the loading overlay to initiate app start after user interaction.
+     */
     handleOverlayClick() {
         console.log("[App v6] Loading overlay clicked by user.");
         if (app.loadingTimeoutId) { clearTimeout(app.loadingTimeoutId); app.loadingTimeoutId = null; }
         app.triggerAppStart();
     },
 
+    /**
+     * Triggers the application start sequence, usually after user interaction.
+     * Plays loading sounds and proceeds to `startAudioAndShowApp`.
+     */
     triggerAppStart() {
         if (app.isStartingApp || !app.state.isInitialized) { return; }
         console.log("[App v6] Triggering app start sequence...");
@@ -324,6 +460,12 @@ const app = {
         else { app.startAudioAndShowApp(); }
     },
 
+    /**
+     * Starts the audio engine (Tone.js) and reveals the main application interface
+     * by hiding the loading overlay.
+     * @async
+     * @returns {Promise<void>}
+     */
     async startAudioAndShowApp() {
         console.log("[App v6] Starting audio and hiding overlay...");
         try {
@@ -357,6 +499,9 @@ const app = {
         }
     },
 
+    /**
+     * Hides the loading overlay and displays the main application content.
+     */
     hideLoading() {
         if (this.elements.loadingOverlay && !this.elements.loadingOverlay.classList.contains('hidden')) {
             this.elements.loadingOverlay.classList.add('hiding');
@@ -368,6 +513,10 @@ const app = {
         }
     },
 
+    /**
+     * Waits for the Android native bridge (PrismtoneBridge) to become available.
+     * @returns {Promise<void>} A promise that resolves when the bridge is ready.
+     */
     waitForBridge() {
         const timeoutMs = 10000; const checkInterval = 100;
         return new Promise((resolve, reject) => {
@@ -381,6 +530,13 @@ const app = {
         });
     },
 
+    /**
+     * Loads initial application settings from the native side (Android SharedPreferences).
+     * This includes theme, language, last used presets, visualizer, touch effect, scale, etc.
+     * Also initializes critical services like the SensorController.
+     * @async
+     * @returns {Promise<void>} A promise that resolves when settings are loaded and applied.
+     */
     async loadInitialSettings() {
         console.log("[App.loadInitialSettings] Loading settings...");
         // Пример загрузки из localStorage, замените на реальный вызов Bridge, если нужно
@@ -486,6 +642,27 @@ const app = {
                 if (settings.currentTonic !== undefined) this.state.currentTonic = settings.currentTonic;
                 if (settings.highlightSharpsFlats !== undefined) this.state.highlightSharpsFlats = settings.highlightSharpsFlats;
                 // =======================================================
+
+            // === ЗАГРУЗКА sensorSettings ===
+            if (settings.sensorSettings && typeof settings.sensorSettings === 'object') {
+                this.state.sensorSettings.smoothingAlpha = settings.sensorSettings.smoothingAlpha ?? this.state.sensorSettings.smoothingAlpha;
+                this.state.sensorSettings.invertPitchAxis = settings.sensorSettings.invertPitchAxis ?? this.state.sensorSettings.invertPitchAxis;
+                this.state.sensorSettings.invertRollAxis = settings.sensorSettings.invertRollAxis ?? this.state.sensorSettings.invertRollAxis;
+                this.state.sensorSettings.swapAxes = settings.sensorSettings.swapAxes ?? this.state.sensorSettings.swapAxes;
+                console.log('[App.loadInitialSettings] Loaded sensorSettings from bridge:', this.state.sensorSettings);
+            } else if (localStorage.getItem('sensorSettings')) {
+                try {
+                    const storedSensorSettings = JSON.parse(localStorage.getItem('sensorSettings'));
+                    this.state.sensorSettings.smoothingAlpha = storedSensorSettings.smoothingAlpha ?? this.state.sensorSettings.smoothingAlpha;
+                    this.state.sensorSettings.invertPitchAxis = storedSensorSettings.invertPitchAxis ?? this.state.sensorSettings.invertPitchAxis;
+                    this.state.sensorSettings.invertRollAxis = storedSensorSettings.invertRollAxis ?? this.state.sensorSettings.invertRollAxis;
+                    this.state.sensorSettings.swapAxes = storedSensorSettings.swapAxes ?? this.state.sensorSettings.swapAxes;
+                    console.log('[App.loadInitialSettings] Loaded sensorSettings from localStorage:', this.state.sensorSettings);
+                } catch (e) {
+                    console.warn('[App.loadInitialSettings] Failed to parse sensorSettings from localStorage, using defaults.', e);
+                }
+            }
+            // ==================================
 
                 // === ЗАГРУЗКА rocketModeSettings ===
                 let rocketDefaults = {
@@ -617,6 +794,9 @@ const app = {
         }
     },
 
+    /**
+     * Suspends the audio context. Typically called when the app goes to the background.
+     */
     suspendAudio() {
         console.log("[App.suspendAudio] Suspending audio.");
         if (synth?.stopAllNotes) {
@@ -624,6 +804,10 @@ const app = {
         }
     },
 
+    /**
+     * Applies a new visual theme to the application.
+     * @param {string} themeId - The ID of the theme to apply (e.g., 'aurora', 'cyberpunk').
+     */
     applyTheme(themeId) {
         if (!themeId) return;
         try {
@@ -637,6 +821,13 @@ const app = {
         } catch (error) { console.error(`[App] Error applying theme ${themeId}:`, error); }
     },
 
+    /**
+     * Applies a new language to the application.
+     * Fetches language data and updates all i18n-sensitive UI elements.
+     * @param {string} languageId - The language code (e.g., 'en', 'ru').
+     * @async
+     * @returns {Promise<void>}
+     */
     async applyLanguage(languageId) {
          if (!languageId) return;
          const previousLanguageId = this.state.language; // Для отката
@@ -645,7 +836,7 @@ const app = {
             if (i18n?.loadLanguage) {
                 await i18n.loadLanguage(languageId);
                 this.state.language = languageId;
-                
+
                 // Обновление текста на экране загрузки, если он виден
                 if (this.elements.loadingOverlay && !this.elements.loadingOverlay.classList.contains('hidden')) {
                      const currentTextKey = this.elements.loadingText?.dataset.i18nKey || 'loading';
@@ -659,11 +850,11 @@ const app = {
                 }
 
                  this._updateSidePanelSettingsUI();
-            } else { 
+            } else {
                 console.error('[App.applyLanguage] i18n module or loadLanguage function is not available.');
                 throw new Error('i18n module not available'); // Выбрасываем ошибку, чтобы попасть в catch
             }
-        } catch (error) { 
+        } catch (error) {
             console.error(`[App.applyLanguage] Error applying language ${languageId}:`, error, error.stack);
             // Логика отката
             this.state.language = previousLanguageId;
@@ -683,10 +874,16 @@ const app = {
         }
     },
 
+    /**
+     * Applies a new visualizer.
+     * @param {string} visualizerId - The ID of the visualizer to apply.
+     * @async
+     * @returns {Promise<void>}
+     */
     async applyVisualizer(visualizerId) {
         if (!visualizerId) return; // Проверка на пустой visualizerId
         // Флаг isApplyingChange здесь не используется, согласно примеру пользователя
-        
+
         const previousVisualizerId = this.state.visualizer; // Для возможного отката
 
         try {
@@ -695,7 +892,7 @@ const app = {
                 await visualizer.setVisualizerType(visualizerId);
                 // Используем await и новый метод моста согласно примеру
                 if (this.state.isBridgeReady) { // Добавляем проверку isBridgeReady для безопасности
-                    await bridgeFix.callBridge('setVisualizer', visualizerId); 
+                    await bridgeFix.callBridge('setVisualizer', visualizerId);
                 }
             }
             this._updateSidePanelSettingsUI();
@@ -709,13 +906,19 @@ const app = {
             if (this.state.isBridgeReady) {
                  await bridgeFix.callBridge('setVisualizer', previousVisualizerId).catch(e => console.error("[App.applyVisualizer] Rollback bridge call failed:", e));
             }
-            this._updateSidePanelSettingsUI(); 
+            this._updateSidePanelSettingsUI();
         }
     },
 
+    /**
+     * Applies a new touch effect.
+     * @param {string} effectId - The ID of the touch effect to apply.
+     * @async
+     * @returns {Promise<void>}
+     */
     async applyTouchEffect(effectId) {
         // Значение по умолчанию 'none' применяется, если effectId это null или undefined
-        const targetEffectId = effectId ?? 'none'; 
+        const targetEffectId = effectId ?? 'none';
         // Флаг isApplyingChange здесь не используется, согласно примеру пользователя
 
         const previousTouchEffectId = this.state.touchEffect; // Для возможного отката
@@ -744,6 +947,13 @@ const app = {
         }
     },
 
+    /**
+     * Determines the effective Y-axis control configuration (preset vs. global)
+     * and applies it to the synth and UI.
+     * This method is crucial for ensuring that Y-axis modulations are correctly
+     * sourced either from the loaded sound preset or global application settings.
+     * @private
+     */
     _applyAndSyncYAxisState() {
         console.log(`[App._applyAndSyncYAxisState v8] Syncing Y-Axis state from app.state:`, JSON.parse(JSON.stringify(this.state.yAxisControls)));
         if (synth) {
@@ -761,6 +971,14 @@ const app = {
         }
     },
 
+    /**
+     * Loads and applies a sound preset to the synthesizer and updates the UI.
+     * It fetches preset data, applies it to the synth, updates Y-axis controls,
+     * and saves the choice to native storage.
+     * @param {string} presetId - The unique ID of the preset to load.
+     * @async
+     * @returns {Promise<void>}
+     */
     async applySoundPreset(presetId) {
         // Используем более гибкий вариант определения targetPresetId из предыдущей версии
         const targetPresetId = presetId || (this.config.defaultPreset ? this.config.defaultPreset.id : 'default_piano');
@@ -773,12 +991,12 @@ const app = {
         this.state.isApplyingChange = true;
         // this.showLoadingIndicator(true);
 
-        const previousPresetId = this.state.soundPreset; 
+        const previousPresetId = this.state.soundPreset;
 
         try {
             const presetModule = await moduleManager.getModule(targetPresetId);
             // Используем synth.config.defaultPreset как более подходящий фоллбэк для данных синтезатора
-            const presetData = presetModule?.data?.data || synth.config.defaultPreset; 
+            const presetData = presetModule?.data?.data || synth.config.defaultPreset;
 
             if (!presetData) {
                 // Сообщение об ошибке немного изменено для ясности
@@ -792,7 +1010,7 @@ const app = {
             } else {
                 throw new Error("Synth not ready for preset application");
             }
-            
+
             // 2. this.state.soundPreset
             this.state.soundPreset = targetPresetId;
 
@@ -800,7 +1018,7 @@ const app = {
             if (soundPresets?.updateActivePresetCube) {
                 soundPresets.updateActivePresetCube(targetPresetId);
             }
-            
+
             // 4. bridgeFix.callBridge
             if (this.state.isBridgeReady) { // Проверка isBridgeReady добавлена для безопасности
                 await bridgeFix.callBridge('setSoundPreset', targetPresetId);
@@ -808,7 +1026,7 @@ const app = {
 
             // 5. _resolveAndApplyYAxisControls
             if (typeof this._resolveAndApplyYAxisControls === 'function') {
-                await this._resolveAndApplyYAxisControls(true); 
+                await this._resolveAndApplyYAxisControls(true);
             } else {
                  console.warn("[App.applySoundPreset] _resolveAndApplyYAxisControls is not a function.");
             }
@@ -837,6 +1055,14 @@ const app = {
         }
     },
 
+    /**
+     * Loads and applies an FX chain to the synthesizer and updates the UI.
+     * It fetches chain data, configures synth effects, updates Y-axis controls if necessary,
+     * and saves the choice to native storage.
+     * @param {string | null} chainId - The unique ID of the FX chain to load, or null to clear.
+     * @async
+     * @returns {Promise<void>}
+     */
     async applyFxChain(chainId) {
         const targetChainId = chainId ?? null;
         console.log(`[App.applyFxChain] Applying FX Chain ID: ${targetChainId}.`);
@@ -881,7 +1107,7 @@ const app = {
             if (fxChains?.updateActiveChain) {
                 fxChains.updateActiveChain(targetChainId);
             }
-            
+
             // 5. Разрешаем и применяем настройки Y-оси
             // Убедимся, что _resolveAndApplyYAxisControls существует и является функцией
             if (typeof this._resolveAndApplyYAxisControls === 'function') {
@@ -916,6 +1142,13 @@ const app = {
         }
     },
 
+    /**
+     * Sets the musical scale for the pads.
+     * Updates the internal state, informs the PadModeManager, updates UI, and saves to native.
+     * @param {string} scaleId - The ID of the scale to apply (e.g., 'major', 'minor_pentatonic').
+     * @async
+     * @returns {Promise<void>}
+     */
     async setScale(scaleId) {
         if (!scaleId || this.state.scale === scaleId) return;
         console.log(`[App] Setting scale to: ${scaleId}`);
@@ -948,6 +1181,14 @@ const app = {
             }
         }
     },
+
+    /**
+     * Sets the global octave offset for the pads.
+     * Updates internal state, informs PadModeManager, updates UI, and saves to native.
+     * @param {number} offset - The octave offset value (integer).
+     * @async
+     * @returns {Promise<void>}
+     */
     async setOctaveOffset(offset) {
         const newOffset = Math.max(-7, Math.min(7, parseInt(offset, 10)));
         if (newOffset === this.state.octaveOffset || isNaN(newOffset)) return;
@@ -981,6 +1222,13 @@ const app = {
         }
     },
 
+    /**
+     * Sets the number of zones (pads) to be displayed.
+     * Updates internal state, informs PadModeManager, updates UI, and saves to native.
+     * @param {number} count - The number of zones.
+     * @async
+     * @returns {Promise<void>}
+     */
     async setZoneCount(count) {
         const newCount = parseInt(count, 10);
         if (isNaN(newCount) || newCount < 8 || newCount > 36 || newCount % 2 !== 0) {
@@ -1022,31 +1270,103 @@ const app = {
         }
     },
 
+    /**
+     * Triggers an update of the pad zone layout based on current settings.
+     * Delegates to the active PadModeStrategy.
+     * @async
+     * @returns {Promise<void>}
+     */
     async updateZoneLayout() {
-        // Полный цикл: layout + визуальные подсказки
-        if (!this.state.isInitialized || !PadModeManager || !PadModeManager.getCurrentStrategy() || !pad?.isReady) {
-            console.warn(`[App.updateZoneLayout] Aborting: Not ready, no strategy, or pad not ready.`);
+        console.log('[App.updateZoneLayout] Called. Current app.state.padMode:', this.state.padMode);
+        if (!this.state.isInitialized || !PadModeManager || !pad?.isReady) {
+            console.warn(`[App.updateZoneLayout] Aborting: App not initialized, PadModeManager missing, or pad not ready.`);
             return;
         }
+
+        const currentStrategy = PadModeManager.getCurrentStrategy();
+        if (!currentStrategy) {
+            console.error('[App.updateZoneLayout] No active strategy from PadModeManager!');
+            pad.clearZones();
+            await this.updateZoneVisuals([]);
+            return;
+        }
+
+        console.log('[App.updateZoneLayout] currentStrategy NAME:', currentStrategy.name, 'isStandardLayout:', currentStrategy.isStandardLayout, 'typeof getZoneLayoutOptions:', typeof currentStrategy.getZoneLayoutOptions);
+
+        if (currentStrategy.isStandardLayout === false) {
+            console.log('[App.updateZoneLayout] Non-standard layout detected for ' + currentStrategy.name + ' based on isStandardLayout property. Clearing zones and returning.');
+            pad.clearZones();
+            await this.updateZoneVisuals([]);
+            return;
+        }
+
+        if (typeof currentStrategy.getZoneLayoutOptions !== 'function') {
+            console.error('[App.updateZoneLayout] FATAL: currentStrategy.getZoneLayoutOptions is NOT a function for ' + (currentStrategy.name || 'Unnamed Strategy') + '. Clearing zones and returning.');
+            pad.clearZones();
+            await this.updateZoneVisuals([]);
+            return;
+        }
+
         try {
-            const currentStrategy = PadModeManager.getCurrentStrategy();
-            const layoutContext = await currentStrategy.getZoneLayoutOptions(this.state);
-            if (!layoutContext) {
-                pad.drawZones([], this.state.currentTonic);
-                await this.updateZoneVisuals([]); // Обновляем визуализацию с пустыми зонами
-                return;
+            const layoutOptions = await currentStrategy.getZoneLayoutOptions(this.state); // getZoneLayoutOptions might be async
+
+            if (layoutOptions && layoutOptions.isStandardLayout === false) {
+                 console.log('[App.updateZoneLayout] Non-standard layout detected for ' + currentStrategy.name + ' based on getZoneLayoutOptions().isStandardLayout. Clearing zones and returning.');
+                 pad.clearZones();
+                 await this.updateZoneVisuals([]);
+                 return;
             }
-            const servicesForStrategy = PadModeManager._getServicesBundle();
-            const zonesData = await currentStrategy.generateZoneData(layoutContext, this.state, servicesForStrategy);
+
+            const padContext = {
+                tonic: this.state.currentTonic,
+                scale: this.state.scale,
+                octave: this.state.octaveOffset,
+                zoneCount: this.state.zoneCount,
+                showLines: this.state.showLines,
+                highlightSharpsFlats: this.state.highlightSharpsFlats,
+                currentChordName: this.state.currentChordName,
+                musicContext: this.state.musicContext // Ensure this is populated
+            };
+
+            let zonesData = [];
+            // Check if currentStrategy itself is the generator (like in ClassicModeStrategy)
+            if (typeof currentStrategy.generateZoneData === 'function') { // Updated to generateZoneData as per strategy structure
+                const servicesForStrategy = PadModeManager._getServicesBundle();
+                zonesData = await currentStrategy.generateZoneData(layoutOptions, this.state, servicesForStrategy);
+            } else if (layoutOptions && typeof layoutOptions.generator === 'function') { // Check for generator on layoutOptions (less likely now)
+                zonesData = await layoutOptions.generator(padContext, layoutOptions);
+            } else {
+                // Fallback or default if no specific generator on strategy or options
+                console.warn('[App.updateZoneLayout] No specific zone generator found for strategy ' + currentStrategy.name + '. Using fallback ClassicModeStrategy.generateZones.');
+                let classicStrategy = PadModeManager.strategies['classic'];
+                if (classicStrategy && typeof classicStrategy.init === 'function' && !classicStrategy.isInitialized) {
+                    classicStrategy.init(this, MusicTheoryService, harmonicMarkerEngine);
+                    classicStrategy.isInitialized = true;
+                }
+                // Ensure ClassicModeStrategy.generateZones exists and is callable
+                if (ClassicModeStrategy && typeof ClassicModeStrategy.generateZones === 'function') {
+                     zonesData = ClassicModeStrategy.generateZones(padContext, { zoneCount: this.state.zoneCount, showLines: this.state.showLines, scale: padContext.scale, tonic: padContext.tonic, isNudgeMode: false });
+                } else {
+                    console.error("[App.updateZoneLayout] Fallback ClassicModeStrategy.generateZones is not available!");
+                    zonesData = [];
+                }
+            }
+
             pad.drawZones(zonesData, this.state.currentTonic);
-            await this.updateZoneVisuals(zonesData); // ГАРАНТИРОВАННО обновляем hints для актуальных зон
+            await this.updateZoneVisuals(zonesData);
         } catch (error) {
-            console.error('[App.updateZoneLayout] Error:', error, error.stack);
-            if (pad?.isReady) pad.drawZones([], this.state.currentTonic);
+            console.error('[App.updateZoneLayout] Error during zone layout for strategy ' + (currentStrategy.name || 'Unnamed Strategy') + ':', error, error.stack);
+            if (pad?.isReady) pad.clearZones(); // Use clearZones on error
             await this.updateZoneVisuals([]);
         }
     },
 
+    /**
+     * Updates the visual representation of the pad zones (labels, highlights).
+     * @param {Array<object>} [currentZonesData=pad._currentDisplayedZones] - The zone data to use for rendering.
+     * @async
+     * @returns {Promise<void>}
+     */
     async updateZoneVisuals(currentZonesData = pad._currentDisplayedZones) {
         if (!this.state.isInitialized || !PadModeManager?.getCurrentStrategy() || !pad?.isReady) return;
         try {
@@ -1086,6 +1406,10 @@ const app = {
         }
     },
 
+    /**
+     * Toggles the visibility of note names on the pads.
+     * @param {boolean} show - True to show note names, false to hide.
+     */
     toggleNoteNames(show) {
         if (this.state.isApplyingChange) {
             console.log('[App.toggleNoteNames] Change blocked because a major change is in progress.');
@@ -1099,6 +1423,10 @@ const app = {
         this._updateSidePanelSettingsUI();
     },
 
+    /**
+     * Toggles the visibility of grid lines on the pads.
+     * @param {boolean} show - True to show lines, false to hide.
+     */
     toggleLines(show) {
         if (this.state.isApplyingChange) {
             console.log('[App.toggleLines] Change blocked because a major change is in progress.');
@@ -1112,6 +1440,10 @@ const app = {
         this._updateSidePanelSettingsUI();
     },
 
+    /**
+     * Sets the master volume ceiling for the synthesizer.
+     * @param {number} value - The volume ceiling (0.0 to 1.0).
+     */
     setMasterVolumeCeiling(value) {
         if (this.state.isApplyingChange) {
             console.log('[App.setMasterVolumeCeiling] Change blocked because a major change is in progress.');
@@ -1138,6 +1470,10 @@ const app = {
         }
     },
 
+    /**
+     * Enables or disables polyphony volume scaling in the synthesizer.
+     * @param {boolean} isEnabled - True to enable, false to disable.
+     */
     setEnablePolyphonyVolumeScaling(isEnabled) {
         const enabled = typeof isEnabled === 'boolean' ? isEnabled : !!isEnabled; // Ensure boolean
         if (this.state.enablePolyphonyVolumeScaling === enabled) return;
@@ -1151,7 +1487,12 @@ const app = {
         this._updateSidePanelSettingsUI();
     },
 
-    // === ОБНОВЛЕННАЯ ФУНКЦИЯ setYAxisControl для Части 2 ===
+    /**
+     * Sets a specific Y-axis control parameter.
+     * @param {'volume' | 'effects'} group - The control group ('volume' or 'effects').
+     * @param {string} controlName - The specific parameter name (e.g., 'minOutput', 'curveType').
+     * @param {number | string} value - The new value for the parameter.
+     */
     setYAxisControl(group, controlName, value) {
         if (this.state.isApplyingChange) {
             console.log(`[App.setYAxisControl] Change for ${group}.${controlName} blocked because a major change is in progress.`);
@@ -1218,6 +1559,14 @@ const app = {
     },
     // =======================================================
 
+    /**
+     * Restarts the audio engine (Tone.js). This is a complex operation
+     * that involves tearing down the current audio context and rebuilding it.
+     * It's used when significant audio configuration changes occur or to recover from errors.
+     * Preserves current sound preset and FX chain if possible.
+     * @async
+     * @returns {Promise<boolean>} True if restart was successful, false otherwise.
+     */
     async restartAudioEngine() {
         console.warn("[App] Инициирую перезапуск аудио-движка v8 (обернуто в try/catch/finally)...");
         if (this.isRestartingAudio) {
@@ -1303,7 +1652,7 @@ const app = {
                     throw new Error(`Аудиоконтекст не в состоянии 'running' (${Tone.context.state}) после всех попыток.`);
                 }
             }
-        
+
             // 4. Переинициализация synth и visualizer
         console.log("[App.restartAudioEngine] Переинициализирую synth и visualizer...");
             if (typeof synth !== 'undefined' && typeof synth.init === 'function') {
@@ -1370,6 +1719,13 @@ const app = {
         }, animationDuration);
         }
     },
+
+    /**
+     * Triggers a full application reload via the native bridge.
+     * This is a more drastic measure than restarting the audio engine.
+     * @async
+     * @returns {Promise<void>}
+     */
     async triggerFullReload() {
         console.warn("[App] Запрос на ПОЛНУЮ ПЕРЕЗАГРУЗКУ приложения v2 (с try/catch/finally)...");
 
@@ -1426,9 +1782,12 @@ const app = {
             }, animationDuration);
         }
     },
+
     /**
-     * Устанавливает текущую тонику приложения.
-     * @param {string} noteName - Название ноты (например, "C4", "G#5").
+     * Sets the current musical tonic (root note and octave).
+     * @param {string} noteName - The scientific notation of the tonic (e.g., "C4", "A#3").
+     * @async
+     * @returns {Promise<void>}
      */
     async setTonic(noteName) {
         if (!this.state.isInitialized || !noteName || this.state.currentTonic === noteName) {
@@ -1439,17 +1798,17 @@ const app = {
             // Если предыдущий код с `await this.updateZones()` был важен при неизменной тонике, его нужно вернуть.
             return;
         }
-    
+
         console.log(`[App] Setting tonic to: ${noteName}`);
         const previousTonic = this.state.currentTonic; // Сохраняем для возможного отката
-    
+
         try {
         this.state.currentTonic = noteName;
 
             // Сначала обновляем состояние, потом вызываем асинхронные операции
             // Важно ДОЖДАТЬСЯ, пока PadModeManager отреагирует и перерисует пэд
             if (PadModeManager && typeof PadModeManager.onTonicChanged === 'function') {
-                await PadModeManager.onTonicChanged(this.state.currentTonic); 
+                await PadModeManager.onTonicChanged(this.state.currentTonic);
         } else {
                 // Если PadModeManager вдруг нет, или у него нет onTonicChanged,
                 // вызываем перерисовку зон напрямую (если он есть).
@@ -1463,12 +1822,12 @@ const app = {
                     await this.updateZoneLayout();
                 }
             }
-    
+
             // Обновляем UI панели тональности
             if (sidePanel?.updateTonalityControls) {
                 sidePanel.updateTonalityControls(this.state.octaveOffset, this.state.scale, this.state.zoneCount);
             }
-            
+
             // Сохраняем в bridge ПОСЛЕ всех успешных операций
             if (this.state.isBridgeReady) {
                  await bridgeFix.callBridge('setSetting', 'currentTonic', this.state.currentTonic);
@@ -1478,7 +1837,7 @@ const app = {
         if (pad && typeof pad.highlightTonic === "function") {
                 pad.highlightTonic(this.state.currentTonic);
             }
-    
+
         } catch (error) {
             console.error(`[App.setTonic] Failed to set tonic to ${noteName}:`, error, error.stack);
             // Откатываем состояние при ошибке
@@ -1492,7 +1851,12 @@ const app = {
         }
     },
 
-    // Добавьте или найдите существующий метод для переключения highlightSharpsFlats
+    /**
+     * Toggles the highlighting of sharps/flats (accidentals) on the pads.
+     * @param {boolean} enabled - True to enable highlighting, false to disable.
+     * @async
+     * @returns {Promise<void>}
+     */
     async toggleHighlightSharpsFlats(enabled) {
         try {
         if (typeof enabled !== 'boolean') {
@@ -1512,7 +1876,13 @@ const app = {
         }
     },
 
-    // === НОВЫЙ МЕТОД для Установки Аккорда ===
+    /**
+     * Sets the currently active chord, typically in modes like Chord Mode or Rocket Mode.
+     * Updates UI and informs relevant modules.
+     * @param {string | null} chordName - The name of the chord (e.g., "Cmaj7") or null if no chord is active.
+     * @async
+     * @returns {Promise<void>}
+     */
     async setCurrentChord(chordName) {
         try {
             const newChord = chordName || null;
@@ -1539,6 +1909,15 @@ const app = {
     },
     // ======================================
 
+    /**
+     * Sets the active pad mode (e.g., 'classic', 'chord', 'rocket').
+     * This involves initializing the corresponding strategy in PadModeManager,
+     * updating UI elements, and applying mode-specific settings.
+     * @param {string} modeId - The ID of the pad mode to activate.
+     * @param {boolean} [initialLoad=false] - True if this is part of the initial app load sequence.
+     * @async
+     * @returns {Promise<void>}
+     */
     async setPadMode(modeId, initialLoad = false) {
         if (!PadModeManager) {
             console.error("[App.setPadMode] PadModeManager is not available.");
@@ -1552,11 +1931,11 @@ const app = {
         }
 
         // Обновленное условие для флага isApplyingChange
-        if (this.state.isApplyingChange && !initialLoad) { 
+        if (this.state.isApplyingChange && !initialLoad) {
             console.warn("[App.setPadMode] Action ignored: another change is in progress and this is not an initial load.");
             return;
         }
-        
+
         console.log(`[App.setPadMode] Attempting to set pad mode to: ${modeId}`);
         this.state.isApplyingChange = true;
         const previousModeId = this.state.padMode;
@@ -1569,7 +1948,7 @@ const app = {
                 if (this.state.isBridgeReady) { // Сохраняем безопасную проверку
                     await bridgeFix.callBridge('setSetting', 'padMode', modeId);
                 }
-            
+
                 // Существующая логика обновления UI (панели Chord/Rocket и т.д.) сохраняется
             const chordPanel = document.getElementById('chord-mode-panel');
             const expandBtn = document.getElementById('chord-panel-expand-btn');
@@ -1580,7 +1959,7 @@ const app = {
                 this.toggleChordPanel(this.state.isChordPanelCollapsed);
                     }
                 const strategy = PadModeManager.getCurrentStrategy();
-                    if (strategy && typeof strategy.getSelectedChordId === 'function' && !strategy.getSelectedChordId() && 
+                    if (strategy && typeof strategy.getSelectedChordId === 'function' && !strategy.getSelectedChordId() &&
                         typeof strategy.getAvailableChords === 'function' && strategy.getAvailableChords().length > 0) {
                         if (typeof strategy.selectChord === 'function') {
                     await strategy.selectChord(strategy.getAvailableChords()[0].id);
@@ -1609,12 +1988,12 @@ const app = {
                 console.log(`[App.setPadMode] Successfully set pad mode to ${modeId}`);
             } else {
                 // Явное выбрасывание ошибки, если setActiveMode не удалось
-                throw new Error(`PadModeManager.setActiveMode for ${modeId} returned false.`); 
+                throw new Error(`PadModeManager.setActiveMode for ${modeId} returned false.`);
             }
         } catch (error) {
             console.error(`[App.setPadMode] Error setting pad mode to ${modeId}:`, error, error.stack);
             // Существующая логика отката сохраняется
-            this.state.padMode = previousModeId; 
+            this.state.padMode = previousModeId;
             if (PadModeManager) await PadModeManager.setActiveMode(previousModeId).catch(e => console.error("[App.setPadMode] Error during rollback setActiveMode:", e));
             if (this.state.isBridgeReady) await bridgeFix.callBridge('setSetting', 'padMode', previousModeId).catch(e => console.error("[App.setPadMode] Error during rollback bridge call:", e));
             if (sidePanel?.populatePadModeSelectDisplay) sidePanel.populatePadModeSelectDisplay();
@@ -1623,7 +2002,7 @@ const app = {
             this.state.isApplyingChange = false;
         }
     },
-    
+
     toggleChordPanel(shouldBeCollapsed) {
         if (typeof shouldBeCollapsed !== 'boolean') {
             shouldBeCollapsed = !this.state.isChordPanelCollapsed;
@@ -1635,16 +2014,16 @@ const app = {
         const expandBtn = document.getElementById('chord-panel-expand-btn');
         if (!panel || !expandBtn) return;
 
-        // +++ ИЗМЕНЕНИЕ: Логика теперь проще и надежнее +++
-        // Эта функция вызывается только когда мы уже в режиме 'chord',
-        // поэтому она только переключает классы.
         panel.classList.toggle('collapsed', shouldBeCollapsed);
         expandBtn.classList.toggle('visible', shouldBeCollapsed);
-        // --- КОНЕЦ ИЗМЕНЕНИЯ ---
 
         localStorage.setItem('isChordPanelCollapsed', shouldBeCollapsed);
     },
 
+    /**
+     * Updates the settings UI elements in the side panel to reflect the current application state.
+     * @private
+     */
     _updateSidePanelSettingsUI() {
         if (sidePanel && typeof sidePanel.updateSettingsControls === 'function') {
             sidePanel.updateSettingsControls(
@@ -1664,9 +2043,33 @@ const app = {
             if (sidePanel.populatePadModeSelectDisplay) {
                 sidePanel.populatePadModeSelectDisplay();
             }
+
+            // Ensure sensor controller is updated with initial/loaded settings
+            if (this.state.isBridgeReady && window.PrismtoneBridge && window.PrismtoneBridge.updateSensorSettings) {
+                try {
+                    console.log('[App._updateSidePanelSettingsUI] Syncing initial sensorSettings to native:', this.state.sensorSettings);
+                    window.PrismtoneBridge.updateSensorSettings(JSON.stringify(this.state.sensorSettings));
+                } catch (e) {
+                    console.error('[App._updateSidePanelSettingsUI] Error calling bridge.updateSensorSettings:', e);
+                }
+            } else if (this.state.isBridgeReady && bridgeFix && bridgeFix.callBridge) { // Fallback
+                 try {
+                    console.log('[App._updateSidePanelSettingsUI] Syncing initial sensorSettings to native (via bridgeFix):', this.state.sensorSettings);
+                    bridgeFix.callBridge('updateSensorSettings', JSON.stringify(this.state.sensorSettings));
+                } catch (e) {
+                    console.error('[App._updateSidePanelSettingsUI] Error calling bridgeFix.callBridge for updateSensorSettings:', e);
+                }
+            }
         }
     },
 
+    /**
+     * Sets a specific setting for a given pad mode.
+     * Used for mode-specific configurations (e.g., Rocket Mode settings).
+     * @param {string} modeId - The ID of the pad mode.
+     * @param {string} settingName - The name of the setting to change.
+     * @param {*} value - The new value for the setting.
+     */
     setModeSpecificSetting(modeId, settingName, value) {
         if (modeId === 'rocket' && this.state.rocketModeSettings) {
             let changed = false;
@@ -1730,6 +2133,10 @@ const app = {
         };
     })(),
 
+    /**
+     * Sets the current phase for Rocket Mode.
+     * @param {string} newPhase - The name of the new phase (e.g., 'ignition', 'liftOff').
+     */
     setRocketPhase(newPhase) {
         const validPhases = ['ignition', 'lift-off', 'burst'];
         if (this.state.rocketModePhase === newPhase || !validPhases.includes(newPhase)) return;
@@ -2023,6 +2430,10 @@ const app = {
         }
     },
 
+    /**
+     * Applies Y-axis changes to both the UI (sidepanel knobs/selectors) and the synth.
+     * @private
+     */
     _applyYAxisChangesToUIAndSynth() {
         if (!this.state.isInitialized) return;
         console.log('[App._applyYAxisChangesToUIAndSynth] Updating UI and Synth with final Y-Axis settings.');
@@ -2085,7 +2496,9 @@ const app = {
         }, 500);
     },
 
-    // Добавляем новые функции для работы с прогрессией аккордов
+    /**
+     * Selects the next chord in the current progression (Chord Mode).
+     */
     selectNextChord() {
         if (this.state.padMode !== 'chord') {
             console.log('[App.selectNextChord] Not in chord mode.');
@@ -2100,6 +2513,9 @@ const app = {
         }
     },
 
+    /**
+     * Selects the previous chord in the current progression (Chord Mode).
+     */
     selectPreviousChord() {
         if (this.state.padMode !== 'chord') {
             console.log('[App.selectPreviousChord] Not in chord mode.');
@@ -2127,7 +2543,7 @@ const app = {
             }
 
             const currentIndex = Math.max(0, chords.findIndex(c => c.id === currentId));
-            
+
             const prevChord = chords.length > 1 ? chords[(currentIndex - 1 + chords.length) % chords.length] : null;
             const currentChord = chords[currentIndex];
             const nextChord = chords.length > 1 ? chords[(currentIndex + 1) % chords.length] : null;
@@ -2159,17 +2575,81 @@ const app = {
     setVibrationEnabled(enabled) {
         if (typeof enabled !== 'boolean') return;
         this.state.vibrationEnabled = enabled;
-        VibrationService.setEnabled(enabled);
+        if (typeof VibrationService !== 'undefined') VibrationService.setEnabled(enabled);
         this._updateSidePanelSettingsUI();
         bridgeFix.callBridge('setSetting', 'vibrationEnabled', enabled.toString()).catch(err => console.error("[App] Bridge setSetting vibrationEnabled failed:", err));
     },
 
+    /**
+     * Sets the intensity of haptic feedback.
+     * @param {'weak' | 'medium' | 'strong'} level - The desired intensity level.
+     */
     setVibrationIntensity(level) {
         if (!['weak', 'medium', 'strong'].includes(level)) return;
         this.state.vibrationIntensity = level;
-        VibrationService.setIntensity(level);
+        if (typeof VibrationService !== 'undefined') VibrationService.setIntensity(level);
         this._updateSidePanelSettingsUI();
         bridgeFix.callBridge('setSetting', 'vibrationIntensity', level).catch(err => console.error("[App] Bridge setSetting vibrationIntensity failed:", err));
+    },
+
+    /**
+     * Handles device tilt data received from the SensorController.
+     * Updates the internal state and can be used to modulate synth parameters or visuals.
+     * @param {{pitch: number, roll: number, yaw?: number}} tiltData - Object containing pitch and roll values.
+     */
+    onDeviceTilt(tiltData) {
+        // Этот метод вызывается из PrismtoneBridge
+        if (tiltData && typeof tiltData.pitch === 'number' && typeof tiltData.roll === 'number') {
+            this.state.deviceTilt.pitch = tiltData.pitch;
+            this.state.deviceTilt.roll = tiltData.roll;
+            // Optionally, you might want to log this or trigger other updates if needed immediately
+            // console.log(`[App.onDeviceTilt] Pitch: ${this.state.deviceTilt.pitch}, Roll: ${this.state.deviceTilt.roll}`);
+        }
+    },
+
+    async toggleMicrophoneInput() {
+        if (this.microphone) {
+            // Микрофон включен, выключаем его
+            this.microphone.close();
+            this.microphone.dispose();
+            this.microphone = null;
+            const micBtn = document.getElementById('mic-btn');
+            if (micBtn) micBtn.classList.remove('active');
+            console.log("[App] Microphone input disabled.");
+            // Ensure synth input is restored if it was changed
+            // This part depends on how synth input was managed before mic
+            return;
+        }
+
+        try {
+            // Микрофон выключен, включаем
+            if (!Tone || !Tone.Microphone) {
+                console.error("[App] Tone.Microphone is not available.");
+                alert("Microphone functionality is not available (Tone.js missing component).");
+                return;
+            }
+            this.microphone = new Tone.Microphone();
+            await this.microphone.open(); // Запрашивает разрешение у пользователя
+
+            // Успешно открыли, подключаем к шине эффектов
+            if (synth && synth.fxBus) {
+                this.microphone.connect(synth.fxBus);
+                const micBtn = document.getElementById('mic-btn');
+                if (micBtn) micBtn.classList.add('active');
+                console.log("[App] Microphone input enabled and connected to FX bus.");
+            } else {
+                throw new Error("Synth FX Bus is not available.");
+            }
+        } catch (err) {
+            console.error("[App] Failed to open microphone:", err);
+            alert("Could not access microphone. Please check permissions or ensure it's not in use by another app.");
+            if (this.microphone) {
+                this.microphone.dispose();
+                this.microphone = null;
+            }
+            const micBtn = document.getElementById('mic-btn');
+            if (micBtn) micBtn.classList.remove('active');
+        }
     },
 };
 

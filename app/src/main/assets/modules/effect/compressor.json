@@ -1,0 +1,17 @@
+{
+  "id": "compressor",
+  "type": "effect",
+  "name": "Compressor",
+  "version": "1.0.0",
+  "description": "Reduces the dynamic range of the sound.",
+  "active": true,
+  "data": {
+    "parameters": [
+      { "name": "threshold", "label": "Threshold (dB)", "min": -60, "max": 0, "default": -24, "step": 0.1 },
+      { "name": "ratio", "label": "Ratio", "min": 1, "max": 20, "default": 12, "step": 0.1 },
+      { "name": "attack", "label": "Attack (s)", "min": 0.0001, "max": 0.2, "default": 0.003, "step": 0.0001, "logScale": true },
+      { "name": "release", "label": "Release (s)", "min": 0.01, "max": 1, "default": 0.25, "step": 0.001, "logScale": true },
+      { "name": "knee", "label": "Knee (dB)", "min": 0, "max": 40, "default": 30, "step": 0.1 }
+    ]
+  }
+}

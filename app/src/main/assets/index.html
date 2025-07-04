@@ -34,6 +34,13 @@
             <button id="menu-button" class="round-button topbar-button" data-i18n-title="menu_button" title="Menu">☰</button>
             <button id="sound-library-button" class="text-button topbar-button" data-i18n="sound_library_button">Sound Library</button>
         </div>
+        <!-- ... внутри #topbar, возможно, рядом с #app-title ... -->
+        <div id="transport-controls" class="topbar-group hidden">
+            <button id="play-btn" class="round-button topbar-button" title="Play">▶</button>
+            <button id="stop-btn" class="round-button topbar-button" title="Stop">■</button>
+            <button id="rec-btn" class="round-button topbar-button record-button" title="Record">●</button>
+            <input type="number" id="bpm-input" value="120" min="40" max="240" title="BPM">
+        </div>
         <div id="topbar-center-content" class="topbar-group center">
             <div id="app-title" data-i18n="app_title">Prismtone</div>
             <div id="chord-progression-display" class="hidden">
@@ -47,6 +54,7 @@
             </div>
         </div>
         <div class="topbar-group right">
+            <button id="mic-btn" class="round-button topbar-button" title="Use Microphone">🎤</button>
             <button id="tonality-button" class="round-button topbar-button" data-i18n-title="tonality_button" title="Tonality">
                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55c-2.21 0-4 1.79-4 4s1.79 4 4 4s4-1.79 4-4V7h4V3h-6z"/>
@@ -104,6 +112,12 @@
             <div class="timer-progress-bar left"></div>
             <div class="timer-progress-bar right"></div>
         </div>
+    </div>
+
+    <!-- ... после xy-pad-container ... -->
+    <div id="sequencer-container" class="hidden">
+        <div id="sequencer-grid"></div>
+        <div id="sequencer-playhead"></div>
     </div>
 
     <div id="settings-panel" class="side-panel left-panel">
@@ -395,14 +409,14 @@
     </div>
 
     <div id="custom-selector-popover" class="custom-selector-popover" style="display:none;">
-      <div class="custom-selector-backdrop"></div>
-      <div class="custom-selector-modal">
-        <div class="custom-selector-header">
-          <span id="custom-selector-title"></span>
-          <button id="custom-selector-close" class="close-button" title="Close">×</button>
+        <div class="custom-selector-backdrop"></div>
+        <div class="custom-selector-modal">
+            <div class="custom-selector-header">
+                <span id="custom-selector-title"></span>
+                <button id="custom-selector-close" class="close-button" title="Close">×</button>
+            </div>
+            <div id="custom-selector-options" class="custom-selector-options"></div>
         </div>
-        <div id="custom-selector-options" class="custom-selector-options"></div>
-      </div>
     </div>
 
 </div>
@@ -418,6 +432,11 @@
 <script src="js/customSelectorPopover.js"></script>
 <script src="js/padModes/ClassicModeStrategy.js"></script>
 <script src="js/padModes/ChordModeStrategy.js"></script>
+<script src="js/padModes/FlowModeStrategy.js"></script>
+<script src="js/padModes/SequencerModeStrategy.js"></script>
+<script src="js/padModes/DrumPadModeStrategy.js"></script>
+
+
 <script src="js/bridge-fix.js"></script>
 <script src="js/config/audioConfig.js"></script>
 <script src="js/moduleManager.js"></script>
@@ -425,6 +444,8 @@
 <script src="js/VibrationService.js"></script>
 <script src="js/voiceBuilder.js"></script>
 <script src="js/synth.js"></script>
+<script src="js/sequencer.js"></script>
+<script src="js/sequencerPersistence.js"></script>
 <script src="js/fpsManager.js"></script>
 <script src="js/visualizer.js"></script>
 <script src="js/visualizers/wavesRenderer.js"></script>
@@ -433,6 +454,28 @@
 <script src="js/visualizers/nebulaRenderer.js"></script>
 <script src="js/visualizers/reactiveRipplesRenderer.js"></script>
 <script src="js/visualizers/touchTrailsRenderer.js"></script>
+<script src="js/visualizers/MatrixGlitchRenderer.js"></script>
+<script src="js/visualizers/LivingLandscapeRenderer.js"></script>
+<script src="js/visualizers/EventHorizonRenderer.js"></script>
+<script src="js/visualizers/AuraStringsRenderer.js"></script>
+<script src="js/visualizers/GravityMatrixRenderer.js"></script>
+<script src="js/visualizers/StellarNurseryRenderer.js"></script>
+
+<script src="js/visualizers/cosmicNebulaRenderer.js"></script>
+<script src="js/visualizers/fireflyMeadowRenderer.js"></script>
+<script src="js/visualizers/liquidNeonRenderer.js"></script>
+<script src="js/visualizers/parallaxNebulaRenderer.js"></script>
+<script src="js/visualizers/glitchEqualizerRenderer.js"></script>
+
+<script src="js/visualizers/CrystalGrottoRenderer.js"></script>
+<script src="js/visualizers/GeometricCityscapeRenderer.js"></script>
+<script src="js/visualizers/InkInZeroGRenderer.js"></script>
+<script src="js/visualizers/SpiritForestRenderer.js"></script>
+
+<script src="js/touchEffects/magneticShardsEffect.js"></script>
+<script src="js/touchEffects/energyChainEffect.js"></script>
+<script src="js/touchEffects/viscousDropEffect.js"></script>
+<script src="js/touchEffects/DataStreamEffect.js"></script>
 <script src="js/touchEffects/glowEffect.js"></script>
 <script src="js/touchEffects/markerEffect.js"></script>
 <script src="js/touchEffects/rippleEffect.js"></script>
@@ -456,6 +499,10 @@
 <script src="js/managers/reverbFxManager.js"></script>
 <script src="js/managers/chorusFxManager.js"></script>
 <script src="js/managers/distortionFxManager.js"></script>
+
+<script src="js/managers/samplerManager.js"></script>
+<script src="js/managers/drumPadManager.js"></script>
+
 <script src="js/pad.js"></script>
 <script src="js/soundpresets.js"></script>
 <script src="js/fxchains.js"></script>
@@ -466,27 +513,27 @@
 <script src="js/loading/prism-effect.js"></script>
 <script src="js/app.js"></script>
 
-    <!-- Обновленное модальное окно добавления аккорда -->
-    <div id="add-chord-modal" class="prism-modal" style="display: none;">
-        <div class="modal-header">
-            <h3 data-i18n="add_chord_modal_title">Add New Chord</h3>
-            <button id="close-add-chord-modal" class="close-button" title="Close">×</button>
+<!-- Обновленное модальное окно добавления аккорда -->
+<div id="add-chord-modal" class="prism-modal" style="display: none;">
+    <div class="modal-header">
+        <h3 data-i18n="add_chord_modal_title">Add New Chord</h3>
+        <button id="close-add-chord-modal" class="close-button" title="Close">×</button>
+    </div>
+    <div class="modal-content">
+        <div class="setting-group">
+            <label for="chord-root-note-display" data-i18n="chord_root_note_label">Root Note</label>
+            <div id="chord-root-note-display" class="dropdown-display" tabindex="0">C</div>
         </div>
-        <div class="modal-content">
-            <div class="setting-group">
-                <label for="chord-root-note-display" data-i18n="chord_root_note_label">Root Note</label>
-                <div id="chord-root-note-display" class="dropdown-display" tabindex="0">C</div>
-            </div>
-            <div class="setting-group">
-                <label for="chord-type-display" data-i18n="chord_type_label">Chord Type</label>
-                <div id="chord-type-display" class="dropdown-display" tabindex="0">Major</div>
-            </div>
-        </div>
-        <div class="modal-actions">
-            <button id="cancel-add-chord-button" class="button danger-button" data-i18n="cancel_button_label">Cancel</button>
-            <button id="confirm-add-chord-button" class="button primary-button" data-i18n="add_button_label">Add</button>
+        <div class="setting-group">
+            <label for="chord-type-display" data-i18n="chord_type_label">Chord Type</label>
+            <div id="chord-type-display" class="dropdown-display" tabindex="0">Major</div>
         </div>
     </div>
+    <div class="modal-actions">
+        <button id="cancel-add-chord-button" class="button danger-button" data-i18n="cancel_button_label">Cancel</button>
+        <button id="confirm-add-chord-button" class="button primary-button" data-i18n="add_button_label">Add</button>
+    </div>
+</div>
 
 </body>
 </html>

@@ -1,0 +1,22 @@
+{
+  "id": "Ambient_pad",
+  "type": "soundpreset",
+  "name": "Ambient",
+  "version": "1.0.0",
+  "description": "A soft ambient pad based on samples.",
+  "active": false,
+  "data": {
+    "sampler": {
+      "enabled": true,
+      "params": {
+        "instrument": "Ambient_pad",
+        "release": 1.5
+      }
+    },
+    "oscillator": { "enabled": false },
+    "colors": {
+      "primary": "#4A708B",
+      "text": "#E0E0E0"
+    }
+  }
+}

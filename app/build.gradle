@@ -1,10 +1,12 @@
 plugins {
     id 'com.android.application'
+    alias(libs.plugins.google.gms.google.services)
+    alias(libs.plugins.google.firebase.crashlytics)
 }
 
 android {
     namespace 'com.example.prismtone'
-    compileSdk 34  // Updated to 34 as required by androidx.activity:activity:1.8.0
+    compileSdk 35  // Updated to 34 as required by androidx.activity:activity:1.8.0
 
     defaultConfig {
         applicationId "com.example.prismtone"
@@ -36,17 +38,19 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.appcompat:appcompat:1.7.1'
     implementation 'com.google.android.material:material:1.11.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
 
     // Add Gson dependency
     implementation 'com.google.code.gson:gson:2.10.1'
 
     // For replacing deprecated AsyncTask - use older activity version that's compatible
-    implementation 'androidx.concurrent:concurrent-futures:1.1.0'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
-    implementation 'androidx.activity:activity:1.7.2'  // Downgraded to avoid requiring compileSdk 34
+    implementation 'androidx.concurrent:concurrent-futures:1.2.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.9.1'
+    implementation 'androidx.activity:activity:1.10.1'
+    implementation libs.firebase.crashlytics
+    // Downgraded to avoid requiring compileSdk 34
 
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'

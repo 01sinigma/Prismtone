@@ -111,6 +111,13 @@ class NebulaRenderer {
         const collisionShrinkFactor = this.settings.collisionShrinkFactor || 0.7;
         const width = this.canvas.width;
         const height = this.canvas.height;
+
+        // Оптимизация: максимальный радиус взаимодействия для гравитации между звездами
+        const maxInteractionDistanceFactor = this.settings.gravityInteractionRadiusFactor || 0.35; // 35% от ширины canvas
+        const maxInteractionDistance = width * maxInteractionDistanceFactor;
+        const maxInteractionDistanceSq = maxInteractionDistance * maxInteractionDistance;
+
+
         for (let i = 0; i < this.stars.length; i++) {
             let starA = this.stars[i];
             for (let j = i + 1; j < this.stars.length; j++) {
@@ -118,7 +125,39 @@ class NebulaRenderer {
                 let dx = starB.x - starA.x;
                 let dy = starB.y - starA.y;
                 let distSq = dx * dx + dy * dy;
+
+                // Оптимизация: если звезды слишком далеко, не рассчитываем гравитацию между ними
+                if (distSq > maxInteractionDistanceSq) {
+                    // Столкновения все еще нужно проверять, если они могут быть большими
+                    // Но для простоты пока пропустим, если гравитация не действует
+                    // Если радиусы звезд могут быть очень большими, эту логику нужно будет доработать
+                    // или вынести проверку столкновений из-под условия дистанции гравитации.
+                    // Пока предполагаем, что если гравитация не действует, то и столкновения маловероятны.
+                    // Это допущение для упрощения первой оптимизации.
+                    // Для более точной симуляции столкновения нужно проверять всегда.
+                    // Однако, если distSq > maxInteractionDistanceSq, то dist > maxInteractionDistance.
+                    // Если maxInteractionDistance достаточно большое, а радиусы звезд маленькие,
+                    // то вероятность столкновения мала.
+                    // Для текущих настроек (радиусы 2-5), это должно быть приемлемо.
+                    // Проверка столкновений остается, но теперь под условием distSq
+                    if (distSq < (starA.radius + starB.radius) * (starA.radius + starB.radius) ) { // Проверяем столкновение по квадрату расстояния
+                        let dist = Math.sqrt(distSq) + 0.01; // sqrt только если близко к столкновению
+                        starA.radius *= collisionShrinkFactor;
+                        starB.radius *= collisionShrinkFactor;
+                        let overlap = (starA.radius + starB.radius) - dist;
+                        let nx = dx / dist;
+                        let ny = dy / dist;
+                        starA.x -= nx * overlap / 2;
+                        starA.y -= ny * overlap / 2;
+                        starB.x += nx * overlap / 2;
+                        starB.y += ny * overlap / 2;
+                    }
+                    continue; // Пропускаем расчет гравитации для этой пары
+                }
+
                 let dist = Math.sqrt(distSq) + 0.01;
+
+                // Столкновения (эта проверка дублируется выше, но нужна здесь если distSq <= maxInteractionDistanceSq)
                 if (dist < starA.radius + starB.radius) {
                     starA.radius *= collisionShrinkFactor;
                     starB.radius *= collisionShrinkFactor;
@@ -130,7 +169,9 @@ class NebulaRenderer {
                     starB.x += nx * overlap / 2;
                     starB.y += ny * overlap / 2;
                 }
-                let force = gravityStrength * starA.mass * starB.mass / distSq;
+
+                // Гравитация
+                let force = gravityStrength * starA.mass * starB.mass / (distSq + 0.1); // Добавил 0.1 для стабильности при очень малых distSq
                 let fx = force * dx / dist;
                 let fy = force * dy / dist;
                 starA.vx += fx / starA.mass;
@@ -138,6 +179,7 @@ class NebulaRenderer {
                 starB.vx -= fx / starB.mass;
                 starB.vy -= fy / starB.mass;
             }
+
             // Мощная гравитация от касания (почти не зависит от расстояния)
             if (activeTouchStates && Array.isArray(activeTouchStates)) {
                 for (const touch of activeTouchStates) {

@@ -1,0 +1,49 @@
+{
+  "id": "stellar_nursery",
+  "type": "visualizer",
+  "name": "Stellar Nursery",
+  "version": "6.0",
+  "description": "Interactive nebula with antimatter physics, star polarity, and advanced interactions.",
+  "active": true,
+  "data": {
+    "rendererScript": "js/visualizers/StellarNurseryRenderer.js",
+    "settings": {
+      "fadeSpeed": 0.25,
+      "particleCount": 800,
+      "windStrength": 1,
+      "friction": 0.80,
+
+      "coreMinSize": 8,
+      "coreMaxSize": 45,
+      "timeToMaxSizeMs": 2000,
+      "maxMassFactor": 10,
+      "energyGain": 0.08,
+      "inertiaDamping": 30,
+
+      "attraction": 50,
+      "particleRepulsion": 0.02,
+
+      "maxStars": 25,
+      "starGravityFactor": 600,
+      "starPolarityStrength": 2.0,
+      "starBounceDamping": -0.6,
+      "starFadeStartSize": 35,
+      "starDefaultDecay": 0.5,
+
+      "supernova": {
+        "radius": 250,
+        "strength": 25,
+        "antimatterCount": 70,
+        "antimatterSpeed": 4,
+        "antimatterLifeMs": 1000
+      },
+
+      "antimatterParticle": {
+        "lifeMs": 1000,
+        "coolDownMs": 1500,
+        "antigravityFactor": -2,
+        "color": "accent"
+      }
+    }
+  }
+}

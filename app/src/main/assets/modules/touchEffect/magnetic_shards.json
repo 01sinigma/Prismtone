@@ -1,0 +1,19 @@
+{
+  "id": "magnetic_shards",
+  "type": "touchEffect",
+  "name": "Magnetic Shards",
+  "version": "1.0",
+  "description": "A field of shards that align to the magnetic field created by touches and device tilt.",
+  "active": false,
+  "data": {
+    "rendererScript": "js/touchEffects/MagneticShardsEffect.js",
+    "settings": {
+      "shardCount": 2500,
+      "shardLength": 10,
+      "shardWidth": 1.5,
+      "touchStrength": 15000,
+      "globalFieldStrength": 2.0,
+      "color": "accent"
+    }
+  }
+}

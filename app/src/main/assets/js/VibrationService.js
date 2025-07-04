@@ -52,10 +52,8 @@ const VibrationService = {
     },
 
     trigger(type, strength = 0.5) {
-        console.log(`[VibrationService v2] >>> TRIGGER <<< Received type: '${type}', strength: ${strength.toFixed(2)}. Service enabled: ${this.isEnabled}`);
         if (!this.isEnabled) return;
-        
-        // Очищаем предыдущий отложенный запуск, если он был
+
         if (this.pendingPatternTimeoutId) {
             clearTimeout(this.pendingPatternTimeoutId);
             this.pendingPatternTimeoutId = null;
@@ -65,33 +63,37 @@ const VibrationService = {
 
         switch (type) {
             case 'touch_down':
-                this.stop(); // Останавливаем все предыдущее (это также очистит любой timeout через вложенный вызов stop)
+                // >>> ИЗМЕНЕНИЕ: Отменяем, только если что-то уже вибрирует <<<
+                if (this.isVibratingContinuously) {
+                    this.stop(); // stop() уже отменяет и сбрасывает флаг
+                }
                 const initialAmplitude = Math.min(255, baseAmplitude * 1.25);
-                this._vibrateOneShot(40, initialAmplitude); // Короткий сильный импульс
-                
-                // Через 50мс запускаем непрерывную вибрацию
+                this._vibrateOneShot(40, initialAmplitude);
+
                 this.pendingPatternTimeoutId = setTimeout(() => {
-                    this.pendingPatternTimeoutId = null; // Таймаут сработал
-                    if (this.isEnabled) { // Проверяем снова на случай, если сервис отключили за это время
+                    this.pendingPatternTimeoutId = null;
+                    if (this.isEnabled) {
                         this._vibratePattern(baseAmplitude);
                     }
                 }, 50);
                 break;
             case 'zone_cross':
-                this.stop(); // Прерываем непрерывную вибрацию (это также очистит любой timeout через вложенный вызов stop)
-                this._vibrateOneShot(30, 225); // Короткий, четкий "щелчок"
-                
-                // Через 25мс возобновляем непрерывную вибрацию с новой силой
-                this.pendingPatternTimeoutId = setTimeout(() => {
-                    this.pendingPatternTimeoutId = null; // Таймаут сработал
-                    if (this.isEnabled) { // Проверяем снова
-                        this._vibratePattern(baseAmplitude);
-                    }
-                }, 25);
-                break;
-            case 'slide':
-                // При "слайде" мы БОЛЬШЕ НИЧЕГО НЕ ДЕЛАЕМ. Непрерывная вибрация уже идет.
-                // Сила изменится только после пересечения следующей зоны.
+                // >>> ИЗМЕНЕНИЕ: Не отменяем, а просто даем короткий импульс поверх <<<
+                // Это создаст тактильный "щелчок" без прерывания основной вибрации.
+                // Для этого нативная часть должна поддерживать "наложение" вибраций,
+                // что не всегда возможно. Если это вызывает проблемы, возвращаемся к `stop()`.
+                // Альтернатива - более сложная логика с проверкой силы.
+                // Пока оставим простой вариант для уменьшения вызовов.
+                this._vibrateOneShot(30, 225); // Короткий сильный "щелчок"
+
+                // Если нужно обновить силу непрерывной вибрации:
+                if (this.isVibratingContinuously) {
+                     this.stop(); // Останавливаем старую
+                     this.pendingPatternTimeoutId = setTimeout(() => { // Запускаем новую с задержкой
+                        this.pendingPatternTimeoutId = null;
+                        if (this.isEnabled) this._vibratePattern(baseAmplitude);
+                     }, 25);
+                }
                 break;
         }
     },

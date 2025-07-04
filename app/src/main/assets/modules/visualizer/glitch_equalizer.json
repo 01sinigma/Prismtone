@@ -1,0 +1,20 @@
+{
+  "id": "glitch_equalizer",
+  "type": "visualizer",
+  "name": "Glitch Equalizer",
+  "version": "1.0",
+  "description": "A spectrum analyzer with chromatic aberration and glitch effects controlled by device tilt.",
+  "active": false,
+  "data": {
+    "rendererScript": "js/visualizers/GlitchEqualizerRenderer.js",
+    "settings": {
+      "barCount": 64,
+      "minDecibels": -90,
+      "maxDecibels": -10,
+      "smoothingTimeConstant": 0.85,
+      "peakFallSpeed": 0.5,
+      "channelSeparation": 30,
+      "glitchLineIntensity": 0.25
+    }
+  }
+}

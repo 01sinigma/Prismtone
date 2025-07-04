@@ -17,6 +17,10 @@ import java.util.Map;
 import java.util.Scanner; // Для более надежного чтения файла
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import android.os.Handler;
+import android.os.Looper;
 
 public class ModuleManager {
     private final Context context;
@@ -24,6 +28,8 @@ public class ModuleManager {
     private final Map<String, List<ModuleInfo>> modules;
     private final Gson gson;
     private static final String TAG = "ModuleManager";
+    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     public ModuleManager(Context context, MainViewModel viewModel) {
         this.context = context.getApplicationContext();
@@ -42,25 +48,29 @@ public class ModuleManager {
         Log.d(TAG, "ModuleManager initialized. Known module types: " + Arrays.toString(knownModuleTypes));
     }
 
-    public void scanModules() {
-        Log.i(TAG, "Starting module scan...");
-        scanAssetsModules();
-        // scanExternalModules(); // Если потребуется в будущем
+    public void scanModulesAsync() {
+        Log.i(TAG, "Starting asynchronous module scan...");
+        executorService.execute(() -> {
+            scanAssetsModules(); // This is the long-running task
 
-        if (viewModel != null) {
-            ensureDefaultModules();
-        } else {
-            Log.w(TAG, "ViewModel is null, skipping ensureDefaultModules during scan.");
-        }
-
-        Log.i(TAG, "Module scanning complete. Summary:");
-        for (Map.Entry<String, List<ModuleInfo>> entry : modules.entrySet()) {
-            Log.i(TAG, "  Type: " + entry.getKey() + ", Count: " + entry.getValue().size());
-        }
+            // After scanning is done, post UI updates to the main thread
+            mainHandler.post(() -> {
+                if (viewModel != null) {
+                    ensureDefaultModules();
+                } else {
+                    Log.w(TAG, "ViewModel is null, skipping ensureDefaultModules after async scan.");
+                }
+                Log.i(TAG, "Asynchronous module scanning and UI update complete. Summary:");
+                for (Map.Entry<String, List<ModuleInfo>> entry : modules.entrySet()) {
+                    Log.i(TAG, "  Type: " + entry.getKey() + ", Count: " + entry.getValue().size());
+                }
+            });
+        });
     }
 
+    // Renamed from scanModules to indicate it's the core logic run in background
     private void scanAssetsModules() {
-        Log.d(TAG, "scanAssetsModules: Attempting to list 'modules' directory in assets...");
+        Log.d(TAG, "scanAssetsModules (background thread): Attempting to list 'modules' directory in assets...");
         String[] moduleDirs;
         try {
             moduleDirs = context.getAssets().list("modules");
@@ -302,7 +312,7 @@ public class ModuleManager {
             for (ModuleInfo userModule : userModuleInfos) {
                 combinedModulesMap.put(userModule.getId(), userModule); // User module will overwrite if ID exists
             }
-            
+
             result = new ArrayList<>(combinedModulesMap.values());
             Log.d(TAG, "getModules (Java): Total " + result.size() + " chord progressions after merging assets and user files.");
         }

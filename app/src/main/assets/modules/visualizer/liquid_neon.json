@@ -1,0 +1,21 @@
+{
+  "id": "liquid_neon",
+  "type": "visualizer",
+  "name": "Liquid Neon",
+  "version": "1.0",
+  "description": "Flowing and merging metaballs that react to sound and gravity.",
+  "active": false,
+  "data": {
+    "rendererScript": "js/visualizers/LiquidNeonRenderer.js",
+    "settings": {
+      "ballCount": 8,
+      "minSpeed": 0.2,
+      "maxSpeed": 0.8,
+      "minRadius": 30,
+      "maxRadius": 70,
+      "blurAmount": 35,
+      "contrastAmount": 40,
+      "windStrength": 0.15
+    }
+  }
+}

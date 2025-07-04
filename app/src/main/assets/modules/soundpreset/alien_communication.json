@@ -1,0 +1,55 @@
+{
+  "id": "alien_communication",
+  "type": "soundpreset",
+  "name": "Alien Communication",
+  "version": "1.0.0",
+  "data": {
+    "oscillator": {
+      "params": {
+        "type": "fmsine",
+        "harmonicity": 1.77,
+        "modulationIndex": 25
+      }
+    },
+    "amplitudeEnv": {
+      "params": {
+        "attack": 0.1,
+        "decay": 0.5,
+        "sustain": 0.2,
+        "release": 1.5
+      }
+    },
+    "filter": {
+      "enabled": true,
+      "params": {
+        "type": "bandpass",
+        "frequency": 2000,
+        "Q": 2.0
+      }
+    },
+    "pitchEnvelope": {
+      "enabled": false,
+      "params": {
+        "attack": 0.01,
+        "decay": 0.2,
+        "sustain": 0,
+        "release": 0.1,
+        "amount": -2400
+      }
+    },
+    "lfo1": {
+      "enabled": true,
+      "params": {
+        "type": "sawtooth",
+        "rate": 0.5,
+        "depth": 15
+      }
+    },
+    "yAxisControls": {
+      "effects": {
+        "fm_modulation_index": true
+      }
+    },
+    "colors": { "primary": "#64DD17", "text": "#004D40" }
+  }
+}

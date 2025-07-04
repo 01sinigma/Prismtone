@@ -1,0 +1,53 @@
+{
+  "id": "spirit_forest",
+  "type": "visualizer",
+  "name": "Spirit Forest",
+  "version": "2.0",
+  "description": "An ecosystem of spirits that interact with each other, pollinate trees, and react to multi-touch.",
+  "active": true,
+  "data": {
+    "data": {
+      "rendererScript": "js/visualizers/SpiritForestRenderer.js",
+      "settings": {
+        "forest": {
+          "treeLayers": 5,
+          "baseTreeHeight": 0.3,
+          "treeHeightVariance": 0.4
+        },
+
+        "spirits": {
+          "initialCount": 200,
+          "maxCount": 400,
+          "minSize": 1.0,
+          "maxSize": 3.5,
+          "baseSpeed": 0.4
+        },
+
+        "physics": {
+          "windStrength": 1,
+          "friction": 0.80,
+          "audioEnergyMultiplier": 3.0
+        },
+
+        "interaction": {
+          "touchAttraction": 0.15,
+          "touchRadius": 180,
+          "energyChargeRate": 0.05,
+          "pollination": {
+            "energyCost": 0.8,
+            "newSpiritsCount": 5,
+            "flashDurationMs": 200
+          },
+          "multiTouchBridge": {
+            "lineWidth": 2.0,
+            "glow": 5
+          },
+          "pinchExplosion": {
+            "strength": 5.0,
+            "radius": 300
+          }
+        }
+      }
+    }
+  }
+}

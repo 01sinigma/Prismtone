@@ -1,0 +1,15 @@
+{
+  "id": "pitchShift",
+  "type": "effect",
+  "name": "Pitch Shift",
+  "version": "1.0.0",
+  "description": "Changes the pitch of the sound without changing its speed.",
+  "active": true,
+  "data": {
+    "parameters": [
+      { "name": "wet", "label": "Mix", "min": 0, "max": 1, "default": 0, "step": 0.01 },
+      { "name": "pitch", "label": "Pitch (Semitones)", "min": -24, "max": 24, "default": 0, "step": 1 },
+      { "name": "windowSize", "label": "Window Size (s)", "min": 0.01, "max": 0.5, "default": 0.1, "step": 0.001 }
+    ]
+  }
+}

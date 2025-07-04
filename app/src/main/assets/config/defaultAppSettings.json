@@ -15,6 +15,12 @@
   "enablePolyphonyVolumeScaling": true,
   "vibrationEnabled": true,
   "vibrationIntensity": "weak",
+  "sensorSettings": {
+    "smoothingAlpha": 0.15,
+    "invertPitchAxis": true,
+    "invertRollAxis": false,
+    "swapAxes": false
+  },
   "yAxisControls": {
     "volume": {
       "minOutput": 0.0,

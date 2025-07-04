@@ -1,0 +1,50 @@
+{
+  "id": "my_cool_delay",
+  "type": "fxchain",
+  "name": "My Cool Delay",
+  "description": "A rhythmic delay with a resonant filter.",
+  "version": "1.0.0",
+  "author": "User (modified by AI)",
+  "data": {
+    "effects": [
+      {
+        "type": "delay",
+        "enabled": true,
+        "params": { "delayTime": 0.3, "feedback": 0.6, "wet": 0.5 }
+      },
+      {
+        "type": "filter",
+        "enabled": true,
+        "params": { "type": "bandpass", "frequency": 1200, "Q": 8, "wet": 1.0 }
+      },
+      {
+        "type": "reverb",
+        "enabled": true,
+        "params": { "roomSize": 0.2, "wet": 0 }
+      },
+      { "type": "chorus", "enabled": false, "params": { "wet": 0 } },
+      { "type": "distortion", "enabled": false, "params": { "wet": 0 } }
+    ],
+    "macroDefaults": {
+      "Space": 0.0,
+      "Time": 0.5,
+      "Motion": 0.4,
+      "Tone": 0.6
+    },
+    "macroMappings": {
+      "Space": [
+        { "effect": "delay", "param": "feedback", "range": [0.3, 0.8] },
+        { "effect": "reverb", "param": "wet", "range": [0.0, 0.3] }
+      ],
+      "Time": [
+        { "effect": "delay", "param": "delayTime", "range": [0.05, 0.8] }
+      ],
+      "Motion": [
+        { "effect": "filter", "param": "Q", "range": [2, 15] }
+      ],
+      "Tone": [
+        { "effect": "filter", "param": "frequency", "range": [400, 5000] }
+      ]
+    }
+  }
+}

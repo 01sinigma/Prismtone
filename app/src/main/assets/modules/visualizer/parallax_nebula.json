@@ -1,0 +1,22 @@
+{
+  "id": "parallax_nebula",
+  "type": "visualizer",
+  "name": "Parallax Nebula",
+  "version": "1.0",
+  "description": "A deep space scene with multiple layers reacting to device tilt, creating a parallax effect.",
+  "active": false,
+  "data": {
+    "rendererScript": "js/visualizers/ParallaxNebulaRenderer.js",
+    "settings": {
+      "starCount": 200,
+      "starSize": 1.2,
+      "starParallaxFactor": 1.0,
+
+      "cloudCount": 20,
+      "cloudSize": 250,
+      "cloudParallaxFactor": 0.4,
+
+      "backgroundParallaxFactor": 0.1
+    }
+  }
+}

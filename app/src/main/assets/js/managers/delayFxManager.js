@@ -1,9 +1,22 @@
+/**
+ * @file delayFxManager.js
+ * @description
+ * This manager is responsible for creating, configuring, and controlling a Tone.FeedbackDelay effect node.
+ * It handles parameters like delay time, feedback amount, and wet/dry mix, allowing for dynamic
+ * echo and delay effects within an audio chain.
+ */
+
 // Файл: app/src/main/assets/js/managers/delayFxManager.js
 const delayFxManager = {
     /**
-     * Создает узел Tone.FeedbackDelay.
-     * @param {object} [initialSettings={}] - Начальные настройки (delayTime, feedback, wet).
-     * @returns {object} - { nodes: { delayNode: Tone.FeedbackDelay }, audioInput, audioOutput, error }
+     * Creates a new Tone.FeedbackDelay effect node.
+     * @param {object} [initialSettings={}] - Initial settings for the delay effect.
+     * @param {Tone.Time} [initialSettings.delayTime=0.25] - The delay time.
+     * @param {number} [initialSettings.feedback=0.3] - The amount of feedback (0-1).
+     * @param {number} [initialSettings.wet=0.0] - The wet/dry mix of the effect (0 for dry, 1 for wet).
+     * @param {number} [initialSettings.maxDelay=1] - The maximum delay time in seconds.
+     * @returns {{nodes: {delayNode: Tone.FeedbackDelay}|null, audioInput: Tone.FeedbackDelay|null, audioOutput: Tone.FeedbackDelay|null, modInputs: object, modOutputs: object, error: string|null}}
+     *          An object containing the created `delayNode`, audio input/output references, empty modulator I/O, and an error message (null on success).
      */
     create(initialSettings = {}) {
         console.log("[DelayFxManager] Creating FeedbackDelay with settings:", initialSettings);
@@ -39,10 +52,10 @@ const delayFxManager = {
     },
 
     /**
-     * Обновляет параметры FeedbackDelay.
-     * @param {object} nodes - Объект узлов { delayNode }.
-     * @param {object} newSettings - Новые настройки { delayTime, feedback, wet }.
-     * @returns {boolean} - true при успехе.
+     * Updates the parameters of an existing Tone.FeedbackDelay node.
+     * @param {object} nodes - An object containing the `delayNode` (the Tone.FeedbackDelay instance).
+     * @param {object} newSettings - An object with the new settings to apply (delayTime, feedback, wet).
+     * @returns {boolean} True if the update was successful, false otherwise.
      */
     update(nodes, newSettings) {
         if (!nodes || !nodes.delayNode || !newSettings) {
@@ -70,7 +83,12 @@ const delayFxManager = {
     },
 
     /**
-     * Соединяет эффект с соседями по цепочке.
+     * Connects the delay node to previous and next nodes in an audio chain.
+     * Delegates to `blankManager.connectPeers` for standard connection logic.
+     * @param {object} nodes - An object containing the `delayNode`.
+     * @param {Tone.AudioNode|null} prevOutputNode - The output of the preceding node in the chain.
+     * @param {Tone.AudioNode|null} nextInputNode - The input of the succeeding node in the chain.
+     * @returns {boolean} The result of the `blankManager.connectPeers` call.
      */
     connectPeers(nodes, prevOutputNode, nextInputNode) {
         // Используем стандартную реализацию blankManager
@@ -78,10 +96,11 @@ const delayFxManager = {
     },
 
     /**
-     * Включает/выключает эффект (через параметр wet).
-     * @param {object} nodes - Узлы компонента { delayNode }.
-     * @param {boolean} isEnabled - Новое состояние.
-     * @returns {boolean} - true при успехе.
+     * Enables or disables the delay effect by controlling its wet level.
+     * It attempts to store and restore the `wet` value when toggling, to preserve the effect's intensity.
+     * @param {object} nodes - An object containing the `delayNode` and potentially `_lastWetValueForEnable`.
+     * @param {boolean} isEnabled - True to enable the effect, false to disable (sets wet to 0).
+     * @returns {boolean} True if the operation was successful, false otherwise.
      */
     enable(nodes, isEnabled) {
         if (!nodes || !nodes.delayNode) {
@@ -134,18 +153,33 @@ const delayFxManager = {
     },
 
     /**
-     * Подключение модулятора (если нужно для дилея, например, модуляция delayTime).
+     * Connects a modulator source to a target parameter of the delay effect.
+     * Delegates to `blankManager.connectModulator` for generic modulator connection logic.
+     * @param {object} nodes - An object containing the `delayNode` and its internal structure if needed by `blankManager`.
+     * @param {string} targetParamPath - The path to the target parameter within the delay node (e.g., 'delayTime.value').
+     * @param {Tone.Signal|Tone.AudioNode} sourceNode - The modulator's output node.
+     * @returns {boolean} The result of the `blankManager.connectModulator` call.
      */
     connectModulator(nodes, targetParamPath, sourceNode) {
         return blankManager.connectModulator(nodes, targetParamPath, sourceNode);
     },
 
+    /**
+     * Disconnects a modulator source from a target parameter of the delay effect.
+     * Delegates to `blankManager.disconnectModulator` for generic modulator disconnection logic.
+     * @param {object} nodes - An object containing the `delayNode`.
+     * @param {string} targetParamPath - The path to the target parameter.
+     * @param {Tone.Signal|Tone.AudioNode} sourceNode - The modulator's output node.
+     * @returns {boolean} The result of the `blankManager.disconnectModulator` call.
+     */
     disconnectModulator(nodes, targetParamPath, sourceNode) {
         return blankManager.disconnectModulator(nodes, targetParamPath, sourceNode);
     },
 
     /**
-     * Уничтожает узел дилея.
+     * Disposes of the Tone.FeedbackDelay node, freeing its resources.
+     * Delegates to `blankManager.dispose` for the actual disposal of the node.
+     * @param {object} nodes - An object containing the `delayNode` to be disposed.
      */
     dispose(nodes) {
         console.log("[DelayFxManager] Disposing FeedbackDelay node...");

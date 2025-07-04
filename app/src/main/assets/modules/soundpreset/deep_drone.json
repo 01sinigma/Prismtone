@@ -1,0 +1,53 @@
+{
+  "id": "deep_drone",
+  "type": "soundpreset",
+  "name": "Deep Drone",
+  "version": "1.0.0",
+  "data": {
+    "oscillator": {
+      "params": {
+        "type": "fatsawtooth",
+        "harmonicity": 1,
+        "modulationIndex": 0
+      }
+    },
+    "amplitudeEnv": {
+      "params": {
+        "attack": 2.0,
+        "decay": 1.0,
+        "sustain": 0.8,
+        "release": 3.0
+      }
+    },
+    "filter": {
+      "enabled": true,
+      "params": {
+        "type": "lowpass",
+        "frequency": 800,
+        "Q": 0.7
+      }
+    },
+    "pitchEnvelope": {
+      "enabled": false,
+      "params": {
+        "attack": 0.001,
+        "decay": 0.05,
+        "sustain": 0,
+        "release": 0.01,
+        "amount": 1200
+      }
+    },
+    "lfo1": {
+      "enabled": true,
+      "params": {
+        "type": "sine",
+        "rate": 0.2,
+        "depth": 200
+      }
+    },
+    "yAxisControls": {
+      "effects": {}
+    },
+    "colors": { "primary": "#283593", "text": "#C5CAE9" }
+  }
+}

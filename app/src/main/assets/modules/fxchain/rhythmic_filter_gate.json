@@ -1,0 +1,59 @@
+{
+  "id": "rhythmic_filter_gate",
+  "type": "fxchain",
+  "name": "Rhythmic Filter Gate",
+  "description": "Creates pulsing, rhythmic textures using a resonant filter and delay.",
+  "version": "1.0.0",
+  "author": "AI Assistant",
+  "data": {
+    "effects": [
+      {
+        "type": "filter",
+        "enabled": true,
+        "params": { "type": "bandpass", "frequency": 800, "Q": 10, "wet": 1.0 }
+      },
+      {
+        "type": "delay",
+        "enabled": true,
+        "params": { "delayTime": 0.25, "feedback": 0.6, "wet": 0.7 }
+      },
+      {
+        "type": "chorus",
+        "enabled": true,
+        "params": { "frequency": 0.5, "delayTime": 5, "depth": 0.2, "wet": 0.3 }
+      },
+      {
+        "type": "reverb",
+        "enabled": true,
+        "params": { "roomSize": 0.4, "wet": 0 }
+      },
+      {
+        "type": "distortion",
+        "enabled": false,
+        "params": { "wet": 0 }
+      }
+    ],
+    "macroDefaults": {
+      "Space": 0.0,
+      "Time": 0.4,
+      "Motion": 0.5,
+      "Tone": 0.6
+    },
+    "macroMappings": {
+      "Space": [
+        { "effect": "reverb", "param": "wet", "range": [0.0, 0.4] },
+        { "effect": "delay", "param": "feedback", "range": [0.4, 0.75] }
+      ],
+      "Time": [
+        { "effect": "delay", "param": "delayTime", "range": [0.1, 0.75] }
+      ],
+      "Motion": [
+        { "effect": "filter", "param": "Q", "range": [5, 20] },
+        { "effect": "chorus", "param": "wet", "range": [0.1, 0.6] }
+      ],
+      "Tone": [
+        { "effect": "filter", "param": "frequency", "range": [300, 3000] }
+      ]
+    }
+  }
+}

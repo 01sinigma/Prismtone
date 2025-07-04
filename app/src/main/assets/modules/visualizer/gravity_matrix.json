@@ -1,0 +1,23 @@
+{
+  "id": "gravityMatrix",
+  "type": "visualizer",
+  "name": "Gravity Matrix",
+  "version": "1.0.0",
+  "description": "A character grid that reacts to physics and motion.",
+  "active": false,
+  "data": {
+    "rendererScript": "GravityMatrixRenderer",
+    "settings": {
+      "fadeSpeed": 0.25,
+      "gravityStrength": 0.2,
+      "friction": 0.97,
+      "touchPushRadius": 150,
+      "touchPushStrength": 1.5,
+      "glitchColors": [
+        "#61dca3",
+        "#61b3dc",
+        "#ffffff"
+      ]
+    }
+  }
+}

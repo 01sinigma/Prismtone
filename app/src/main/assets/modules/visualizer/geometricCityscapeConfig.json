@@ -1,0 +1,75 @@
+{
+  "id": "geometric_cityscape",
+  "type": "visualizer",
+  "name": "Геометрический Город",
+  "version": "1.0",
+  "description": "Псевдо-3D ландшафт из призм-зданий, реагирующий на звук и наклон.",
+  "active": false,
+  "data": {
+    "rendererScript": "js/visualizers/GeometricCityscapeRenderer.js",
+    "settings": {
+      "backgroundColor": "rgba(10, 15, 25, 1)",
+      "gridSize": 20,
+      "cellSize": 30,
+      "maxBuildingHeight": 200,
+      "minBuildingHeight": 20,
+      "buildingWidthVariation": 0.3,
+      "buildingDepthVariation": 0.3,
+      "centralHeightBoost": {
+        "enabled": true,
+        "falloffFactor": 0.3,
+        "maxMultiplier": 1.5
+      },
+      "buildingBaseColorRange": {
+        "r": [70, 130],
+        "g": [70, 130],
+        "b": [80, 140]
+      },
+      "buildingStroke": {
+        "enabled": true,
+        "lineWidth": 0.5,
+        "alpha": 1.0,
+        "darkenFactor": 0.7
+      },
+      "fakeLighting": {
+        "topFaceFactor": 1.2,
+        "sideFaceFactor1": 0.9,
+        "sideFaceFactor2": 0.8
+      },
+      "camera": {
+        "initialFov": 75,
+        "initialPitch": 0.392699,
+        "initialYaw": 0,
+        "yPositionFactor": 0.8,
+        "zPositionFactor": -1.5,
+        "lerpFactor": 0.05,
+        "tiltYawFactor": 1.047197,
+        "tiltPitchFactor": 0.785398,
+        "maxPitchUp": -1.48353,
+        "maxPitchDown": 1.48353
+      },
+      "soundReactionBass": {
+        "enabled": true,
+        "energyThreshold": 0.6,
+        "pulseDecay": 0.9,
+        "pulseIntensityFactor": 0.8,
+        "neonColor": [50, 150, 255],
+        "neonAlphaFactor": 0.4,
+        "tallBuildingThresholdFactor": 0.8
+      },
+      "soundReactionTreble": {
+        "enabled": false,
+        "energyThreshold": 0.5,
+        "rippleDecay": 0.85,
+        "rippleIntensityFactor": 0.5,
+        "rippleColorShift": 80,
+        "rippleAlphaFactor": 0.3,
+        "rippleAnimationSpeed": 0.01
+      },
+      "audioProcessing": {
+        "bassEndFrequencyPercent": 0.1,
+        "trebleStartFrequencyPercent": 0.6
+      }
+    }
+  }
+}

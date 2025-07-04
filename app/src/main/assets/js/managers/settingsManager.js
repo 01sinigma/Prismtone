@@ -1,3 +1,18 @@
+/**
+ * @file settingsManager.js
+ * @description
+ * This manager is responsible for loading and saving application settings in Prismtone.
+ * It interacts with the native Android bridge to persist settings and can also load
+ * default settings from a JSON configuration file if native settings are unavailable.
+ * Key functionalities include:
+ * - Initializing with a reference to the main application.
+ * - Loading settings from either the native bridge or a default JSON file.
+ * - Providing a mechanism to apply these loaded settings to the application state.
+ * - Collecting relevant parts of the application state for persistence.
+ * - Saving the application state to the native bridge, with an option for immediate or debounced saving.
+ * - Implementing a debounce mechanism for saving frequently changed settings to optimize performance.
+ */
+
 // Файл: app/src/main/assets/js/managers/settingsManager.js
 const settingsManager = {
     appRef: null, // Ссылка на главный объект app
@@ -10,8 +25,8 @@ const settingsManager = {
     defaultSettingsPath: 'https://appassets.androidplatform.net/assets/config/defaultAppSettings.json', // Полный путь
 
     /**
-     * Инициализирует менеджер настроек.
-     * @param {object} appInstance - Ссылка на главный объект приложения (app).
+     * Initializes the settings manager with a reference to the main application instance.
+     * @param {object} appInstance - A reference to the main `app` object.
      */
     init(appInstance) {
         if (this.isInitialized) {
@@ -28,9 +43,15 @@ const settingsManager = {
     },
 
     /**
-     * Загружает настройки с нативной стороны или из defaultAppSettings.json.
-     * Не применяет их к app.state, а просто возвращает.
-     * @returns {Promise<object|null>} Объект с настройками или null при ошибке.
+     * Loads settings by first attempting to fetch them from the native bridge.
+     * If native settings are unavailable or an error occurs, it falls back to loading
+     * default settings from a predefined JSON file path (`defaultSettingsPath`).
+     * This is an internal method primarily called by `loadAndApplySettings`.
+     *
+     * @private
+     * @async
+     * @returns {Promise<object|null>} A promise that resolves to an object containing the loaded settings,
+     *                                   or `null` if settings could not be loaded from any source.
      */
     async _loadSettings() {
         if (!this.isInitialized || !this.appRef) {
@@ -75,8 +96,13 @@ const settingsManager = {
     },
 
     /**
-     * Загружает настройки из файла defaultAppSettings.json.
-     * @returns {Promise<object|null>}
+     * Loads default application settings from a specified JSON file URL.
+     * This method is used as a fallback if settings cannot be loaded from the native side.
+     *
+     * @private
+     * @async
+     * @returns {Promise<object|null>} A promise that resolves to an object containing the default settings,
+     *                                   or `null` if fetching or parsing the JSON fails.
      */
     async _loadDefaultSettingsFromJSON() {
         try {
@@ -95,10 +121,14 @@ const settingsManager = {
     },
 
     /**
-     * Основной метод, вызываемый из app.js.
-     * Загружает настройки и, если успешно, возвращает их.
-     * Если загрузка не удалась, возвращает null, чтобы app.js использовал свои встроенные дефолты.
-     * @returns {Promise<object|null>} Загруженные настройки или null.
+     * Loads application settings (either from native storage or defaults) and returns them.
+     * This is the primary method called by the main application during its initialization sequence
+     * to retrieve the settings that should be applied to `app.state`.
+     * If no settings can be loaded, it returns `null`, signaling the main app to use its own internal defaults.
+     *
+     * @async
+     * @returns {Promise<object|null>} A promise that resolves to the loaded settings object,
+     *                                   or `null` if no settings could be obtained.
      */
     async loadAndApplySettings() {
         if (!this.isInitialized) {
@@ -120,8 +150,12 @@ const settingsManager = {
     },
 
     /**
-     * Собирает текущее состояние из app.state для сохранения.
-     * @returns {object} Объект с настройками для сохранения.
+     * Collects the parts of the application's current state (`this.appRef.state`) that are designated for saving.
+     * This typically includes user preferences like theme, language, selected presets, UI states, etc.
+     *
+     * @private
+     * @returns {object} An object containing the subset of `app.state` to be persisted.
+     *                   Returns an empty object if `appRef` or `appRef.state` is unavailable.
      */
     _collectStateForSaving() {
         if (!this.appRef || !this.appRef.state) {
@@ -142,9 +176,16 @@ const settingsManager = {
     },
 
     /**
-     * Сохраняет текущее состояние настроек на нативную сторону.
-     * @param {object} [options={}]
-     * @param {boolean} [options.forceImmediate=false] - Если true, сохраняет немедленно.
+     * Saves the current application settings (collected via `_collectStateForSaving`) to the native Android bridge.
+     * This method handles the actual persistence of settings.
+     * It includes a flag to prevent concurrent save operations unless `forceImmediate` is true.
+     *
+     * @async
+     * @param {object} [options={}] - Options for the save operation.
+     * @param {boolean} [options.forceImmediate=false] - If `true`, the save operation will proceed immediately,
+     *                                                   bypassing checks for ongoing save operations. This is typically used
+     *                                                   when a debounced save is triggered.
+     * @returns {Promise<void>} A promise that resolves when the save operation is complete or if it was skipped.
      */
     async saveStateToNative(options = {}) {
         if (!this.isInitialized || !this.appRef?.state?.isBridgeReady) {
@@ -171,7 +212,11 @@ const settingsManager = {
     },
 
     /**
-     * Отложенное сохранение состояния.
+     * Initiates a debounced save of the current application state to native storage.
+     * If called multiple times within the `debounceDelay` period, only the last call will
+     * trigger an actual save operation (using `saveStateToNative({ forceImmediate: true })`)
+     * after the delay has elapsed. This is useful for settings that might change rapidly
+     * (e.g., slider adjustments) to avoid excessive save operations.
      */
     debouncedSaveState() {
         if (!this.isInitialized) return;

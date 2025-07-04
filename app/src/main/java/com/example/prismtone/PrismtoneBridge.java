@@ -13,6 +13,7 @@ import android.webkit.WebView;
 import androidx.annotation.Keep;
 import com.example.prismtone.model.YAxisControls;
 
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
@@ -20,9 +21,15 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonNull; // <<<--- ДОБАВЛЕН ИМПОРТ
 import com.google.gson.reflect.TypeToken;
+import java.io.IOException;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Keep
 public class PrismtoneBridge {
@@ -34,6 +41,16 @@ public class PrismtoneBridge {
     private final Gson gson;
     private final Vibrator vibrator;
     private static final String TAG = "PrismtoneBridge";
+    private final ExecutorService executorService;
+    private SensorController sensorControllerInstance; // Instance of SensorController
+
+    // Inner class for deserializing sensor settings
+    private static class SensorSettingsPayload {
+        float smoothingAlpha;
+        boolean invertPitchAxis;
+        boolean invertRollAxis;
+        boolean swapAxes;
+    }
 
     public PrismtoneBridge(Context context, WebView webView, MainViewModel viewModel, ModuleManager moduleManager) {
         this.context = context.getApplicationContext();
@@ -43,6 +60,7 @@ public class PrismtoneBridge {
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.gson = new GsonBuilder().serializeNulls().create();
         this.vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+        this.executorService = Executors.newSingleThreadExecutor();
     }
 
     private void runJavaScript(final String script) {
@@ -303,43 +321,62 @@ public class PrismtoneBridge {
     public void setZoneCount(int count) {
         Log.d(TAG, "setZoneCount: " + count);
         mainHandler.post(() -> {
-            if (viewModel != null) {
-                viewModel.setZoneCount(count);
-                // callJsFunction("app.updateZones"); // Удалено согласно инструкции
-            } else Log.e(TAG, "setZoneCount: viewModel is null");
+            if (viewModel != null) viewModel.setZoneCount(count);
+            else Log.e(TAG, "setZoneCount: viewModel is null");
         });
     }
 
+    /**
+     * Asynchronously saves a sound preset and invokes JS callbacks upon completion.
+     */
     @JavascriptInterface
-    public String saveSoundPreset(String presetDataJson) {
-        Log.d(TAG, "saveSoundPreset called");
-        if (context == null) { Log.e(TAG, "saveSoundPreset: context is null"); return "Error: Context is null"; }
+    public void saveSoundPreset(String presetDataJson, String successCallbackName, String errorCallbackName) {
+        Log.d(TAG, "JS call: saveSoundPreset with callbacks");
         try {
-            com.google.gson.JsonObject preset = gson.fromJson(presetDataJson, com.google.gson.JsonObject.class);
-            SoundPresetRepository repo = SoundPresetRepository.getInstance(context);
-            if (repo == null) { Log.e(TAG, "saveSoundPreset: Repository instance is null"); return "Error: Repository failed"; }
-            return repo.savePreset(preset);
-        } catch (JsonSyntaxException e) {
-            Log.e(TAG, "Error parsing presetData JSON", e); return "Error: Invalid JSON format";
+            JsonObject preset = JsonParser.parseString(presetDataJson).getAsJsonObject();
+            SoundPresetRepository.getInstance(context).savePreset(preset, successCallbackName, errorCallbackName, this);
         } catch (Exception e) {
-            Log.e(TAG, "Error saving sound preset", e); return "Error: " + e.getMessage();
+            Log.e(TAG, "Error initiating saveSoundPreset", e);
+            callJsFunctionOnMainThread(errorCallbackName, "Exception: " + escapeStringForJs(e.getMessage()));
         }
     }
 
+    /**
+     * Asynchronously saves an FxChain and invokes JS callbacks upon completion.
+     */
     @JavascriptInterface
-    public String saveFxChain(String chainDataJson) {
-        Log.d(TAG, "saveFxChain called");
-        if (context == null) { Log.e(TAG, "saveFxChain: context is null"); return "Error: Context is null"; }
+    public void saveFxChain(String chainDataJson, String successCallbackName, String errorCallbackName) {
+        Log.d(TAG, "JS call: saveFxChain with callbacks");
         try {
-            com.google.gson.JsonObject chain = gson.fromJson(chainDataJson, com.google.gson.JsonObject.class);
-            FxChainRepository repo = FxChainRepository.getInstance(context);
-            if (repo == null) { Log.e(TAG, "saveFxChain: Repository instance is null"); return "Error: Repository failed"; }
-            return repo.saveChain(chain);
-        } catch (JsonSyntaxException e) {
-            Log.e(TAG, "Error parsing chainData JSON", e); return "Error: Invalid JSON format";
+            JsonObject chain = JsonParser.parseString(chainDataJson).getAsJsonObject();
+            FxChainRepository.getInstance(context).saveChain(chain, successCallbackName, errorCallbackName, this);
         } catch (Exception e) {
-            Log.e(TAG, "Error saving FX chain", e); return "Error: " + e.getMessage();
+            Log.e(TAG, "Error initiating saveFxChain", e);
+            callJsFunctionOnMainThread(errorCallbackName, "Exception: " + escapeStringForJs(e.getMessage()));
         }
+    }
+
+    /**
+     * Asynchronously saves a chord progression and invokes JS callbacks upon completion.
+     */
+    @JavascriptInterface
+    public void saveChordProgression(String progressionDataJson, String successCallbackName, String errorCallbackName) {
+        Log.d(TAG, "JS call: saveChordProgression with callbacks");
+        try {
+            JsonObject progression = JsonParser.parseString(progressionDataJson).getAsJsonObject();
+            ChordProgressionRepository.getInstance(context).saveProgression(progression, successCallbackName, errorCallbackName, this);
+        } catch (Exception e) {
+            Log.e(TAG, "Error initiating saveChordProgression", e);
+            callJsFunctionOnMainThread(errorCallbackName, "Exception: " + escapeStringForJs(e.getMessage()));
+        }
+    }
+
+    /**
+     * Helper method to safely call a JS function on the main thread from any background thread.
+     * This is public so repositories can use it.
+     */
+    public void callJsFunctionOnMainThread(String functionName, String... args) {
+        mainHandler.post(() -> callJsFunction(functionName, (Object[]) args));
     }
 
     @JavascriptInterface
@@ -369,32 +406,9 @@ public class PrismtoneBridge {
     }
 
     @JavascriptInterface
-    public String saveChordProgression(String progressionDataJson) {
-        Log.d(TAG, "saveChordProgression called");
-        if (context == null) { Log.e(TAG, "saveChordProgression: context is null"); return "Error: Context is null"; }
-        try {
-            JsonObject progression = gson.fromJson(progressionDataJson, JsonObject.class);
-            ChordProgressionRepository repo = ChordProgressionRepository.getInstance(context);
-            if (repo == null) { Log.e(TAG, "saveChordProgression: Repository instance is null"); return "Error: Repository failed"; }
-            return repo.saveProgression(progression);
-        } catch (JsonSyntaxException e) {
-            Log.e(TAG, "Error parsing progressionData JSON", e); return "Error: Invalid JSON format";
-        } catch (Exception e) {
-            Log.e(TAG, "Error saving chord progression", e); return "Error: " + e.getMessage();
-        }
-    }
-
-    @JavascriptInterface
     public boolean deleteChordProgression(String progressionId) {
-        Log.d(TAG, "deleteChordProgression for: " + progressionId);
-        if (context == null) { Log.e(TAG, "deleteChordProgression: context is null"); return false; }
-        try {
-            ChordProgressionRepository repo = ChordProgressionRepository.getInstance(context);
-            if (repo == null) { Log.e(TAG, "deleteChordProgression: Repository instance is null"); return false; }
-            return repo.deleteProgression(progressionId);
-        } catch (Exception e) {
-            Log.e(TAG, "Error deleting chord progression: " + progressionId, e); return false;
-        }
+        Log.d(TAG, "deleteChordProgression: " + progressionId);
+        return ChordProgressionRepository.getInstance(context).deleteProgression(progressionId);
     }
 
     @JavascriptInterface
@@ -427,9 +441,9 @@ public class PrismtoneBridge {
     @JavascriptInterface
     public void vibrate(int durationMs, int amplitude) {
         if (vibrator == null || !vibrator.hasVibrator()) return;
-        
+
         Log.d(TAG, ">>> VIBRATE (OneShot) <<< Received: duration=" + durationMs + ", amplitude=" + amplitude);
-        
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (vibrator.hasAmplitudeControl()) {
                 int validAmplitude = Math.max(1, Math.min(255, amplitude));
@@ -451,7 +465,7 @@ public class PrismtoneBridge {
     @JavascriptInterface
     public void vibratePattern(String timingsJson, String amplitudesJson, int repeat) {
         if (vibrator == null || !vibrator.hasVibrator()) return;
-        
+
         Log.d(TAG, ">>> VIBRATE (Pattern) <<< Received: timings=" + timingsJson + ", amplitudes=" + amplitudesJson + ", repeat=" + repeat);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -465,7 +479,7 @@ public class PrismtoneBridge {
                     Log.e(TAG, "Mismatched or null timings/amplitudes for pattern vibration.");
                     return;
                 }
-                
+
                 if (vibrator.hasAmplitudeControl()) {
                     vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, repeat));
                 } else {
@@ -474,7 +488,7 @@ public class PrismtoneBridge {
                     for (int i = 0; i < amplitudes.length; i++) {
                         if(amplitudes[i] > 0) amplitudes[i] = VibrationEffect.DEFAULT_AMPLITUDE;
                     }
-                     vibrator.vibrate(VibrationEffect.createWaveform(timings, repeat));
+                    vibrator.vibrate(VibrationEffect.createWaveform(timings, repeat));
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Error creating vibration pattern", e);
@@ -488,7 +502,7 @@ public class PrismtoneBridge {
                     vibrator.vibrate(timings, repeat);
                 }
             } catch (Exception e) {
-                 Log.e(TAG, "Error creating legacy vibration pattern", e);
+                Log.e(TAG, "Error creating legacy vibration pattern", e);
             }
         }
     }
@@ -496,8 +510,76 @@ public class PrismtoneBridge {
     @JavascriptInterface
     public void cancelVibration() {
         if (vibrator != null && vibrator.hasVibrator()) {
-            Log.d(TAG, ">>> CANCEL VIBRATION BRIDGE CALL <<<");
             vibrator.cancel();
+            Log.d(TAG, "Vibration cancelled");
+        }
+    }
+
+    public void sendDeviceTiltToJs(float pitch, float roll) {
+        String script = String.format(Locale.US,
+                "if(window.app && typeof window.app.onDeviceTilt === 'function') { window.app.onDeviceTilt({ pitch: %.2f, roll: %.2f }); }",
+                pitch, roll);
+        runJavaScript(script);
+    }
+
+    public void setSensorController(SensorController controller) {
+        this.sensorControllerInstance = controller;
+    }
+
+    @JavascriptInterface
+    public void updateSensorSettings(String jsonSettings) {
+        Log.d(TAG, "updateSensorSettings called with: " + jsonSettings);
+        if (sensorControllerInstance == null) {
+            Log.e(TAG, "SensorController instance is null in PrismtoneBridge. Cannot update settings.");
+            return;
+        }
+
+        try {
+            SensorSettingsPayload settings = gson.fromJson(jsonSettings, SensorSettingsPayload.class);
+            if (settings != null) {
+                mainHandler.post(() -> {
+                    sensorControllerInstance.setSmoothingAlpha(settings.smoothingAlpha);
+                    sensorControllerInstance.setInvertPitchAxis(settings.invertPitchAxis);
+                    sensorControllerInstance.setInvertRollAxis(settings.invertRollAxis);
+                    sensorControllerInstance.setSwapAxes(settings.swapAxes);
+                    Log.i(TAG, "Sensor settings updated in SensorController.");
+                });
+            } else {
+                Log.e(TAG, "Failed to parse sensor settings JSON.");
+            }
+        } catch (JsonSyntaxException e) {
+            Log.e(TAG, "Error parsing sensor settings JSON: " + jsonSettings, e);
+        } catch (Exception e) {
+            Log.e(TAG, "Unexpected error updating sensor settings: " + jsonSettings, e);
+        }
+    }
+
+    @JavascriptInterface
+    public String getAssetList(String path) {
+        if (path == null || path.isEmpty()) {
+            Log.e(TAG, "getAssetList called with empty path.");
+            return "[]";
+        }
+        try {
+            // Ensure path doesn't start or end with a slash for consistency with assets.list()
+            String cleanedPath = path;
+            if (cleanedPath.startsWith("/")) {
+                cleanedPath = cleanedPath.substring(1);
+            }
+            if (cleanedPath.endsWith("/")) {
+                cleanedPath = cleanedPath.substring(0, cleanedPath.length() - 1);
+            }
+
+            String[] files = context.getAssets().list(cleanedPath);
+            if (files == null) { // list() can return null if path is not a directory or doesn't exist
+                Log.w(TAG, "No assets found or path is not a directory: " + cleanedPath);
+                return "[]";
+            }
+            // Возвращаем JSON-массив строк
+            return gson.toJson(files);
+        } catch (IOException e) {
+            Log.e(TAG, "Error listing assets for path: " + path, e);
+            return "[]"; // Возвращаем пустой массив в случае ошибки
         }
     }
 }

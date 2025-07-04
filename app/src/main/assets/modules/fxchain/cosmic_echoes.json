@@ -1,0 +1,60 @@
+{
+  "id": "cosmic_echoes",
+  "type": "fxchain",
+  "name": "Cosmic Echoes",
+  "description": "Deep spatial effect with shimmering delays and slow chorus modulation.",
+  "version": "1.0.0",
+  "author": "AI Assistant",
+  "data": {
+    "effects": [
+      {
+        "type": "reverb",
+        "enabled": true,
+        "params": { "roomSize": 0.85, "dampening": 6000, "wet": 0.6 }
+      },
+      {
+        "type": "delay",
+        "enabled": true,
+        "params": { "delayTime": 0.6, "feedback": 0.7, "wet": 0.5 }
+      },
+      {
+        "type": "chorus",
+        "enabled": true,
+        "params": { "frequency": 0.1, "delayTime": 8, "depth": 0.3, "wet": 0.4 }
+      },
+      {
+        "type": "filter",
+        "enabled": false,
+        "params": { "wet": 0 }
+      },
+      {
+        "type": "distortion",
+        "enabled": false,
+        "params": { "wet": 0 }
+      }
+    ],
+    "macroDefaults": {
+      "Space": 0.7,
+      "Time": 0.6,
+      "Motion": 0.2,
+      "Tone": 0.5
+    },
+    "macroMappings": {
+      "Space": [
+        { "effect": "reverb", "param": "roomSize", "range": [0.7, 0.98] },
+        { "effect": "reverb", "param": "wet", "range": [0.4, 0.8] }
+      ],
+      "Time": [
+        { "effect": "delay", "param": "delayTime", "range": [0.4, 1.2] },
+        { "effect": "delay", "param": "feedback", "range": [0.5, 0.85] }
+      ],
+      "Motion": [
+        { "effect": "chorus", "param": "frequency", "range": [0.05, 0.5] },
+        { "effect": "chorus", "param": "depth", "range": [0.1, 0.6] }
+      ],
+      "Tone": [
+        { "effect": "reverb", "param": "dampening", "range": [3000, 8000] }
+      ]
+    }
+  }
+}

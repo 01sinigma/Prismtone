@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "625578757551",
+    "project_id": "device-streaming-9b0ba2e7",
+    "storage_bucket": "device-streaming-9b0ba2e7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:625578757551:android:e024005b733f4fccfeb35a",
+        "android_client_info": {
+          "package_name": "com.example.prismtone"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCeyV2SsK_emio-m7DVbmaUXuas2nxHNPc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
