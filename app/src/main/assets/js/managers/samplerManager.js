@@ -1,9 +1,33 @@
+// Файл: app/src/main/assets/js/managers/samplerManager.js
 const samplerManager = {
-    // manager.create теперь async, так как обращается к bridge
+    // [Контекст -> Кэширование] Кэш для хранения уже загруженных экземпляров Tone.Sampler.
+    // Ключ - имя инструмента (папки). Это предотвратит повторную загрузку семплов при
+    // переключении между пресетами, использующими один и тот же инструмент.
+    _samplerCache: new Map(),
+
+    /**
+     * Асинхронно создает и загружает экземпляр Tone.Sampler.
+     * @param {object} initialSettings - Настройки из пресета.
+     * @param {string} initialSettings.instrument - Имя папки с семплами.
+     * @returns {Promise<object>} Объект, соответствующий стандартному интерфейсу менеджера.
+     */
     async create(initialSettings = {}) {
         const { instrument, ...samplerParams } = initialSettings;
         if (!instrument) {
-            return { nodes: null, error: "Sampler instrument name not provided in preset." };
+            return { nodes: null, error: "Sampler 'instrument' name not provided in preset." };
+        }
+
+        if (this._samplerCache.has(instrument)) {
+            console.log(`[SamplerManager] Using cached Tone.Sampler for instrument: ${instrument}`);
+            const cachedSampler = this._samplerCache.get(instrument);
+            // Обновляем параметры для кэшированного семплера, если они отличаются
+            this.update({ samplerNode: cachedSampler }, samplerParams);
+            return {
+                nodes: { samplerNode: cachedSampler },
+                audioInput: null,
+                audioOutput: cachedSampler,
+                modInputs: {}, modOutputs: {}, error: null
+            };
         }
 
         const assetPath = `audio/samples/${instrument}`;
@@ -11,82 +35,78 @@ const samplerManager = {
 
         let fileList = [];
         try {
-            // Ensure bridgeFix is available, otherwise log an error and return.
-            if (typeof bridgeFix === 'undefined' || !bridgeFix.callBridge) {
-                console.error("[SamplerManager] bridgeFix is not available. Cannot list assets.");
-                return { nodes: null, error: "Bridge for listing assets is not available." };
-            }
+            // [Связь -> Native] Запрашиваем список файлов сэмплов у нативной части.
             const fileListJson = await bridgeFix.callBridge('getAssetList', assetPath);
             if (fileListJson) {
                 fileList = JSON.parse(fileListJson);
             } else {
-                // callBridge might return null or undefined if the native method doesn't exist or fails before returning
-                console.error(`[SamplerManager] Received null or undefined from getAssetList for ${instrument}.`);
-                return { nodes: null, error: `Failed to list samples for ${instrument} (bridge communication error).` };
+                throw new Error("Bridge returned null or undefined asset list.");
             }
         } catch (error) {
             console.error(`[SamplerManager] Error getting asset list for ${instrument}:`, error);
             return { nodes: null, error: `Failed to list samples for ${instrument}. Details: ${error.message}` };
         }
 
-        if (!Array.isArray(fileList) || fileList.length === 0) {
-            console.error(`[SamplerManager] No sample files found or invalid list for folder: ${assetPath}. Received:`, fileList);
+        if (!fileList || fileList.length === 0) {
             return { nodes: null, error: `No sample files found in folder: ${assetPath}` };
         }
 
+        // [Логика -> Tone.js] Преобразуем список файлов в формат, понятный Tone.Sampler.
+        // Имя файла (без расширения) должно быть названием ноты, например "C4.wav" -> "C4".
         const urls = {};
-        const noteRegex = /([A-Ga-g][#b]?)(\d+)\.(wav|mp3|ogg|m4a|aac)$/i; // Added more extensions, case-insensitive
-
+        const noteRegex = /([A-Ga-g][#b]?)(\d+)\./i;
         fileList.forEach(file => {
             const match = file.match(noteRegex);
             if (match) {
-                let noteName = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase(); // e.g. C, F#, Db
-                // Ensure sharp is '#' and flat is 'b'
-                noteName = noteName.replace("S", "#").replace("s", "#");
-                // Standardize note name, e.g., Db instead of c# for some conventions if necessary, though Tone.js handles scientific notation.
-                // For simplicity, we'll use what's in the filename directly after capitalization.
-                urls[noteName + match[2]] = file; // Example "C4", "F#5"
+                const noteName = match[1].toUpperCase() + match[2];
+                urls[noteName] = file;
             }
         });
+        // console.log for debugging urls
+        console.log(`[SamplerManager] URLs for Tone.Sampler: ${JSON.stringify(urls)}`);
 
         if (Object.keys(urls).length === 0) {
-             console.error(`[SamplerManager] No valid note files (e.g., C4.wav) found in ${assetPath} after parsing ${fileList.length} files.`);
              return { nodes: null, error: `No valid note files (e.g., C4.wav) found in ${assetPath}` };
         }
 
-        console.log(`[SamplerManager] Generated URL map for Tone.Sampler:`, urls);
-
-        // Возвращаем Promise, который разрешится, когда сэмплер будет загружен
         return new Promise((resolve) => {
-            const samplerNode = new Tone.Sampler({
-                urls: urls,
-                baseUrl: `https://appassets.androidplatform.net/assets/${assetPath}/`,
-                ...samplerParams, // Применяем остальные параметры из пресета (attack, release)
-                onload: () => {
-                    console.log(`[SamplerManager] Sampler for '${instrument}' loaded successfully.`);
-                    resolve({
-                        nodes: { samplerNode },
-                        audioInput: null,
-                        audioOutput: samplerNode,
-                        modInputs: {},
-                        modOutputs: {},
-                        error: null
-                    });
-                },
-                onerror: (err) => {
-                    console.error(`[SamplerManager] Error loading Tone.Sampler for '${instrument}':`, err);
-                    resolve({ nodes: null, error: `Tone.Sampler failed to load samples for '${instrument}'.` });
-                }
-            }).toDestination(); // Важно подключить к выходу
+            try {
+                const samplerNode = new Tone.Sampler({
+                    urls: urls,
+                    baseUrl: `https://appassets.androidplatform.net/assets/${assetPath}/`,
+                    ...samplerParams, // Применяем остальные параметры (attack, release, curve)
+                    onload: () => {
+                        console.log(`[SamplerManager] Sampler for '${instrument}' loaded successfully.`);
+                        this._samplerCache.set(instrument, samplerNode); // Кэшируем успешный результат
+                        resolve({
+                            nodes: { samplerNode: samplerNode },
+                            audioInput: null,
+                            audioOutput: samplerNode,
+                            modInputs: {}, modOutputs: {}, error: null
+                        });
+                    },
+                    onerror: (err) => {
+                        console.error(`[SamplerManager] Tone.Sampler failed to load samples for '${instrument}':`, err);
+                        resolve({ nodes: null, error: `Tone.Sampler load error for '${instrument}'.` });
+                    }
+                });
+            } catch (err) {
+                console.error(`[SamplerManager] Error instantiating Tone.Sampler:`, err);
+                resolve({ nodes: null, error: `Tone.Sampler instantiation error: ${err.message}` });
+            }
         });
     },
 
-    // Методы update, dispose, triggerAttack, triggerRelease остаются как в вашем плане,
-    // но убедимся, что они работают с `nodes.samplerNode`.
-
+    /**
+     * Обновляет параметры существующего экземпляра Tone.Sampler.
+     * @param {object} nodes - Объект узлов, содержащий `samplerNode`.
+     * @param {object} newSettings - Новые настройки (attack, release, curve).
+     * @returns {boolean} true в случае успеха.
+     */
     update(nodes, newSettings) {
         if (!nodes?.samplerNode || !newSettings) return false;
         try {
+            // [Связь -> Tone.js] Используем set для одновременного обновления параметров.
             nodes.samplerNode.set({
                 attack: newSettings.attack,
                 release: newSettings.release,
@@ -99,23 +119,59 @@ const samplerManager = {
         }
     },
 
+    /**
+     * Триггерит атаку ноты на семплере.
+     * @param {object} nodes - Узлы.
+     * @param {string|number} frequency - Частота или имя ноты.
+     * @param {Tone.Time} time - Время для запуска.
+     * @param {number} velocity - Громкость (0-1).
+     */
     triggerAttack(nodes, frequency, time, velocity) {
         nodes?.samplerNode?.triggerAttack(frequency, time, velocity);
     },
 
+    /**
+     * Триггерит затухание ноты.
+     * @param {object} nodes - Узлы.
+     * @param {string|number} frequency - Частота или имя ноты.
+     * @param {Tone.Time} time - Время для затухания.
+     */
     triggerRelease(nodes, frequency, time) {
         nodes?.samplerNode?.triggerRelease(frequency, time);
     },
 
-    dispose(nodes) {
-        nodes?.samplerNode?.dispose();
+    /**
+     * Реализует плавное скольжение (legato).
+     * @param {object} nodes - Узлы.
+     * @param {string|number} oldFrequency - Старая нота для остановки.
+     * @param {string|number} newFrequency - Новая нота для запуска.
+     * @param {Tone.Time} time - Время.
+     * @param {number} velocity - Громкость.
+     */
+    setNote(nodes, oldFrequency, newFrequency, time, velocity) {
+        // [Логика -> Legato] Сначала останавливаем старую ноту, затем сразу запускаем новую.
+        // Tone.Sampler автоматически сделает это без щелчка.
+        nodes?.samplerNode?.triggerRelease(oldFrequency, time);
+        nodes?.samplerNode?.triggerAttack(newFrequency, time, velocity);
     },
 
-    // ... прочие методы-заглушки (connectPeers, enable, etc.) ...
-    connectPeers(nodes, prev, next) { return true; },
+    dispose(nodes) {
+        // Важно! Не удаляем из кэша. dispose вызывается для голоса,
+        // но сам инструмент может использоваться другими голосами.
+        // Очистка кэша должна происходить при смене пресета, если это необходимо.
+        // В данной реализации мы кэшируем навсегда.
+    },
+
+    connectPeers(nodes, prevOutputNode, nextInputNode) {
+        // Семплер - источник звука, у него нет audioInput.
+        // Его audioOutput будет подключен дальше в voiceBuilder.
+        return true;
+    },
+
     enable(nodes, isEnabled) { return true; }
 };
 
+// Регистрация в audioConfig
 if (typeof audioConfig !== 'undefined') {
     audioConfig.registerManager('sampler', samplerManager);
 }

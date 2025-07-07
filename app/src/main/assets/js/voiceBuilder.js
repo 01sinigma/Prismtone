@@ -54,34 +54,24 @@ const voiceBuilder = {
         console.log("[VoiceBuilder v3 Sampler] --- Creating Components ---");
         let componentIdsToCreate = new Set(chainOrder);
 
-        // Определяем, используется ли сэмплер
+        // [Логика -> Выбор Источника] Определяем, какой источник звука использовать.
         const useSampler = presetData.sampler?.enabled === true;
 
         if (useSampler) {
-            componentIdsToCreate.delete('oscillator'); // Не создаем осциллятор, если есть сэмплер
-            // Убедимся, что сэмплер будет создан, если он указан в chainOrder или как замена осциллятору
-            if (chainOrder.includes('sampler')) {
-                componentIdsToCreate.add('sampler');
-            } else if (chainOrder.includes('oscillator')) { // Если осциллятор был, но заменяется сэмплером
-                componentIdsToCreate.add('sampler');
-            } else { // Если ни осциллятора, ни сэмплера не было в chainOrder, но sampler.enabled = true
-                 console.warn("[VoiceBuilder v3 Sampler] Sampler enabled in preset but neither 'sampler' nor 'oscillator' found in voiceAudioChainOrder. Adding 'sampler' to components to create.");
-                 // Добавляем 'sampler' в начало, если его нет, чтобы он был источником
-                 const tempArray = Array.from(componentIdsToCreate);
-                 if (!tempArray.includes('sampler')) {
-                    tempArray.unshift('sampler');
-                    componentIdsToCreate = new Set(tempArray);
-                 }
-            }
-            console.log("[VoiceBuilder v3 Sampler] Sampler is enabled. 'oscillator' will be skipped. 'sampler' will be created/prioritized.");
+            componentIdsToCreate.delete('oscillator');
+            componentIdsToCreate.add('sampler'); // Ensure sampler is in the set to be created
+            console.log("[VoiceBuilder] Sampler mode detected. Oscillator will be skipped. Sampler will be used.");
         } else {
-            componentIdsToCreate.delete('sampler'); // Не создаем сэмплер, если он не включен
-            // Убедимся, что осциллятор будет создан, если он в chainOrder и сэмплер не используется
+            componentIdsToCreate.delete('sampler');
+            // Ensure oscillator is present if it's in the original chainOrder and sampler is not used.
+            // If 'oscillator' is not in chainOrder, it won't be added here, respecting the defined chain.
             if (chainOrder.includes('oscillator')) {
                 componentIdsToCreate.add('oscillator');
             }
-            console.log("[VoiceBuilder v3 Sampler] Sampler is not enabled. 'oscillator' will be created (if in chain). 'sampler' will be skipped.");
+            console.log("[VoiceBuilder] Oscillator mode detected (or sampler disabled). Sampler will be skipped.");
         }
+        // console.log for debugging effectiveChainOrder - placed here to see initial decision
+        console.log(`[VoiceBuilder] Component IDs to create (after source selection): ${Array.from(componentIdsToCreate).join(', ')}`);
 
         // Добавляем опциональные компоненты, если они включены в пресете
         if (presetData.pitchEnvelope?.enabled) componentIdsToCreate.add('pitchEnvelope');
@@ -153,48 +143,88 @@ const voiceBuilder = {
 
 
         // --- Шаг 2: Соединение аудио-цепочки ---
-        // Логика соединения остается почти такой же, но теперь она должна
-        // правильно обработать либо components.oscillator.audioOutput,
-        // либо components.sampler.audioOutput как начало цепи.
         console.log("[VoiceBuilder v3 Sampler] --- Connecting Audio Chain ---");
         let previousOutputNode = null;
 
-        // Определяем актуальный порядок цепочки на основе использования сэмплера
-        let effectiveChainOrder = [...chainOrder]; // Копируем оригинальный chainOrder
-        if (useSampler) {
-            // Если используется сэмплер, заменяем 'oscillator' на 'sampler' или добавляем 'sampler'
-            const oscIndex = effectiveChainOrder.indexOf('oscillator');
-            if (oscIndex !== -1) {
-                effectiveChainOrder.splice(oscIndex, 1, 'sampler'); // Заменяем осциллятор сэмплером
-            } else if (!effectiveChainOrder.includes('sampler')) {
-                // Если осциллятора не было, и сэмплера тоже нет, добавляем сэмплер в начало
-                effectiveChainOrder.unshift('sampler');
-            }
-            // Удаляем дубликаты 'sampler', если они появились, и все 'oscillator'
-            effectiveChainOrder = effectiveChainOrder.filter(id => id !== 'oscillator');
-            effectiveChainOrder = [...new Set(effectiveChainOrder)]; // Убираем дубликаты sampler, если что
-        } else {
-            // Если сэмплер не используется, удаляем 'sampler' и убеждаемся, что 'oscillator' на месте
-            effectiveChainOrder = effectiveChainOrder.filter(id => id !== 'sampler');
-            if (!effectiveChainOrder.includes('oscillator') && chainOrder.includes('oscillator')) {
-                // Если осциллятор был в оригинальном chainOrder, но исчез (маловероятно тут), добавляем его
-                 const firstSoundSourceIndex = chainOrder.findIndex(id => audioConfig.getManager(id)?.create({})?.audioOutput); // Примерный поиск первого источника
-                 if (firstSoundSourceIndex !== -1) {
-                    effectiveChainOrder.splice(firstSoundSourceIndex, 0, 'oscillator');
-                 } else {
-                    effectiveChainOrder.unshift('oscillator');
+        // Используем `useSampler` для определения правильного ID источника звука
+        // и для корректной итерации по `audioConfig.voiceAudioChainOrder`.
+        // `effectiveChainOrder` теперь будет строиться более точно на основе `audioConfig.voiceAudioChainOrder`.
+
+        const originalChainOrder = audioConfig.voiceAudioChainOrder;
+        let effectiveChainOrderForConnection = [];
+
+        console.log(`[VoiceBuilder] Original audioConfig.voiceAudioChainOrder: ${originalChainOrder.join(', ')}`);
+        console.log(`[VoiceBuilder] useSampler: ${useSampler}`);
+
+        for (const componentIdInOrder of originalChainOrder) {
+            let currentComponentIdToProcess = componentIdInOrder;
+
+            if (componentIdInOrder === 'oscillator' && useSampler) {
+                // Если в chainOrder стоит 'oscillator', а мы используем семплер,
+                // то актуальный ID компонента для обработки - 'sampler'.
+                // Также нужно убедиться, что 'sampler' был создан.
+                if (components['sampler'] && !components['sampler'].error) {
+                    currentComponentIdToProcess = 'sampler';
+                    console.log(`[VoiceBuilder] Connecting: Replacing 'oscillator' with 'sampler' in chain for connection.`);
+                } else {
+                    console.warn(`[VoiceBuilder] Connecting: 'oscillator' in chain, 'useSampler' is true, but 'sampler' component is missing or has error. Skipping this chain link.`);
+                    continue;
+                }
+            } else if (componentIdInOrder === 'sampler' && !useSampler) {
+                // Если в chainOrder стоит 'sampler', но мы используем осциллятор,
+                // то актуальный ID компонента для обработки - 'oscillator'.
+                // Также нужно убедиться, что 'oscillator' был создан.
+                if (components['oscillator'] && !components['oscillator'].error) {
+                    currentComponentIdToProcess = 'oscillator';
+                    console.log(`[VoiceBuilder] Connecting: Replacing 'sampler' with 'oscillator' in chain for connection.`);
+                } else {
+                    console.warn(`[VoiceBuilder] Connecting: 'sampler' in chain, 'useSampler' is false, but 'oscillator' component is missing or has error. Skipping this chain link.`);
+                    continue;
+                }
+            } else if (componentIdInOrder === 'oscillator' && !useSampler) {
+                // Используем осциллятор, и он указан в chainOrder. Убедимся, что он есть.
+                if (!components['oscillator'] || components['oscillator'].error) {
+                     console.warn(`[VoiceBuilder] Connecting: 'oscillator' in chain, 'useSampler' is false, but 'oscillator' component is missing or has error. Skipping this chain link.`);
+                     continue;
+                }
+            } else if (componentIdInOrder === 'sampler' && useSampler) {
+                // Используем сэмплер, и он указан в chainOrder. Убедимся, что он есть.
+                 if (!components['sampler'] || components['sampler'].error) {
+                     console.warn(`[VoiceBuilder] Connecting: 'sampler' in chain, 'useSampler' is true, but 'sampler' component is missing or has error. Skipping this chain link.`);
+                     continue;
                  }
             }
-             effectiveChainOrder = [...new Set(effectiveChainOrder)];
+
+
+            // Добавляем в список для соединения только если компонент действительно существует и активен
+            if (components[currentComponentIdToProcess] && !components[currentComponentIdToProcess].error) {
+                // Предотвращаем дублирование, если 'sampler' заменил 'oscillator' и 'sampler' уже был в chain
+                if (!effectiveChainOrderForConnection.includes(currentComponentIdToProcess)) {
+                    effectiveChainOrderForConnection.push(currentComponentIdToProcess);
+                } else if ( (componentIdInOrder === 'oscillator' && currentComponentIdToProcess === 'sampler') ||
+                            (componentIdInOrder === 'sampler' && currentComponentIdToProcess === 'oscillator')) {
+                    // Это случай подмены, дубликат не нужен, так как он уже был добавлен ранее по своему "родному" id
+                } else if (currentComponentIdToProcess === componentIdInOrder) {
+                    // Это не подмена, но компонент почему-то уже есть. Этого быть не должно при правильном chainOrder.
+                    console.warn(`[VoiceBuilder] Component ${currentComponentIdToProcess} already in effectiveChainOrderForConnection. Original chain might have duplicates or logic error.`);
+                }
+            } else if (componentIdInOrder === 'outputGain' && (!components['outputGain'] || components['outputGain'].error) ) {
+                 console.error(`[VoiceBuilder] CRITICAL: outputGain component '${componentIdInOrder}' is missing or has an error. Audio chain cannot be completed.`);
+                 // Это критическая ошибка, дальнейшее соединение бессмысленно.
+                 // errorState уже должен содержать информацию об ошибке outputGain.
+                 break;
+            }
         }
 
-        console.log("[VoiceBuilder v3 Sampler] Effective audio chain order:", effectiveChainOrder);
+        // Дополнительная отладочная информация о том, что реально будет соединяться
+        console.log(`[VoiceBuilder] Effective audio chain for CONNECTION: ${effectiveChainOrderForConnection.join(' -> ')}`);
 
-        for (let i = 0; i < effectiveChainOrder.length; i++) {
-            const componentId = effectiveChainOrder[i];
-            // Пропускаем компоненты, которые не должны были быть созданы
-            if (useSampler && componentId === 'oscillator') continue;
-            if (!useSampler && componentId === 'sampler') continue;
+
+        for (let i = 0; i < effectiveChainOrderForConnection.length; i++) {
+            const componentId = effectiveChainOrderForConnection[i];
+            // Эта проверка уже не нужна здесь, так как effectiveChainOrderForConnection строится на основе существующих и не ошибочных компонентов
+            // if (useSampler && componentId === 'oscillator') continue;
+            // if (!useSampler && componentId === 'sampler') continue;
 
             const componentData = components[componentId];
 

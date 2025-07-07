@@ -610,23 +610,29 @@ const synth = {
         const useSampler = currentPreset.sampler?.enabled === true;
         const soundSourceId = useSampler ? 'sampler' : 'oscillator';
         const soundSourceManager = audioConfig.getManager(soundSourceId);
-        const soundSourceNodes = components[soundSourceId]?.nodes;
+        // Corrected: Access components using voiceData.components, not directly components
+        const soundSourceNodes = voiceData.components[soundSourceId]?.nodes;
+
+        // Debug log as per plan
+        console.log(`[Synth._executeStartNote] useSampler: ${useSampler}, soundSourceId: ${soundSourceId}, manager: ${soundSourceManager ? 'found' : 'NOT FOUND'}, nodes: ${soundSourceNodes ? 'found' : 'NOT FOUND'}`);
 
         if (soundSourceManager && soundSourceNodes) {
             if (useSampler) {
+                // [Связь -> Sampler] Используем triggerAttack семплера
                 soundSourceManager.triggerAttack(soundSourceNodes, frequency, Tone.now(), velocity);
                  if (this.config.debug) console.log(`[Synth AsyncQueue] Sampler triggered for voice ${voiceIndex}`);
             } else {
+                // [Связь -> Oscillator] Старая логика для осциллятора
                 soundSourceManager.update(soundSourceNodes, { frequency });
                  if (this.config.debug) console.log(`[Synth AsyncQueue] Oscillator freq updated for voice ${voiceIndex}`);
             }
         } else {
-            console.warn(`[Synth AsyncQueue] Sound source '${soundSourceId}' manager or nodes not found for voice ${voiceIndex}. Cannot start note.`);
+            console.error(`[Synth._executeStartNote] Sound source manager or nodes not found for ${soundSourceId}. Cannot start note.`); // Enhanced error message
             this.releaseVoice(voiceIndex);
             return;
         }
 
-        audioConfig.getManager('outputGain')?.update(components.outputGain.nodes, { gain: calculatedVolume });
+        audioConfig.getManager('outputGain')?.update(voiceData.components.outputGain.nodes, { gain: calculatedVolume }); // Corrected: voiceData.components
         if (voiceData.fxSend) voiceData.fxSend.volume.value = calculatedSendLevel;
 
         if (components.amplitudeEnv?.nodes) {
@@ -678,16 +684,37 @@ const synth = {
 
         const currentPreset = voiceData.currentPresetData || this.config.defaultPreset;
         const useSampler = currentPreset.sampler?.enabled === true;
-        const soundSourceId = useSampler ? 'sampler' : 'oscillator';
-        const soundSourceManager = audioConfig.getManager(soundSourceId);
-        const soundSourceNodes = voiceData.components[soundSourceId]?.nodes;
+        // Debug log as per plan (similar to _executeStartNote)
+        console.log(`[Synth._executeUpdateNote] useSampler: ${useSampler}`);
 
-        if (freqChanged && soundSourceManager && soundSourceNodes) {
-            if (useSampler) {
-                 if (this.config.debug) console.log(`[Synth AsyncQueue] Update note: Frequency changed for sampler voice ${voiceIndex}. Behavior depends on samplerManager.`);
-                 soundSourceManager.update?.(soundSourceNodes, { frequency });
+        if (freqChanged) {
+            const soundSourceId = useSampler ? 'sampler' : 'oscillator';
+            const soundSourceManager = audioConfig.getManager(soundSourceId);
+            const soundSourceNodes = voiceData.components[soundSourceId]?.nodes;
+
+            console.log(`[Synth._executeUpdateNote] soundSourceId: ${soundSourceId}, manager: ${soundSourceManager ? 'found' : 'NOT FOUND'}, nodes: ${soundSourceNodes ? 'found' : 'NOT FOUND'}`);
+
+
+            if (soundSourceManager && soundSourceNodes) {
+                if (useSampler) {
+                    // [Связь -> Sampler] Вызываем setNote для легато
+                    const oldFrequency = activeVoiceDetails.frequency;
+                    // Ensure 'sampler' manager and its nodes are correctly referenced
+                    const samplerManagerInstance = audioConfig.getManager('sampler');
+                    const samplerNodesInstance = voiceData.components.sampler?.nodes;
+                    if (samplerManagerInstance && samplerNodesInstance) {
+                        samplerManagerInstance.setNote(samplerNodesInstance, oldFrequency, frequency, Tone.now(), velocity);
+                         if (this.config.debug) console.log(`[Synth AsyncQueue] Sampler setNote called for voice ${voiceIndex}: ${oldFrequency} -> ${frequency}`);
+                    } else {
+                        console.warn(`[Synth AsyncQueue] Sampler manager or nodes not found for setNote on voice ${voiceIndex}.`);
+                    }
+                } else {
+                    // [Связь -> Oscillator] Старая логика
+                    soundSourceManager.update(soundSourceNodes, { frequency });
+                     if (this.config.debug) console.log(`[Synth AsyncQueue] Oscillator frequency updated for voice ${voiceIndex} to ${frequency}`);
+                }
             } else {
-                soundSourceManager.update(soundSourceNodes, { frequency });
+                 console.warn(`[Synth AsyncQueue] Sound source manager or nodes for '${soundSourceId}' not found during updateNote for voice ${voiceIndex}. Freq not changed.`);
             }
             activeVoiceDetails.frequency = frequency;
         }
@@ -726,10 +753,29 @@ const synth = {
             const soundSourceManager = audioConfig.getManager(soundSourceId);
             const soundSourceNodes = voiceData.components[soundSourceId]?.nodes;
 
-            if (useSampler && soundSourceManager && soundSourceNodes) {
-                soundSourceManager.triggerRelease(soundSourceNodes, Tone.now());
-                 if (this.config.debug) console.log(`[Synth AsyncQueue] Sampler release triggered for voice ${voiceIndex}`);
+            // Debug log as per plan
+            console.log(`[Synth._executeTriggerRelease] useSampler: ${useSampler}, soundSourceId: ${soundSourceId}, manager: ${soundSourceManager ? 'found' : 'NOT FOUND'}, nodes: ${soundSourceNodes ? 'found' : 'NOT FOUND'}`);
+
+            if (useSampler) {
+                // [Связь -> Sampler] Вызываем triggerRelease у семплера
+                const noteToRelease = this.activeVoices.get(touchId)?.frequency; // Or activeVoiceDetails.frequency
+                if (noteToRelease && soundSourceManager && soundSourceNodes) { // Ensure manager and nodes are valid
+                    soundSourceManager.triggerRelease(soundSourceNodes, noteToRelease, Tone.now());
+                    if (this.config.debug) console.log(`[Synth AsyncQueue] Sampler triggerRelease called for voice ${voiceIndex}, note: ${noteToRelease}`);
+                } else {
+                     console.warn(`[Synth AsyncQueue] Could not trigger release on sampler for voice ${voiceIndex}. Note: ${noteToRelease}, Manager: ${!!soundSourceManager}, Nodes: ${!!soundSourceNodes}`);
+                }
             }
+            // The original plan says:
+            // "Важно! Для семплера мы не вызываем `releaseVoice` сразу, т.к. `triggerRelease`
+            // использует встроенную огибающую. `releaseVoice` вызывается по окончанию затухания.
+            // Для унификации, оставляем существующую логику с вызовом `releaseVoice` в конце,
+            // но `samplerManager.triggerRelease` инициирует затухание в Tone.Sampler."
+            // The current code structure calls releaseVoice() unconditionally after this block.
+            // Amplitude envelope release is still essential for non-sampler sounds and for consistency if sampler's own envelope is minimal.
+            // If sampler has its own full envelope, amplitudeEnv might not be strictly needed FOR THE SAMPLER ITSELF,
+            // but synth structure uses it.
+
             if (voiceData.components.amplitudeEnv?.nodes) {
                  audioConfig.getManager('amplitudeEnv')?.triggerRelease(voiceData.components.amplitudeEnv.nodes, Tone.now());
             }
