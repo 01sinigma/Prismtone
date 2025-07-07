@@ -316,12 +316,47 @@
     </div>
 
     <div id="tonality-panel" class="side-panel right-panel">
-        <div class="panel-header"> <h2 data-i18n="tonality_title">Tonality</h2> <button class="close-button" data-panel-id="tonality-panel">×</button> </div>
-        <div class="panel-content">
-            <div class="setting-group"> <label for="scale-select" data-i18n="scale_label">Scale</label> <div id="scale-select-display" class="dropdown-display" tabindex="0"></div>  </div>
-            <div class="setting-group"> <label data-i18n="size_label">Size</label> <div class="slider-container"> <button id="size-down" class="slider-button">-</button> <input type="range" id="size-slider" class="slider" min="8" max="36" value="12" step="2"> <button id="size-up" class="slider-button">+</button> <span id="size-value" class="slider-value">12</span> </div> </div>
-            <div class="setting-group"> <label data-i18n="octave_label">Octave</label> <div class="slider-container"> <button id="octave-down" class="slider-button">-</button> <input type="range" id="octave-slider" class="slider" min="-7" max="7" value="0" step="1"> <button id="octave-up" class="slider-button">+</button> <span id="octave-value" class="slider-value">0</span> </div> </div>
+        <div class="panel-header">
+            <h2 data-i18n="tonality_title">Tonality</h2>
+            <button class="close-button" data-panel-id="tonality-panel">×</button>
         </div>
+        <div class="panel-content">
+
+            <!-- [Контекст -> Семантика] Группа для выбора лада -->
+            <div class="setting-group">
+                <label for="scale-select" data-i18n="scale_label">Scale</label>
+                <!-- [Связь -> JS] Этот div используется для красивого отображения и как триггер для popover -->
+                <div id="scale-select-display" class="dropdown-display" tabindex="0"></div>
+                <!-- [ИСПРАВЛЕНО -> Семантика] Добавлен скрытый <select>, чтобы label for="scale-select" был валидным.
+                     JS-логика customSelectorPopover может использовать его для инициализации. -->
+                <select id="scale-select" class="dropdown" style="display: none;"></select>
+            </div> <!-- ИСПРАВЛЕНО: Закрывающий </div> для setting-group -->
+
+            <!-- [Контекст -> UI] Группа для выбора размера пэда -->
+            <div class="setting-group">
+                <!-- [ИСПРАВЛЕНО -> Семантика] Label теперь связан с input type="range" через for/id -->
+                <label for="size-slider" data-i18n="size_label">Size</label>
+                <div class="slider-container">
+                    <button id="size-down" class="slider-button">-</button>
+                    <input type="range" id="size-slider" class="slider" min="8" max="36" value="12" step="2">
+                    <button id="size-up" class="slider-button">+</button>
+                    <span id="size-value" class="slider-value">12</span>
+                </div>
+            </div> <!-- ИСПРАВЛЕНО: Закрывающий </div> для setting-group -->
+
+            <!-- [Контекст -> UI] Группа для сдвига октавы -->
+            <div class="setting-group">
+                <!-- [ИСПРАВЛЕНО -> Семантика] Label теперь связан с input type="range" через for/id -->
+                <label for="octave-slider" data-i18n="octave_label">Octave</label>
+                <div class="slider-container">
+                    <button id="octave-down" class="slider-button">-</button>
+                    <input type="range" id="octave-slider" class="slider" min="-7" max="7" value="0" step="1">
+                    <button id="octave-up" class="slider-button">+</button>
+                    <span id="octave-value" class="slider-value">0</span>
+                </div>
+            </div> <!-- ИСПРАВЛЕНО: Закрывающий </div> для setting-group -->
+
+        </div> <!-- ИСПРАВЛЕНО: Закрывающий </div> для panel-content -->
     </div>
 
     <div id="effects-panel" class="side-panel right-panel">
