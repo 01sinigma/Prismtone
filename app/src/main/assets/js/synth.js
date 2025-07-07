@@ -33,7 +33,7 @@ const synth = {
     currentFxChainData: null, // Кэш для данных текущей FX-цепочки (для макросов)
     _activeVoiceCountChanged: false, // Новый флаг
     _previousActiveVoiceCount: 0,    // Для отслеживания изменений
-    
+
     // === НОВЫЕ СВОЙСТВА ДЛЯ ОЧЕРЕДИ (согласно заданию) ===
     _updateQueue: new Map(), // Map<touchId, { action, ...data }>
     _isProcessingQueue: false,
@@ -356,6 +356,26 @@ const synth = {
                         needsRecreation = true;
                     }
                 }
+
+                // >>> НАЧАЛО ИЗМЕНЕНИЙ (ЗАДАЧА 1) <<<
+                const oldPreset = voiceData.currentPresetData || this.config.defaultPreset;
+                const oldUsesSampler = oldPreset?.sampler?.enabled === true;
+                const newUsesSampler = safePresetData.sampler?.enabled === true;
+                // Если тип источника изменился (синт <-> семплер)
+                if (oldUsesSampler !== newUsesSampler) {
+                    if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Source type changed (sampler: ${oldUsesSampler} -> ${newUsesSampler})`);
+                    needsRecreation = true;
+                }
+                // Если оба пресета - семплерные, но ИНСТРУМЕНТ разный
+                else if (newUsesSampler && oldUsesSampler) {
+                    const oldInstrument = oldPreset.sampler?.params?.instrument;
+                    const newInstrument = safePresetData.sampler?.params?.instrument;
+                    if (oldInstrument !== newInstrument) {
+                        if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Sampler instrument changed (${oldInstrument} -> ${newInstrument})`);
+                        needsRecreation = true;
+                    }
+                }
+                // >>> КОНЕЦ ИЗМЕНЕНИЙ <<<
 
                 if (needsRecreation) {
                     if (this.config.debug) console.log(`[Synth AsyncQueue applyPreset] RECREATING voice ${index}.`);
@@ -970,67 +990,48 @@ const synth = {
         }
         return settings;
     },
-    getFreeVoiceIndex(touchId) {
+    /**
+     * Finds a free voice slot. If all are busy, it "steals" the oldest one.
+     * @param {string|number} newTouchId - The ID of the touch requesting a voice.
+     * @returns {number} The index of the available voice, or -1 if none could be freed.
+     */
+    getFreeVoiceIndex(newTouchId) {
         if (!this.isReady) return -1;
 
-        // 1. Поиск полностью свободного голоса
-        let availableVoiceIndex = -1;
-        // oldestFreeTime была неиспользуемой, удалена.
+        // --- Этап 1: Быстрый поиск полностью свободного голоса ---
+        for (let i = 0; i < this.config.polyphony; i++) {
+            // Проверяем, что голос не занят И что для него созданы компоненты
+            if (!this.voiceState[i]?.isBusy && this.voices[i]?.components) {
+                if (this.config.debug) console.log(`[Synth getFreeVoice] Found free voice at index ${i}.`);
+                return i;
+            }
+        }
+
+        // --- Этап 2: "Кража голоса", если свободных не найдено ---
+        if (this.config.debug) console.warn("[Synth getFreeVoice] No free voices. Stealing oldest voice...");
+        let oldestVoiceIndex = -1;
+        let oldestTime = Infinity;
 
         for (let i = 0; i < this.config.polyphony; i++) {
-            if (!this.voiceState[i]?.isBusy && this.voices[i]?.components && !this.voices[i]?.errorState?.critical) {
-                // Просто берем первый найденный свободный и пригодный голос.
-                availableVoiceIndex = i;
-                break;
+            // Ищем самый давно запущенный голос
+            if (this.voiceState[i]?.isBusy && this.voiceState[i].startTime < oldestTime) {
+                oldestTime = this.voiceState[i].startTime;
+                oldestVoiceIndex = i;
             }
         }
 
-        if (availableVoiceIndex !== -1) {
-            if (this.config.debug) console.log(`[Synth.getFreeVoiceIndex] Found completely free voice: ${availableVoiceIndex}`);
-            return availableVoiceIndex;
+        if (oldestVoiceIndex !== -1) {
+            if (this.config.debug) console.log(`[Synth getFreeVoice] Stealing voice ${oldestVoiceIndex} (touchId: ${this.voiceState[oldestVoiceIndex].touchId}).`);
+
+            const oldTouchId = this.voiceState[oldestVoiceIndex].touchId;
+            if (oldTouchId !== null) {
+                this.triggerRelease(oldTouchId); // Ставим в очередь задачу на затухание
+            }
+
+            return oldestVoiceIndex; // Возвращаем индекс для новой ноты
         }
 
-        // 2. Если нет свободных - реализуем Voice Stealing (ищем самый старый занятый голос)
-        if (this.config.debug) console.log(`[Synth.getFreeVoiceIndex] No completely free voice. Attempting voice stealing.`);
-
-        let oldestBusyVoiceIndex = -1;
-        let oldestBusyStartTime = Infinity;
-
-        for (let i = 0; i < this.config.polyphony; i++) {
-            // Ищем среди занятых и пригодных для использования голосов
-            if (this.voiceState[i]?.isBusy && this.voices[i]?.components && !this.voices[i]?.errorState?.critical) {
-                if (this.voiceState[i].startTime < oldestBusyStartTime) {
-                    oldestBusyStartTime = this.voiceState[i].startTime;
-                    oldestBusyVoiceIndex = i;
-                }
-            }
-        }
-
-        if (oldestBusyVoiceIndex !== -1) {
-            const touchIdToSteal = this.voiceState[oldestBusyVoiceIndex].touchId;
-            if (this.config.debug) {
-                console.warn(`[Synth.getFreeVoiceIndex] STEALING voice: ${oldestBusyVoiceIndex} (touchId: ${touchIdToSteal}, startTime: ${oldestBusyStartTime}) for new touchId: ${touchId}`);
-            }
-            if (touchIdToSteal !== null) { // Убедимся, что у голоса есть touchId для корректного release
-                this.triggerRelease(touchIdToSteal); // Ставим задачу на release в очередь
-                // Важно: triggerRelease асинхронен через очередь.
-                // _executeTriggerRelease в итоге вызовет this.releaseVoice(oldestBusyVoiceIndex)
-                // и this.activeVoices.delete(touchIdToSteal).
-                // Голос будет помечен как isBusy=false в releaseVoice.
-                // Мы немедленно возвращаем этот индекс, _executeStartNote его использует.
-                // Это общепринятый подход в voice stealing. Tone.js должен справиться
-                // с быстрым release предыдущей ноты и attack новой на том же "железе".
-            } else {
-                 // Если у самого старого занятого голоса нет touchId (маловероятно, но возможно при ошибке)
-                 // то просто освобождаем его состояние принудительно, чтобы он мог быть переиспользован.
-                 console.warn(`[Synth.getFreeVoiceIndex] Stolen voice ${oldestBusyVoiceIndex} had null touchId. Forcing release of voice state.`);
-                 this.releaseVoice(oldestBusyVoiceIndex); // Очищает voiceState[i].isBusy = false;
-            }
-            return oldestBusyVoiceIndex;
-        }
-
-        // Если не найдено ни свободных, ни подходящих для "кражи" (например, все голоса с ошибками)
-        if (this.config.debug) console.error(`[Synth.getFreeVoiceIndex] No free voices and no stealable voices found. This shouldn't happen if polyphony > 0.`);
+        console.error("[Synth getFreeVoice] CRITICAL: Could not find any voice to steal.");
         return -1;
     },
     findVoiceIndex(touchId) {

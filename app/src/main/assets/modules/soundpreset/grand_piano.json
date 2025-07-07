@@ -4,6 +4,7 @@
   "name": "Grand Piano",
   "version": "1.0.0",
   "description": "A basic grand piano sound using samples.",
+  "active": false,
   "data": {
     "sampler": {
       "enabled": true,
@@ -11,47 +12,15 @@
         "instrument": "piano",
         "attack": 0.01,
         "release": 1.2,
-        "curve": "exponential",
-        "urls": {
-          "C4": "C4.wav",
-          "G4": "G4.wav",
-          "E5": "E5.wav"
-        }
+        "curve": "exponential"
       }
     },
-    "oscillator": {
-      "enabled": false,
-      "params": {
-        "type": "sine"
-      }
-    },
-    "amplitudeEnv": {
-      "enabled": true,
-      "params": {
-        "attack": 0.01,
-        "decay": 0.1,
-        "sustain": 0.9,
-        "release": 1.2
-      }
-    },
-    "filter": {
-      "enabled": true,
-      "params": {
-        "type": "lowpass",
-        "frequency": 12000,
-        "Q": 0.8,
-        "gain": 0
-      }
-    },
-    "outputGain": {
-      "enabled": true,
-      "params": {
-        "gain": 0.8
-      }
-    },
-    "pitchEnvelope": { "enabled": false },
-    "filterEnvelope": { "enabled": false },
-    "lfo1": { "enabled": false },
-    "portamento": { "enabled": false, "time": 0.05 }
+    "oscillator": { "enabled": false },
+    "amplitudeEnv": { "enabled": false },
+    "filter": { "enabled": false },
+    "colors": {
+      "primary": "#E0E0E0",
+      "text": "#000000"
+    }
   }
 }

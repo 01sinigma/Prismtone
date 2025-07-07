@@ -554,14 +554,20 @@ public class PrismtoneBridge {
         }
     }
 
+    /**
+     * Lists all filenames within a given path in the assets directory.
+     * Called by JavaScript (e.g., samplerManager) to discover available samples.
+     * @param path The relative path inside the 'assets' directory (e.g., "audio/samples/piano").
+     * @return A JSON string array of filenames, or an empty JSON array "[]" if an error occurs or path is empty.
+     */
     @JavascriptInterface
     public String getAssetList(String path) {
         if (path == null || path.isEmpty()) {
-            Log.e(TAG, "getAssetList called with empty path.");
+            Log.e(TAG, "getAssetList called with an empty path.");
             return "[]";
         }
         try {
-            // Ensure path doesn't start or end with a slash for consistency with assets.list()
+            // Очищаем путь от возможных слэшей в начале/конце
             String cleanedPath = path;
             if (cleanedPath.startsWith("/")) {
                 cleanedPath = cleanedPath.substring(1);
@@ -571,10 +577,12 @@ public class PrismtoneBridge {
             }
 
             String[] files = context.getAssets().list(cleanedPath);
-            if (files == null) { // list() can return null if path is not a directory or doesn't exist
+            if (files == null) {
                 Log.w(TAG, "No assets found or path is not a directory: " + cleanedPath);
                 return "[]";
             }
+
+            Log.d(TAG, "getAssetList for path '" + cleanedPath + "' found files: " + Arrays.toString(files));
             // Возвращаем JSON-массив строк
             return gson.toJson(files);
         } catch (IOException e) {

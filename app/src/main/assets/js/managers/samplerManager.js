@@ -1,14 +1,11 @@
 // Файл: app/src/main/assets/js/managers/samplerManager.js
+
 const samplerManager = {
-    // [Контекст -> Кэширование] Кэш для хранения уже загруженных экземпляров Tone.Sampler.
-    // Ключ - имя инструмента (папки). Это предотвратит повторную загрузку семплов при
-    // переключении между пресетами, использующими один и тот же инструмент.
-    _samplerCache: new Map(),
+    _samplerCache: new Map(), // Кэш для хранения загруженных экземпляров Tone.Sampler
 
     /**
      * Асинхронно создает и загружает экземпляр Tone.Sampler.
-     * @param {object} initialSettings - Настройки из пресета.
-     * @param {string} initialSettings.instrument - Имя папки с семплами.
+     * @param {object} initialSettings - Настройки из пресета, например { instrument: 'piano', attack: 0.01, release: 1.2 }
      * @returns {Promise<object>} Объект, соответствующий стандартному интерфейсу менеджера.
      */
     async create(initialSettings = {}) {
@@ -17,78 +14,77 @@ const samplerManager = {
             return { nodes: null, error: "Sampler 'instrument' name not provided in preset." };
         }
 
+        // 1. Проверяем кэш
         if (this._samplerCache.has(instrument)) {
             console.log(`[SamplerManager] Using cached Tone.Sampler for instrument: ${instrument}`);
             const cachedSampler = this._samplerCache.get(instrument);
-            // Обновляем параметры для кэшированного семплера, если они отличаются
+            // Важно обновить параметры attack/release для кэшированного семплера
             this.update({ samplerNode: cachedSampler }, samplerParams);
             return {
                 nodes: { samplerNode: cachedSampler },
                 audioInput: null,
                 audioOutput: cachedSampler,
-                // MODIFIED: Added standard modInputs for pitch. Prevents errors in voiceBuilder when attempting to connect pitch modulators.
-                // Actual pitch modulation of a playing sample (like oscillator detune) is not standardly supported by Tone.Sampler this way.
-                modInputs: { 'detune': null, 'frequency': null, 'pitch': null },
+                modInputs: {}, // У семплера нет стандартных входов для модуляции
                 modOutputs: {},
                 error: null
             };
         }
 
+        // 2. Если в кэше нет, загружаем семплы
         const assetPath = `audio/samples/${instrument}`;
         console.log(`[SamplerManager] Loading instrument: ${instrument} from path: ${assetPath}`);
 
-        let fileList = [];
+        let fileList;
         try {
-            // [Связь -> Native] Запрашиваем список файлов сэмплов у нативной части.
             const fileListJson = await bridgeFix.callBridge('getAssetList', assetPath);
-            if (fileListJson) {
-                fileList = JSON.parse(fileListJson);
-            } else {
-                throw new Error("Bridge returned null or undefined asset list.");
-            }
+            fileList = JSON.parse(fileListJson || "[]");
         } catch (error) {
             console.error(`[SamplerManager] Error getting asset list for ${instrument}:`, error);
-            return { nodes: null, error: `Failed to list samples for ${instrument}. Details: ${error.message}` };
+            return { nodes: null, error: `Failed to list samples for ${instrument}.` };
         }
 
-        if (!fileList || fileList.length === 0) {
+        if (fileList.length === 0) {
             return { nodes: null, error: `No sample files found in folder: ${assetPath}` };
         }
 
-        // [Логика -> Tone.js] Преобразуем список файлов в формат, понятный Tone.Sampler.
-        // Имя файла (без расширения) должно быть названием ноты, например "C4.wav" -> "C4".
+        // 3. Формируем объект `urls` для Tone.Sampler
+        // Ключ должен быть названием ноты (C4, F#5), значение - именем файла.
         const urls = {};
+        // Регулярное выражение для извлечения ноты в научном формате (например, C#4, Ab3)
         const noteRegex = /([A-Ga-g][#b]?)(\d+)\./i;
         fileList.forEach(file => {
             const match = file.match(noteRegex);
             if (match) {
+                // match[1] -> "C#", match[2] -> "4"
                 const noteName = match[1].toUpperCase() + match[2];
                 urls[noteName] = file;
             }
         });
-        // console.log for debugging urls
-        console.log(`[SamplerManager] URLs for Tone.Sampler: ${JSON.stringify(urls)}`);
+
+        // Дебаг-лог, который показывает реальное содержимое объекта, а не "[object Object]"
+        console.log(`[SamplerManager] URLs for Tone.Sampler for '${instrument}':`, urls);
 
         if (Object.keys(urls).length === 0) {
              return { nodes: null, error: `No valid note files (e.g., C4.wav) found in ${assetPath}` };
         }
 
+        // 4. Создаем и загружаем Tone.Sampler
         return new Promise((resolve) => {
             try {
                 const samplerNode = new Tone.Sampler({
                     urls: urls,
                     baseUrl: `https://appassets.androidplatform.net/assets/${assetPath}/`,
-                    ...samplerParams, // Применяем остальные параметры (attack, release, curve)
+                    attack: samplerParams.attack,
+                    release: samplerParams.release,
+                    curve: samplerParams.curve,
                     onload: () => {
                         console.log(`[SamplerManager] Sampler for '${instrument}' loaded successfully.`);
-                        this._samplerCache.set(instrument, samplerNode); // Кэшируем успешный результат
+                        this._samplerCache.set(instrument, samplerNode); // Кэшируем после успешной загрузки
                         resolve({
                             nodes: { samplerNode: samplerNode },
                             audioInput: null,
                             audioOutput: samplerNode,
-                            // MODIFIED: Added standard modInputs for pitch. Prevents errors in voiceBuilder when attempting to connect pitch modulators.
-                            // Actual pitch modulation of a playing sample (like oscillator detune) is not standardly supported by Tone.Sampler this way.
-                            modInputs: { 'detune': null, 'frequency': null, 'pitch': null },
+                            modInputs: {},
                             modOutputs: {},
                             error: null
                         });
@@ -99,7 +95,7 @@ const samplerManager = {
                     }
                 });
             } catch (err) {
-                console.error(`[SamplerManager] Error instantiating Tone.Sampler:`, err);
+                console.error(`[SamplerManager] Error instantiating Tone.Sampler for '${instrument}':`, err);
                 resolve({ nodes: null, error: `Tone.Sampler instantiation error: ${err.message}` });
             }
         });
@@ -107,14 +103,12 @@ const samplerManager = {
 
     /**
      * Обновляет параметры существующего экземпляра Tone.Sampler.
-     * @param {object} nodes - Объект узлов, содержащий `samplerNode`.
-     * @param {object} newSettings - Новые настройки (attack, release, curve).
-     * @returns {boolean} true в случае успеха.
      */
     update(nodes, newSettings) {
         if (!nodes?.samplerNode || !newSettings) return false;
         try {
-            // [Связь -> Tone.js] Используем set для одновременного обновления параметров.
+            // Используем `set` для атомарного обновления параметров.
+            // Tone.js достаточно умен, чтобы применить только то, что передано.
             nodes.samplerNode.set({
                 attack: newSettings.attack,
                 release: newSettings.release,
@@ -128,9 +122,9 @@ const samplerManager = {
     },
 
     /**
-     * Триггерит атаку ноты на семплере.
+     * Запускает проигрывание ноты.
      * @param {object} nodes - Узлы.
-     * @param {string|number} frequency - Частота или имя ноты.
+     * @param {string|number} frequency - Частота или имя ноты (например, "C#4").
      * @param {Tone.Time} time - Время для запуска.
      * @param {number} velocity - Громкость (0-1).
      */
@@ -139,64 +133,43 @@ const samplerManager = {
     },
 
     /**
-     * Триггерит затухание ноты.
+     * Запускает затухание ноты.
      * @param {object} nodes - Узлы.
      * @param {string|number} frequency - Частота или имя ноты.
-     * @param {Tone.Time} time - Время для затухания.
+     * @param {Tone.Time} time - Время для начала затухания.
      */
     triggerRelease(nodes, frequency, time) {
         nodes?.samplerNode?.triggerRelease(frequency, time);
     },
 
     /**
-     * Реализует плавное скольжение (legato).
-     * @param {object} nodes - Узлы.
-     * @param {string|number} oldFrequency - Старая нота для остановки.
-     * @param {string|number} newFrequency - Новая нота для запуска.
-     * @param {Tone.Time} time - Время.
-     * @param {number} velocity - Громкость.
+     * Реализует плавное скольжение (legato), останавливая старую ноту и запуская новую.
      */
     setNote(nodes, oldFrequency, newFrequency, time, velocity) {
-        // [Логика -> Legato] Сначала останавливаем старую ноту, затем сразу запускаем новую.
-        // Tone.Sampler автоматически сделает это без щелчка.
+        // Эта комбинация обеспечивает плавный переход, так как Tone.Sampler
+        // может обрабатывать это без щелчков.
         nodes?.samplerNode?.triggerRelease(oldFrequency, time);
         nodes?.samplerNode?.triggerAttack(newFrequency, time, velocity);
     },
 
+    /**
+     * Освобождает ресурсы голоса.
+     * Важно! Мы не удаляем семплер из кэша, так как он может использоваться другими голосами.
+     */
     dispose(nodes) {
-        // Важно! Не удаляем из кэша. dispose вызывается для голоса,
-        // но сам инструмент может использоваться другими голосами.
-        // Очистка кэша должна происходить при смене пресета, если это необходимо.
-        // В данной реализации мы кэшируем навсегда.
+        // Ничего не делаем с самим семплером, он кэширован.
+        // Очистка кэша - это отдельная, более глобальная задача.
     },
 
     connectPeers(nodes, prevOutputNode, nextInputNode) {
-        // Семплер - источник звука, у него нет audioInput.
-        // Его audioOutput будет подключен дальше в voiceBuilder.
+        // Источник звука, не имеет входа. Выход будет подключен в voiceBuilder.
         return true;
     },
 
-    /**
-     * Handles connection of modulators. For samplers, pitch modulation is logged as not supported.
-     * @param {object} nodes - The sampler's nodes.
-     * @param {string} paramName - The target parameter name on the sampler (e.g., 'detune', 'pitch').
-     * @param {Tone.AudioNode} modulatorOutputNode - The output node of the modulator.
-     * @returns {boolean} True if handled (even if not supported), false otherwise.
-     */
+    // Для совместимости с voiceBuilder, который может пытаться подключить модуляторы
     connectModulator(nodes, paramName, modulatorOutputNode) {
-        const supportedPitchParams = ['detune', 'frequency', 'pitch'];
-        if (supportedPitchParams.includes(paramName)) {
-            // Pitch modulation of a playing sample (like oscillator detune via LFO or PitchEnvelope)
-            // is not standardly supported by Tone.Sampler by connecting to a 'detune' or 'pitch' param.
-            // Tone.Sampler changes pitch by re-triggering with a different note.
-            console.warn(`[SamplerManager] Modulation of '${paramName}' for sampler is not supported in a way that affects playing notes. Pitch envelope or LFO targeting pitch will be connected but likely have no audible real-time effect on existing notes.`);
-            return true; // Return true to indicate the connection attempt is "handled" (i.e., acknowledged and intentionally not actioned for real-time pitch change),
-                         // preventing voiceBuilder from logging an error for an unhandled modulator connection.
-        }
-        // For any other future parameters that might become modulatable on the sampler,
-        // this default indicates they are not handled by this manager.
-        // console.log(`[SamplerManager] connectModulator called for param '${paramName}', not a pitch-related param or not supported for sampler.`);
-        return false;
+        console.warn(`[SamplerManager] Modulation of '${paramName}' is not supported for Sampler.`);
+        return true; // Возвращаем true, чтобы не вызывать ошибку в voiceBuilder
     },
 
     enable(nodes, isEnabled) { return true; }

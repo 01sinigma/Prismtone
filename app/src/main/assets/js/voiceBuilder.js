@@ -94,21 +94,40 @@ const voiceBuilder = {
 
             const manager = audioConfig.getManager(componentId);
             if (!manager || typeof manager.create !== 'function') {
-                console.error(`[VoiceBuilder v3 Sampler] Manager not found or invalid for component ID: ${componentId}`);
+                console.error(`[VoiceBuilder v4 SamplerUpdate] Manager not found or invalid for component ID: ${componentId}`);
                 errorState[componentId] = `Manager not found or invalid for ${componentId}`;
                 components[componentId] = { nodes: null, error: errorState[componentId] };
-                return;
+                return; // Важно выйти из map callback, если менеджер не найден
             }
 
-            const componentSettings = presetData[componentId]?.params || presetData[componentId] || {};
+            let componentSettings = presetData[componentId]?.params || presetData[componentId] || {};
+            // Убедимся, что componentSettings - это объект, если presetData[componentId] - примитив или отсутствует
+            if (typeof componentSettings !== 'object' || componentSettings === null) {
+                componentSettings = {};
+            }
+
+
             if (presetData[componentId]?.hasOwnProperty('enabled')) {
                  componentSettings.enabled = presetData[componentId].enabled;
             }
-            if (componentId === 'oscillator' && presetData.portamento?.enabled && presetData.portamento.time !== undefined) {
+
+            // Специальная логика для семплера: передаем все sampler.params
+            if (componentId === 'sampler') {
+                // initialSettings для samplerManager.create должны содержать instrument, urls, attack, release, curve
+                // presetData.sampler.params должен содержать все это.
+                if (presetData.sampler && presetData.sampler.params) {
+                    componentSettings = { ...presetData.sampler.params }; // Копируем все параметры семплера
+                     console.log(`[VoiceBuilder v4 SamplerUpdate] Settings for Sampler:`, componentSettings);
+                } else {
+                    console.warn(`[VoiceBuilder v4 SamplerUpdate] Sampler component specified, but presetData.sampler.params is missing. Using default/empty settings for sampler.`);
+                    componentSettings = {}; // Пустые настройки, если не найдены
+                }
+            } else if (componentId === 'oscillator' && presetData.portamento?.enabled && presetData.portamento.time !== undefined) {
                 componentSettings.portamento = presetData.portamento.time;
             }
 
-            console.log(`[VoiceBuilder v3 Sampler] Creating component: ${componentId} with settings:`, componentSettings);
+
+            console.log(`[VoiceBuilder v4 SamplerUpdate] Creating component: ${componentId} with settings:`, JSON.parse(JSON.stringify(componentSettings)));
             try {
                 // manager.create теперь может быть async
                 const result = await manager.create(componentSettings);
