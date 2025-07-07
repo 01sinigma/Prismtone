@@ -26,7 +26,11 @@ const samplerManager = {
                 nodes: { samplerNode: cachedSampler },
                 audioInput: null,
                 audioOutput: cachedSampler,
-                modInputs: {}, modOutputs: {}, error: null
+                // MODIFIED: Added standard modInputs for pitch. Prevents errors in voiceBuilder when attempting to connect pitch modulators.
+                // Actual pitch modulation of a playing sample (like oscillator detune) is not standardly supported by Tone.Sampler this way.
+                modInputs: { 'detune': null, 'frequency': null, 'pitch': null },
+                modOutputs: {},
+                error: null
             };
         }
 
@@ -82,7 +86,11 @@ const samplerManager = {
                             nodes: { samplerNode: samplerNode },
                             audioInput: null,
                             audioOutput: samplerNode,
-                            modInputs: {}, modOutputs: {}, error: null
+                            // MODIFIED: Added standard modInputs for pitch. Prevents errors in voiceBuilder when attempting to connect pitch modulators.
+                            // Actual pitch modulation of a playing sample (like oscillator detune) is not standardly supported by Tone.Sampler this way.
+                            modInputs: { 'detune': null, 'frequency': null, 'pitch': null },
+                            modOutputs: {},
+                            error: null
                         });
                     },
                     onerror: (err) => {
@@ -166,6 +174,29 @@ const samplerManager = {
         // Семплер - источник звука, у него нет audioInput.
         // Его audioOutput будет подключен дальше в voiceBuilder.
         return true;
+    },
+
+    /**
+     * Handles connection of modulators. For samplers, pitch modulation is logged as not supported.
+     * @param {object} nodes - The sampler's nodes.
+     * @param {string} paramName - The target parameter name on the sampler (e.g., 'detune', 'pitch').
+     * @param {Tone.AudioNode} modulatorOutputNode - The output node of the modulator.
+     * @returns {boolean} True if handled (even if not supported), false otherwise.
+     */
+    connectModulator(nodes, paramName, modulatorOutputNode) {
+        const supportedPitchParams = ['detune', 'frequency', 'pitch'];
+        if (supportedPitchParams.includes(paramName)) {
+            // Pitch modulation of a playing sample (like oscillator detune via LFO or PitchEnvelope)
+            // is not standardly supported by Tone.Sampler by connecting to a 'detune' or 'pitch' param.
+            // Tone.Sampler changes pitch by re-triggering with a different note.
+            console.warn(`[SamplerManager] Modulation of '${paramName}' for sampler is not supported in a way that affects playing notes. Pitch envelope or LFO targeting pitch will be connected but likely have no audible real-time effect on existing notes.`);
+            return true; // Return true to indicate the connection attempt is "handled" (i.e., acknowledged and intentionally not actioned for real-time pitch change),
+                         // preventing voiceBuilder from logging an error for an unhandled modulator connection.
+        }
+        // For any other future parameters that might become modulatable on the sampler,
+        // this default indicates they are not handled by this manager.
+        // console.log(`[SamplerManager] connectModulator called for param '${paramName}', not a pitch-related param or not supported for sampler.`);
+        return false;
     },
 
     enable(nodes, isEnabled) { return true; }

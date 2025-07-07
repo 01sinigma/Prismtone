@@ -972,21 +972,66 @@ const synth = {
     },
     getFreeVoiceIndex(touchId) {
         if (!this.isReady) return -1;
-        let freeVoiceIndex = -1;
-        let oldestVoiceIndex = -1;
-        let oldestTime = Infinity;
+
+        // 1. Поиск полностью свободного голоса
+        let availableVoiceIndex = -1;
+        // oldestFreeTime была неиспользуемой, удалена.
+
         for (let i = 0; i < this.config.polyphony; i++) {
             if (!this.voiceState[i]?.isBusy && this.voices[i]?.components && !this.voices[i]?.errorState?.critical) {
-                if (this.voiceState[i].startTime < oldestTime) {
-                    oldestTime = this.voiceState[i].startTime;
-                    oldestVoiceIndex = i;
+                // Просто берем первый найденный свободный и пригодный голос.
+                availableVoiceIndex = i;
+                break;
+            }
+        }
+
+        if (availableVoiceIndex !== -1) {
+            if (this.config.debug) console.log(`[Synth.getFreeVoiceIndex] Found completely free voice: ${availableVoiceIndex}`);
+            return availableVoiceIndex;
+        }
+
+        // 2. Если нет свободных - реализуем Voice Stealing (ищем самый старый занятый голос)
+        if (this.config.debug) console.log(`[Synth.getFreeVoiceIndex] No completely free voice. Attempting voice stealing.`);
+
+        let oldestBusyVoiceIndex = -1;
+        let oldestBusyStartTime = Infinity;
+
+        for (let i = 0; i < this.config.polyphony; i++) {
+            // Ищем среди занятых и пригодных для использования голосов
+            if (this.voiceState[i]?.isBusy && this.voices[i]?.components && !this.voices[i]?.errorState?.critical) {
+                if (this.voiceState[i].startTime < oldestBusyStartTime) {
+                    oldestBusyStartTime = this.voiceState[i].startTime;
+                    oldestBusyVoiceIndex = i;
                 }
             }
         }
-        if (oldestVoiceIndex !== -1) {
-            freeVoiceIndex = oldestVoiceIndex;
+
+        if (oldestBusyVoiceIndex !== -1) {
+            const touchIdToSteal = this.voiceState[oldestBusyVoiceIndex].touchId;
+            if (this.config.debug) {
+                console.warn(`[Synth.getFreeVoiceIndex] STEALING voice: ${oldestBusyVoiceIndex} (touchId: ${touchIdToSteal}, startTime: ${oldestBusyStartTime}) for new touchId: ${touchId}`);
+            }
+            if (touchIdToSteal !== null) { // Убедимся, что у голоса есть touchId для корректного release
+                this.triggerRelease(touchIdToSteal); // Ставим задачу на release в очередь
+                // Важно: triggerRelease асинхронен через очередь.
+                // _executeTriggerRelease в итоге вызовет this.releaseVoice(oldestBusyVoiceIndex)
+                // и this.activeVoices.delete(touchIdToSteal).
+                // Голос будет помечен как isBusy=false в releaseVoice.
+                // Мы немедленно возвращаем этот индекс, _executeStartNote его использует.
+                // Это общепринятый подход в voice stealing. Tone.js должен справиться
+                // с быстрым release предыдущей ноты и attack новой на том же "железе".
+            } else {
+                 // Если у самого старого занятого голоса нет touchId (маловероятно, но возможно при ошибке)
+                 // то просто освобождаем его состояние принудительно, чтобы он мог быть переиспользован.
+                 console.warn(`[Synth.getFreeVoiceIndex] Stolen voice ${oldestBusyVoiceIndex} had null touchId. Forcing release of voice state.`);
+                 this.releaseVoice(oldestBusyVoiceIndex); // Очищает voiceState[i].isBusy = false;
+            }
+            return oldestBusyVoiceIndex;
         }
-        return freeVoiceIndex;
+
+        // Если не найдено ни свободных, ни подходящих для "кражи" (например, все голоса с ошибками)
+        if (this.config.debug) console.error(`[Synth.getFreeVoiceIndex] No free voices and no stealable voices found. This shouldn't happen if polyphony > 0.`);
+        return -1;
     },
     findVoiceIndex(touchId) {
         if (!this.isReady) return -1;
