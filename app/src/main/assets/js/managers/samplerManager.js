@@ -139,18 +139,29 @@ const samplerManager = {
      * @param {Tone.Time} time - Время для начала затухания.
      */
     triggerRelease(nodes, frequency, time) {
-        nodes?.samplerNode?.triggerRelease(frequency, time);
-    },
+            // [Контекст -> Отладка] Убедимся, что у нас есть узлы и частота для остановки.
+            if (!nodes?.samplerNode || frequency === undefined) return;
+            // [Связь -> Tone.Sampler] Вызываем нативный метод triggerRelease для конкретной ноты.
+            nodes.samplerNode.triggerRelease(frequency, time);
+        },
 
-    /**
-     * Реализует плавное скольжение (legato), останавливая старую ноту и запуская новую.
-     */
-    setNote(nodes, oldFrequency, newFrequency, time, velocity) {
-        // Эта комбинация обеспечивает плавный переход, так как Tone.Sampler
-        // может обрабатывать это без щелчков.
-        nodes?.samplerNode?.triggerRelease(oldFrequency, time);
-        nodes?.samplerNode?.triggerAttack(newFrequency, time, velocity);
-    },
+        /**
+         * [НОВЫЙ МЕТОД]
+         * Реализует плавное скольжение (legato), останавливая старую ноту и запуская новую.
+         * Это центральная логика для правильной обработки note_change.
+         * @param {object} nodes - Узлы семплера.
+         * @param {string|number} oldFrequency - Частота или имя ноты, которую нужно остановить.
+         * @param {string|number} newFrequency - Частота или имя новой ноты для запуска.
+         * @param {Tone.Time} time - Время для этого действия.
+         * @param {number} velocity - Громкость (0-1).
+         */
+        setNote(nodes, oldFrequency, newFrequency, time, velocity) {
+            // [Контекст -> Архитектура] Реализуем паттерн "Trigger-Release-Then-Attack".
+            // [Связь -> Tone.Sampler] Сначала запускаем затухание для старой ноты.
+            nodes?.samplerNode?.triggerRelease(oldFrequency, time);
+            // [Связь -> Tone.Sampler] Затем немедленно (или с минимальной задержкой) запускаем атаку для новой.
+            nodes?.samplerNode?.triggerAttack(newFrequency, time, velocity);
+        },
 
     /**
      * Освобождает ресурсы голоса.

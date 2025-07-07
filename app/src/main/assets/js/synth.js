@@ -681,6 +681,62 @@ const synth = {
         }
     },
 
+    /**
+     * [НОВЫЙ МЕТОД]
+     * Обрабатывает смену ноты (легато) для существующего касания.
+     * @param {string|number} oldFrequency - Старая частота для остановки.
+     * @param {string|number} newFrequency - Новая частота для запуска.
+     * @param {number} velocity - Громкость (0-1).
+     * @param {number} yPosition - Позиция по оси Y для модуляции.
+     * @param {string|number} touchId - ID касания.
+     */
+    setNote(oldFrequency, newFrequency, velocity, yPosition, touchId) {
+        // [Контекст -> Архитектура] Эта функция вызывается из pad.js при note_change.
+        // Она использует тот же самый touchId, чтобы найти текущий голос и переключить его.
+        const activeVoiceDetails = this.activeVoices.get(touchId);
+        if (!activeVoiceDetails) {
+            // Если голоса нет, просто запускаем новую ноту
+            this.startNote(newFrequency, velocity, yPosition, touchId);
+            return;
+        }
+
+        const voiceIndex = activeVoiceDetails.voiceIndex;
+        const voiceData = this.voices[voiceIndex];
+        if (!voiceData || !voiceData.components) return;
+
+        const currentPreset = voiceData.currentPresetData || this.config.defaultPreset;
+        const useSampler = currentPreset.sampler?.enabled === true;
+
+        if (this.config.debug) {
+            console.log(`[Synth SET_NOTE] Touch=${touchId}, Voice=${voiceIndex}. Releasing ${oldFrequency}, Attacking ${newFrequency}`);
+        }
+
+        if (useSampler) {
+            const samplerManager = audioConfig.getManager('sampler');
+            const samplerNodes = voiceData.components.sampler?.nodes;
+            if (samplerManager && samplerNodes) {
+                // [Связь -> Sampler] Вызываем triggerRelease/triggerAttack для чистого легато.
+                samplerManager.triggerRelease(samplerNodes, oldFrequency, Tone.now());
+                samplerManager.triggerAttack(samplerNodes, newFrequency, Tone.now(), velocity);
+            }
+        } else {
+            // [Контекст -> Synth] Логика для синтезаторов
+            const oscManager = audioConfig.getManager('oscillator');
+            const oscNodes = voiceData.components.oscillator?.nodes;
+            if (oscManager && oscNodes) {
+                // Для синтезатора мы можем просто изменить частоту и пере-триггернуть огибающую.
+                oscManager.update(oscNodes, { frequency: newFrequency });
+                // Примечание: для синтезатора можно не вызывать triggerRelease, а положиться на то,
+                // что новый triggerAttack пере-запустит огибающую. Это дает более "синтезаторное" легато.
+            }
+        }
+
+        // В любом случае обновляем активный голос и параметры Y-оси
+        this.activeVoices.set(touchId, { ...activeVoiceDetails, frequency: newFrequency, lastY: yPosition });
+        this._executeUpdateNote(newFrequency, velocity, yPosition, touchId); // Обновляем громкость и FX
+    },
+
+    // Метод _executeUpdateNote теперь отвечает ТОЛЬКО за обновление параметров (например, от оси Y)
     _executeUpdateNote(frequency, velocity, yPosition, touchId) {
         if (!this.isReady) return;
         const activeVoiceDetails = this.activeVoices.get(touchId);
@@ -690,68 +746,23 @@ const synth = {
         const voiceData = this.voices[voiceIndex];
         if (!voiceData || !voiceData.components) return;
 
+        // [Контекст -> Упрощение] Мы убрали проверку freqChanged. Этот метод теперь только для модуляции.
         const yChanged = Math.abs(activeVoiceDetails.lastY - yPosition) > 0.001;
-        const freqChanged = Math.abs(activeVoiceDetails.frequency - frequency) > 0.1;
 
-        if (!yChanged && !freqChanged) {
-            return;
-        }
-        if (this.config.debug && (yChanged || freqChanged)) {
-            // console.log(`>>> EXECUTE UPDATE (AsyncQueue): Touch=${touchId}, Voice=${voiceIndex}, NewFreq=${frequency.toFixed(1)}, NewY=${yPosition.toFixed(2)}`); // Can be noisy
+        if (!yChanged) {
+            return; // Нет изменений, выходим
         }
 
         activeVoiceDetails.lastY = yPosition;
 
-        const currentPreset = voiceData.currentPresetData || this.config.defaultPreset;
-        const useSampler = currentPreset.sampler?.enabled === true;
-        // Debug log as per plan (similar to _executeStartNote)
-        console.log(`[Synth._executeUpdateNote] useSampler: ${useSampler}`);
+        const yAxisControls = app?.state?.yAxisControls;
+        const calculatedVolume = yAxisControls?.volume ? this.calculateGenericYParameter(yPosition, yAxisControls.volume) : 0.7;
+        const calculatedSendLevel = yAxisControls?.effects ? this.calculateGenericYParameter(yPosition, yAxisControls.effects) : -Infinity;
 
-        if (freqChanged) {
-            const soundSourceId = useSampler ? 'sampler' : 'oscillator';
-            const soundSourceManager = audioConfig.getManager(soundSourceId);
-            const soundSourceNodes = voiceData.components[soundSourceId]?.nodes;
-
-            console.log(`[Synth._executeUpdateNote] soundSourceId: ${soundSourceId}, manager: ${soundSourceManager ? 'found' : 'NOT FOUND'}, nodes: ${soundSourceNodes ? 'found' : 'NOT FOUND'}`);
-
-
-            if (soundSourceManager && soundSourceNodes) {
-                if (useSampler) {
-                    // [Связь -> Sampler] Вызываем setNote для легато
-                    const oldFrequency = activeVoiceDetails.frequency;
-                    // Ensure 'sampler' manager and its nodes are correctly referenced
-                    const samplerManagerInstance = audioConfig.getManager('sampler');
-                    const samplerNodesInstance = voiceData.components.sampler?.nodes;
-                    if (samplerManagerInstance && samplerNodesInstance) {
-                        samplerManagerInstance.setNote(samplerNodesInstance, oldFrequency, frequency, Tone.now(), velocity);
-                         if (this.config.debug) console.log(`[Synth AsyncQueue] Sampler setNote called for voice ${voiceIndex}: ${oldFrequency} -> ${frequency}`);
-                    } else {
-                        console.warn(`[Synth AsyncQueue] Sampler manager or nodes not found for setNote on voice ${voiceIndex}.`);
-                    }
-                } else {
-                    // [Связь -> Oscillator] Старая логика
-                    soundSourceManager.update(soundSourceNodes, { frequency });
-                     if (this.config.debug) console.log(`[Synth AsyncQueue] Oscillator frequency updated for voice ${voiceIndex} to ${frequency}`);
-                }
-            } else {
-                 console.warn(`[Synth AsyncQueue] Sound source manager or nodes for '${soundSourceId}' not found during updateNote for voice ${voiceIndex}. Freq not changed.`);
-            }
-            activeVoiceDetails.frequency = frequency;
+        audioConfig.getManager('outputGain')?.update(voiceData.components.outputGain.nodes, { gain: calculatedVolume });
+        if (voiceData.fxSend) {
+            voiceData.fxSend.volume.rampTo(calculatedSendLevel, 0.02);
         }
-
-        if (yChanged) {
-            // Ensure app.state.yAxisControls is defined
-            const yAxisControls = app?.state?.yAxisControls;
-            const calculatedVolume = yAxisControls?.volume ? this.calculateGenericYParameter(yPosition, yAxisControls.volume) : 0.7;
-            const calculatedSendLevel = yAxisControls?.effects ? this.calculateGenericYParameter(yPosition, yAxisControls.effects) : -Infinity;
-
-            audioConfig.getManager('outputGain')?.update(voiceData.components.outputGain.nodes, { gain: calculatedVolume });
-            if (voiceData.fxSend) {
-                voiceData.fxSend.volume.rampTo(calculatedSendLevel, 0.02);
-            }
-        }
-        // Note: _executeUpdateNote in the spec does not change _activeVoiceCountChanged or _previousActiveVoiceCount
-        // This seems correct as the number of active voices doesn't change on update.
     },
 
     _executeTriggerRelease(touchId) {

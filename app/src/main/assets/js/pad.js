@@ -532,14 +532,16 @@ const pad = {
      */
     processSinglePointerMove(event) {
         const pointerId = event.pointerId;
-        if (!this.activeTouchesInternal.has(pointerId) || !this.isReady) return;
+        const internalTouchData = this.activeTouchesInternal.get(pointerId);
+        if (!internalTouchData || !this.isReady) return; // Проверяем, что касание отслеживается
 
         this.lastInteractionTime = Date.now();
         const touchInfo = this.getTouchInfo(event);
         if (!touchInfo) return;
 
-        const internalTouchData = this.activeTouchesInternal.get(pointerId);
-        const previousZoneIndex = internalTouchData ? internalTouchData.previousZoneIndex : -1;
+        internalTouchData.x = touchInfo.x;
+        internalTouchData.y = touchInfo.y;
+        internalTouchData.state = 'move';
 
         const strategy = PadModeManager.getCurrentStrategy();
         if (!strategy?.onPointerMove) return;
@@ -548,34 +550,37 @@ const pad = {
 
         if (noteAction) {
             const noteOrNewNote = noteAction.newNote || noteAction.note;
-            let newZoneIndex = -1;
-            if (noteOrNewNote && noteOrNewNote.midiNote !== undefined) {
-                newZoneIndex = this._zoneMidiNoteToIndexMap.get(noteOrNewNote.midiNote);
-                if (newZoneIndex === undefined) newZoneIndex = -1;
-            }
-
-            if (VibrationService.isEnabled && newZoneIndex !== -1 && newZoneIndex !== previousZoneIndex) {
-                VibrationService.trigger('zone_cross', touchInfo.y);
-                if (internalTouchData) internalTouchData.previousZoneIndex = newZoneIndex;
-            }
-
-            // >>> ИЗМЕНЕНИЕ: ВЫЗЫВАЕМ НЕБЛОКИРУЮЩИЕ МЕТОДЫ ОЧЕРЕДИ <<<
-            if (noteAction.type === 'note_change') {
-                // ВАЖНО: для re-trigger при скольжении
-                synth.triggerRelease(pointerId);
-                synth.startNote(noteAction.newNote.frequency, 0.7, touchInfo.y, pointerId);
-            } else if (noteAction.type === 'note_update') {
-                synth.updateNote(noteAction.note.frequency, 0.7, touchInfo.y, pointerId);
-            } else if (noteAction.type === 'note_off') {
-                synth.triggerRelease(pointerId);
-            }
             visualizer?.notifyTouchMove({ id: pointerId, x: touchInfo.x, y: touchInfo.y, noteInfo: noteOrNewNote });
-        }
 
-        if (internalTouchData) {
-            internalTouchData.x = touchInfo.x;
-            internalTouchData.y = touchInfo.y;
-            internalTouchData.state = 'move';
+            // >>> НАЧАЛО КЛЮЧЕВЫХ ИЗМЕНЕНИЙ <<<
+            // [Контекст -> Архитектура] Здесь `pad.js` становится "умным диспетчером", вызывая правильный метод `synth`.
+            switch (noteAction.type) {
+                case 'note_change':
+                    // [Связь -> synth.js] Произошла смена ноты. Вызываем новый метод `setNote` для легато.
+                    if (noteAction.oldNote && noteAction.newNote) {
+                        synth.setNote(
+                            noteAction.oldNote.frequency,
+                            noteAction.newNote.frequency,
+                            0.7, // velocity, можно будет сделать динамическим
+                            touchInfo.y,
+                            pointerId
+                        );
+                        // Обновляем `baseFrequency` в нашем внутреннем состоянии касания
+                        internalTouchData.baseFrequency = noteAction.newNote.frequency;
+                    }
+                    break;
+                case 'note_update':
+                    // [Связь -> synth.js] Нота та же, изменились только параметры (например, Y-координата).
+                    synth.updateNote(noteAction.note.frequency, 0.7, touchInfo.y, pointerId);
+                    break;
+                case 'note_off':
+                    // [Связь -> synth.js] Палец вышел за пределы пэда.
+                    synth.triggerRelease(pointerId);
+                    // Важно: здесь мы не удаляем касание из activeTouchesInternal,
+                    // это произойдет в handlePointerUpOrCancel, когда палец действительно будет поднят.
+                    break;
+            }
+            // >>> КОНЕЦ КЛЮЧЕВЫХ ИЗМЕНЕНИЙ <<<
         }
     },
 
