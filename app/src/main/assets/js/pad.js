@@ -533,7 +533,7 @@ const pad = {
     processSinglePointerMove(event) {
         const pointerId = event.pointerId;
         const internalTouchData = this.activeTouchesInternal.get(pointerId);
-        if (!internalTouchData || !this.isReady) return; // Проверяем, что касание отслеживается
+        if (!internalTouchData || !this.isReady) return;
 
         this.lastInteractionTime = Date.now();
         const touchInfo = this.getTouchInfo(event);
@@ -552,16 +552,16 @@ const pad = {
             const noteOrNewNote = noteAction.newNote || noteAction.note;
             visualizer?.notifyTouchMove({ id: pointerId, x: touchInfo.x, y: touchInfo.y, noteInfo: noteOrNewNote });
 
-            // >>> НАЧАЛО КЛЮЧЕВЫХ ИЗМЕНЕНИЙ <<<
-            // [Контекст -> Архитектура] Здесь `pad.js` становится "умным диспетчером", вызывая правильный метод `synth`.
+            // >>> НАЧАЛО ИЗМЕНЕНИЙ <<<
             switch (noteAction.type) {
                 case 'note_change':
-                    // [Связь -> synth.js] Произошла смена ноты. Вызываем новый метод `setNote` для легато.
                     if (noteAction.oldNote && noteAction.newNote) {
+                        // [Связь -> synth.js] Вместо двух вызовов используем один, предназначенный для легато.
+                        // Это дает synth.js больше контроля над тем, как именно реализовать переход.
                         synth.setNote(
                             noteAction.oldNote.frequency,
                             noteAction.newNote.frequency,
-                            0.7, // velocity, можно будет сделать динамическим
+                            0.7, // velocity
                             touchInfo.y,
                             pointerId
                         );
@@ -570,17 +570,13 @@ const pad = {
                     }
                     break;
                 case 'note_update':
-                    // [Связь -> synth.js] Нота та же, изменились только параметры (например, Y-координата).
                     synth.updateNote(noteAction.note.frequency, 0.7, touchInfo.y, pointerId);
                     break;
                 case 'note_off':
-                    // [Связь -> synth.js] Палец вышел за пределы пэда.
                     synth.triggerRelease(pointerId);
-                    // Важно: здесь мы не удаляем касание из activeTouchesInternal,
-                    // это произойдет в handlePointerUpOrCancel, когда палец действительно будет поднят.
                     break;
             }
-            // >>> КОНЕЦ КЛЮЧЕВЫХ ИЗМЕНЕНИЙ <<<
+            // >>> КОНЕЦ ИЗМЕНЕНИЙ <<<
         }
     },
 

@@ -574,6 +574,9 @@ const synth = {
                         // Call the existing _executeUpdateNote
                         this._executeUpdateNote(task.frequency, task.velocity, task.yPosition, touchId);
                         break;
+                    case 'set_note':
+                        this._executeSetNote(task.oldFrequency, task.newFrequency, task.velocity, task.yPosition, touchId);
+                        break;
                     case 'release':
                         // Call the existing _executeTriggerRelease
                         this._executeTriggerRelease(touchId);
@@ -691,49 +694,14 @@ const synth = {
      * @param {string|number} touchId - ID касания.
      */
     setNote(oldFrequency, newFrequency, velocity, yPosition, touchId) {
-        // [Контекст -> Архитектура] Эта функция вызывается из pad.js при note_change.
-        // Она использует тот же самый touchId, чтобы найти текущий голос и переключить его.
-        const activeVoiceDetails = this.activeVoices.get(touchId);
-        if (!activeVoiceDetails) {
-            // Если голоса нет, просто запускаем новую ноту
-            this.startNote(newFrequency, velocity, yPosition, touchId);
-            return;
-        }
-
-        const voiceIndex = activeVoiceDetails.voiceIndex;
-        const voiceData = this.voices[voiceIndex];
-        if (!voiceData || !voiceData.components) return;
-
-        const currentPreset = voiceData.currentPresetData || this.config.defaultPreset;
-        const useSampler = currentPreset.sampler?.enabled === true;
-
-        if (this.config.debug) {
-            console.log(`[Synth SET_NOTE] Touch=${touchId}, Voice=${voiceIndex}. Releasing ${oldFrequency}, Attacking ${newFrequency}`);
-        }
-
-        if (useSampler) {
-            const samplerManager = audioConfig.getManager('sampler');
-            const samplerNodes = voiceData.components.sampler?.nodes;
-            if (samplerManager && samplerNodes) {
-                // [Связь -> Sampler] Вызываем triggerRelease/triggerAttack для чистого легато.
-                samplerManager.triggerRelease(samplerNodes, oldFrequency, Tone.now());
-                samplerManager.triggerAttack(samplerNodes, newFrequency, Tone.now(), velocity);
-            }
-        } else {
-            // [Контекст -> Synth] Логика для синтезаторов
-            const oscManager = audioConfig.getManager('oscillator');
-            const oscNodes = voiceData.components.oscillator?.nodes;
-            if (oscManager && oscNodes) {
-                // Для синтезатора мы можем просто изменить частоту и пере-триггернуть огибающую.
-                oscManager.update(oscNodes, { frequency: newFrequency });
-                // Примечание: для синтезатора можно не вызывать triggerRelease, а положиться на то,
-                // что новый triggerAttack пере-запустит огибающую. Это дает более "синтезаторное" легато.
-            }
-        }
-
-        // В любом случае обновляем активный голос и параметры Y-оси
-        this.activeVoices.set(touchId, { ...activeVoiceDetails, frequency: newFrequency, lastY: yPosition });
-        this._executeUpdateNote(newFrequency, velocity, yPosition, touchId); // Обновляем громкость и FX
+        this._updateQueue.set(touchId, {
+            action: 'set_note', // Новый тип действия
+            oldFrequency,
+            newFrequency,
+            velocity,
+            yPosition
+        });
+        this._requestQueueProcessing();
     },
 
     // Метод _executeUpdateNote теперь отвечает ТОЛЬКО за обновление параметров (например, от оси Y)
@@ -763,6 +731,36 @@ const synth = {
         if (voiceData.fxSend) {
             voiceData.fxSend.volume.rampTo(calculatedSendLevel, 0.02);
         }
+    },
+
+    /**
+     * [НОВЫЙ ПРИВАТНЫЙ ИСПОЛНИТЕЛЬ]
+     * Реализует логику смены ноты (легато).
+     */
+    _executeSetNote(oldFrequency, newFrequency, velocity, yPosition, touchId) {
+        const activeVoiceDetails = this.activeVoices.get(touchId);
+        if (!activeVoiceDetails) {
+            // Если голоса нет (редкий случай), просто запускаем новую ноту
+            this._executeStartNote(newFrequency, velocity, yPosition, touchId, `${touchId}-${performance.now()}`);
+            return;
+        }
+
+        const voiceIndex = activeVoiceDetails.voiceIndex;
+        const voiceData = this.voices[voiceIndex];
+        if (!voiceData || !voiceData.components) return;
+
+        // [Контекст -> Логика] Определяем, используется ли семплер
+        const useSampler = voiceData.currentPresetData?.sampler?.enabled === true;
+        const soundSourceId = useSampler ? 'sampler' : 'oscillator';
+        const soundSourceManager = audioConfig.getManager(soundSourceId);
+        const soundSourceNodes = voiceData.components[soundSourceId]?.nodes;
+        
+        if (soundSourceManager && soundSourceNodes && typeof soundSourceManager.setNote === 'function') {
+            soundSourceManager.setNote(soundSourceNodes, oldFrequency, newFrequency, Tone.now(), velocity);
+        }
+
+        this.activeVoices.set(touchId, { ...activeVoiceDetails, frequency: newFrequency, lastY: yPosition });
+        this._executeUpdateNote(newFrequency, velocity, yPosition, touchId);
     },
 
     _executeTriggerRelease(touchId) {

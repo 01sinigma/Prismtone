@@ -1,23 +1,27 @@
 {
-  "id": "Ambient_pad",
+  "id": "Forest",
   "type": "soundpreset",
-  "name": "Ambient Pad",
+  "name": "Forest",
   "version": "2.0.0",
-  "description": "A soft ambient pad based on samples with expressive controls.",
+  "description": "A soft Forest based on samples with expressive controls.",
   "active": false,
   "data": {
+    "oscillator": {
+      "enabled": false
+    },
     "sampler": {
       "enabled": true,
       "params": {
-        "instrument": "Ambient_pad",
-        "attack": 0.5,
-        "release": 2.5,
+        "instrument": "Forest",
+        "attack": 0.4,
+        "release": 2.0,
         "curve": "exponential"
       }
     },
-    "oscillator": { "enabled": false },
     "amplitudeEnv": { "enabled": false },
     "filter": { "enabled": false },
+    "pitchEnvelope": { "enabled": false },
+    "lfo1": { "enabled": false },
     "colors": {
       "primary": "#4A708B",
       "text": "#E0E0E0"
