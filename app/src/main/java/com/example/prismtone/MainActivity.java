@@ -2,9 +2,11 @@
 package com.example.prismtone;
 
 import android.annotation.SuppressLint;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -29,7 +31,8 @@ public class MainActivity extends AppCompatActivity {
     private MainViewModel viewModel;
     private ModuleManager moduleManager;
     private WebViewAssetLoader assetLoader;
-    private SensorController sensorController; // >>> NEW: Добавляем контроллер сенсоров
+    private SensorController sensorController;
+    private SharedPreferences sharedPreferences; // <<< НОВОЕ
 
     @SuppressLint({"SetJavaScriptEnabled", "WrongConstant"})
     @Override
@@ -39,7 +42,13 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         hideSystemBars();
 
+        // >>> НАЧАЛО ИЗМЕНЕНИЙ <<<
         viewModel = new ViewModelProvider(this).get(MainViewModel.class);
+        sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+
+        // Загружаем настройки. Логика определения языка теперь внутри ViewModel.
+        viewModel.loadSettings(sharedPreferences);
+        // >>> КОНЕЦ ИЗМЕНЕНИЙ <<<
 
         assetLoader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", new CorsAssetsPathHandler(this))
@@ -63,10 +72,8 @@ public class MainActivity extends AppCompatActivity {
         bridge = new PrismtoneBridge(this, webView, viewModel, moduleManager);
         webView.addJavascriptInterface(bridge, "PrismtoneBridge");
 
-        // >>> NEW: Инициализируем SensorController <<<
         sensorController = new SensorController(this, bridge);
-        // >>> NEW: Передаем экземпляр SensorController в PrismtoneBridge <<<
-        if (bridge != null && sensorController != null) {
+        if (bridge != null) {
             bridge.setSensorController(sensorController);
         }
 
@@ -77,16 +84,13 @@ public class MainActivity extends AppCompatActivity {
 
     private static class LocalContentWebViewClient extends WebViewClient {
         private final WebViewAssetLoader mAssetLoader;
-
         LocalContentWebViewClient(WebViewAssetLoader assetLoader) {
             mAssetLoader = assetLoader;
         }
-
         @Override
         @Nullable
         public WebResourceResponse shouldInterceptRequest(WebView view, @NonNull WebResourceRequest request) {
-            Uri requestedUri = request.getUrl();
-            return mAssetLoader.shouldInterceptRequest(requestedUri);
+            return mAssetLoader.shouldInterceptRequest(request.getUrl());
         }
     }
 
@@ -94,9 +98,7 @@ public class MainActivity extends AppCompatActivity {
     private void hideSystemBars() {
         WindowInsetsControllerCompat windowInsetsController =
                 WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
-        if (windowInsetsController == null) {
-            return;
-        }
+        if (windowInsetsController == null) return;
         windowInsetsController.hide(WindowInsetsCompat.Type.systemBars());
         windowInsetsController.setSystemBarsBehavior(
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -111,21 +113,27 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         if (webView != null) {
             webView.onResume();
-            webView.evaluateJavascript("if(window.app && typeof window.app.resumeAudio === 'function') app.resumeAudio(); else console.warn('app.resumeAudio not found');", null);
+            webView.evaluateJavascript("if(window.app && typeof window.app.resumeAudio === 'function') app.resumeAudio();", null);
         }
-        // >>> NEW: Запускаем сенсоры при возобновлении <<<
         if (sensorController != null) sensorController.start();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        // >>> NEW: Останавливаем сенсоры при паузе для экономии батареи <<<
+        // >>> НАЧАЛО ИЗМЕНЕНИЙ <<<
+        // Сохраняем все настройки при сворачивании приложения
+        if (viewModel != null && sharedPreferences != null) {
+            viewModel.saveSettings(sharedPreferences);
+            Log.d("MainActivity", "Settings saved onPause.");
+        }
+        // >>> КОНЕЦ ИZМЕНЕНИЙ <<<
+
         if (sensorController != null) sensorController.stop();
         if (webView != null) {
             webView.onPause();
-            webView.evaluateJavascript("if(window.app && typeof window.app.suspendAudio === 'function') app.suspendAudio(); else console.warn('app.suspendAudio not found');", null);
-            webView.evaluateJavascript("if(window.triggerSaveSettingsOnPause) window.triggerSaveSettingsOnPause(); else console.warn('window.triggerSaveSettingsOnPause not found');", null);
+            webView.evaluateJavascript("if(window.app && typeof window.app.suspendAudio === 'function') app.suspendAudio();", null);
+            webView.evaluateJavascript("if(window.triggerSaveSettingsOnPause) window.triggerSaveSettingsOnPause();", null);
         }
     }
 

@@ -13,10 +13,9 @@ const i18n = {
     init(initialLanguage = 'en') {
         console.log(`[i18n.init] Initializing with language: ${initialLanguage}`);
         this.currentLanguage = initialLanguage;
-        // Собираем элементы сразу, чтобы они были готовы к первому обновлению
         this.collectElements();
         this.isInitialized = true;
-        // Не загружаем язык здесь, app.js вызовет applyLanguage -> loadLanguage
+        // The language will be loaded by app.js after this init
     },
 
     /**
@@ -49,15 +48,13 @@ const i18n = {
         try {
             const langModule = await moduleManager.getModule(languageId);
 
-            // Данные строк находятся в langModule.data.data.strings
             if (langModule?.data?.data?.strings) {
                 this.strings = langModule.data.data.strings;
                 console.log(`[i18n.loadLanguage] Language '${languageId}' loaded successfully with ${Object.keys(this.strings).length} strings.`);
-                this.updateUI(); // Update UI after loading new strings
+                this.updateUI();
             } else {
                 console.warn(`[i18n.loadLanguage] Language module or strings not found for ID: ${languageId}. UI will show keys.`);
-                // this.strings остается пустым
-                this.updateUI(); // Update UI to show keys as fallback
+                this.updateUI();
             }
         } catch (error) {
             console.error(`[i18n.loadLanguage] Error loading language ${languageId}:`, error, error.stack);
@@ -78,8 +75,7 @@ const i18n = {
         if (translation !== undefined && translation !== null) {
             return translation;
         } else {
-            // console.warn(`[i18n.translate] Translation key not found: '${key}'. Using fallback/key.`);
-            return fallback !== null ? fallback : key; // Use provided fallback or the key itself
+            return fallback !== null ? fallback : key;
         }
     },
 
@@ -94,7 +90,7 @@ const i18n = {
         console.log('[i18n.updateUI] Updating UI elements with current translations...');
         if (this.elements.length === 0) {
              console.warn("[i18n.updateUI] No elements collected for translation. Did collectElements run?");
-             this.collectElements(); // Попробуем собрать снова
+             this.collectElements();
         }
         let updatedCount = 0;
         this.elements.forEach(el => {
@@ -106,7 +102,6 @@ const i18n = {
 
                 if (key) {
                     const translation = this.translate(key);
-                    // Обновляем только если текст отличается или это не input/select/textarea
                     if (el.textContent !== translation && !['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) {
                         el.textContent = translation;
                         updated = true;

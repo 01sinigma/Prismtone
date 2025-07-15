@@ -303,7 +303,7 @@ const app = {
     },
 
     async init() {
-        console.log('[App.init vNext] Starting application initialization...');
+        console.log('[App.init] Starting application initialization...');
         this.elements.body = document.body;
         this.elements.appContainer = document.getElementById('app-container');
 
@@ -318,13 +318,28 @@ const app = {
             return;
         }
 
-        if (typeof i18n !== 'undefined') {
-            i18n.init(this.state.language); // Базовая инициализация i18n (синхронная)
-            this.updateLoadingText('initializing', 'Initializing...');
-        } else { console.warn("[App.init] i18n module not found."); }
-
-        let audioInitPromise = Promise.resolve(false);
         try {
+            console.log('[App.init] Waiting for DOM Ready...');
+            if (document.readyState === 'loading') {
+                await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
+            }
+            console.log('[App.init] DOM Ready.');
+
+            console.log('[App.init] Waiting for bridge...');
+            this.updateLoadingText('loading_bridge', 'Connecting...');
+            await this.waitForBridge();
+            console.log('[App.init] Bridge Ready.');
+
+            await this.loadInitialSettings();
+
+            if (typeof i18n !== 'undefined') {
+                i18n.init(this.state.language);
+                this.updateLoadingText('initializing', 'Initializing...');
+            } else {
+                console.warn("[App.init] i18n module not found.");
+            }
+            
+            let audioInitPromise = Promise.resolve(false);
             if (typeof loadingAudio !== 'undefined') {
                 this.loadingAudio = loadingAudio;
                 const audioBaseUrl = "https://appassets.androidplatform.net/assets/";
@@ -348,23 +363,9 @@ const app = {
                 if (!this.prismEffect.init('loading-prism-canvas')) { console.error("App.init: Failed to initialize prism effect."); }
             } else { console.warn("[App.init] prismEffect module not found."); }
 
-        } catch (loadingModulesError) {
-             console.error("App.init: Error initializing loading animation/audio modules:", loadingModulesError);
-        }
-
-        audioInitPromise.then(audioInitialized => {
-            if (audioInitialized) { setTimeout(() => { this.loadingAudio?.playSFX('stars_warp'); }, 150); }
-        });
-
-        try {
-            console.log('[App.init] Waiting for DOM Ready...');
-            if (document.readyState === 'loading') { await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve)); }
-            console.log('[App.init] DOM Ready.');
-
-            console.log('[App.init] Waiting for bridge...');
-            this.updateLoadingText('loading_bridge', 'Connecting...');
-            await this.waitForBridge();
-            console.log('[App.init] Bridge Ready.');
+             audioInitPromise.then(audioInitialized => {
+                if (audioInitialized) { setTimeout(() => { this.loadingAudio?.playSFX('stars_warp'); }, 150); }
+            });
 
             console.log('[App.init] Starting main initialization sequence...');
 
@@ -538,52 +539,10 @@ const app = {
      * @returns {Promise<void>} A promise that resolves when settings are loaded and applied.
      */
     async loadInitialSettings() {
-        console.log("[App.loadInitialSettings] Loading settings...");
-        // Пример загрузки из localStorage, замените на реальный вызов Bridge, если нужно
-        const savedState = {
-            theme: localStorage.getItem('theme') || 'day',
-            language: localStorage.getItem('language') || 'en',
-            soundPreset: localStorage.getItem('soundPreset') || '_test_single_preset', // Дефолт
-            visualizer: localStorage.getItem('visualizer') || 'waves', // Дефолт
-            touchEffect: localStorage.getItem('touchEffect') || 'glow', // Дефолт
-            scale: localStorage.getItem('scale') || 'major', // Дефолт
-            octaveOffset: parseInt(localStorage.getItem('octaveOffset') || '0', 10), // Дефолт 0
-            zoneCount: parseInt(localStorage.getItem('zoneCount') || '12', 10), // Дефолт 12
-            showNoteNames: localStorage.getItem('showNoteNames') === 'true',
-            showLines: localStorage.getItem('showLines') === 'true',
-            masterVolumeCeiling: parseFloat(localStorage.getItem('masterVolumeCeiling') || '1.0'),
-            enablePolyphonyVolumeScaling: localStorage.getItem('enablePolyphonyVolumeScaling') === 'true',
-            // === ЗАГРУЗКА ТОНИКИ ===
-            currentTonic: localStorage.getItem('currentTonic') || "C4", // Загружаем или используем дефолт
-            // === ЗАГРУЗКА highlightSharpsFlats ===
-            highlightSharpsFlats: localStorage.getItem('highlightSharpsFlats') === 'true', // Загружаем или используем дефолт false
-            // === ЗАГРУЗКА СОСТОЯНИЙ ПАНЕЛИ АККОРДОВ ===
-            isChordPanelCollapsed: localStorage.getItem('isChordPanelCollapsed') === 'true',
-            chordPanelWidth: parseInt(localStorage.getItem('chordPanelWidth'), 10) || 320,
-            // === ЗАГРУЗКА rocketModeSettings ===
-            rocketModeSettings: {
-                highlightActiveNotes: localStorage.getItem('rocketModeSettings.highlightActiveNotes') === 'true',
-                showDirectionalMarkers: localStorage.getItem('rocketModeSettings.showDirectionalMarkers') === 'true',
-                markerStyle: localStorage.getItem('rocketModeSettings.markerStyle') || "GlowFromNote",
-                showOnlyForValidChords: localStorage.getItem('rocketModeSettings.showOnlyForValidChords') === 'true',
-                animateMarkerFadeOut: localStorage.getItem('rocketModeSettings.animateMarkerFadeOut') === 'true',
-                showChordName: localStorage.getItem('rocketModeSettings.showChordName') === 'true',
-                // Новые поля:
-                chordBehavior: localStorage.getItem('rocketModeSettings.chordBehavior') || 'analyze',
-                nextSuggestionType: localStorage.getItem('rocketModeSettings.nextSuggestionType') || 'chords',
-                phaseHintMode: localStorage.getItem('rocketModeSettings.phaseHintMode') || 'phaseAware',
-                energyAffectsHints: localStorage.getItem('rocketModeSettings.energyAffectsHints') !== 'false',
-                keyBehavior: localStorage.getItem('rocketModeSettings.keyBehavior') || 'auto'
-            },
-            // =======================
-        };
-
+        console.log("[App.loadInitialSettings] Loading settings from native...");
         if (!this.state.isBridgeReady) {
-             console.warn('[App.loadInitialSettings v6] Bridge not ready. Using defaults.');
-             // Применяем дефолтные или загруженные из localStorage, если Bridge недоступен сразу
-             this.state = { ...this.state, ...savedState };
-             console.log('[App.loadInitialSettings] Initial state updated from localStorage (Bridge not ready):', this.state);
-             return; // Выходим, если Bridge не готов
+             console.warn('[App.loadInitialSettings] Bridge not ready. Cannot load settings.');
+             return;
         }
         try {
             const settingsJson = await Promise.race([
@@ -593,7 +552,7 @@ const app = {
 
             if (settingsJson) {
                 const settings = JSON.parse(settingsJson);
-                console.log('[App.loadInitialSettings v6] Received settings:', settings);
+                console.log('[App.loadInitialSettings] Received settings:', settings);
                 this.state.theme = settings.theme || this.state.theme;
                 this.state.language = settings.language || this.state.language;
                 this.state.soundPreset = settings.soundPreset || this.state.soundPreset;
@@ -604,176 +563,21 @@ const app = {
                 this.state.octaveOffset = settings.octaveOffset ?? this.state.octaveOffset;
                 this.state.zoneCount = settings.zoneCount || this.state.zoneCount;
                 this.state.showNoteNames = settings.showNoteNames ?? this.state.showNoteNames;
-                this.state.showLines = settings.showLines ?? this.state.showLines; // Было showGrid
-
+                this.state.showLines = settings.showLines ?? this.state.showLines;
                 this.state.masterVolumeCeiling = settings.masterVolumeCeiling ?? this.state.masterVolumeCeiling;
                 this.state.enablePolyphonyVolumeScaling = settings.enablePolyphonyVolumeScaling ?? this.state.enablePolyphonyVolumeScaling;
-
-                // === ЗАГРУЗКА highlightSharpsFlats из Bridge ===
-                this.state.highlightSharpsFlats = settings.highlightSharpsFlats ?? this.state.highlightSharpsFlats; // Загружаем из bridge
-                // ===============================================
-
-                // === ОБНОВЛЕНИЕ ЗАГРУЗКИ yAxisControls для Части 2 ===
-                const defaultVolY = this.state.yAxisControls.volume;
-                const defaultFxY = this.state.yAxisControls.effects;
+                this.state.highlightSharpsFlats = settings.highlightSharpsFlats ?? this.state.highlightSharpsFlats;
+                this.state.currentTonic = settings.currentTonic || this.state.currentTonic;
 
                 if (settings.yAxisControls && typeof settings.yAxisControls === 'object') {
-                    const receivedY = settings.yAxisControls;
-                    if (receivedY.volume && typeof receivedY.volume === 'object') {
-                        this.state.yAxisControls.volume.minOutput = receivedY.volume.minOutput ?? defaultVolY.minOutput;
-                        this.state.yAxisControls.volume.maxOutput = receivedY.volume.maxOutput ?? defaultVolY.maxOutput;
-                        this.state.yAxisControls.volume.yThreshold = receivedY.volume.yThreshold ?? defaultVolY.yThreshold;
-                        this.state.yAxisControls.volume.curveType = receivedY.volume.curveType || defaultVolY.curveType;
-                        this.state.yAxisControls.volume.curveFactor = receivedY.volume.curveFactor ?? defaultVolY.curveFactor;
-                        this.state.yAxisControls.volume.outputType = receivedY.volume.outputType || defaultVolY.outputType;
-                    }
-                    if (receivedY.effects && typeof receivedY.effects === 'object') {
-                        this.state.yAxisControls.effects.minOutput = receivedY.effects.minOutput ?? defaultFxY.minOutput;
-                        this.state.yAxisControls.effects.maxOutput = receivedY.effects.maxOutput ?? defaultFxY.maxOutput;
-                        this.state.yAxisControls.effects.yThreshold = receivedY.effects.yThreshold ?? defaultFxY.yThreshold;
-                        this.state.yAxisControls.effects.curveType = receivedY.effects.curveType || defaultFxY.curveType;
-                        this.state.yAxisControls.effects.curveFactor = receivedY.effects.curveFactor ?? defaultFxY.curveFactor;
-                        this.state.yAxisControls.effects.outputType = receivedY.effects.outputType || defaultFxY.outputType;
-                    }
+                    this.state.yAxisControls = { ...this.state.yAxisControls, ...settings.yAxisControls };
                 }
-                // =====================================================
-
-                // === НОВОЕ: Загрузка currentTonic и highlightSharpsFlats ===
-                if (settings.currentTonic !== undefined) this.state.currentTonic = settings.currentTonic;
-                if (settings.highlightSharpsFlats !== undefined) this.state.highlightSharpsFlats = settings.highlightSharpsFlats;
-                // =======================================================
-
-            // === ЗАГРУЗКА sensorSettings ===
-            if (settings.sensorSettings && typeof settings.sensorSettings === 'object') {
-                this.state.sensorSettings.smoothingAlpha = settings.sensorSettings.smoothingAlpha ?? this.state.sensorSettings.smoothingAlpha;
-                this.state.sensorSettings.invertPitchAxis = settings.sensorSettings.invertPitchAxis ?? this.state.sensorSettings.invertPitchAxis;
-                this.state.sensorSettings.invertRollAxis = settings.sensorSettings.invertRollAxis ?? this.state.sensorSettings.invertRollAxis;
-                this.state.sensorSettings.swapAxes = settings.sensorSettings.swapAxes ?? this.state.sensorSettings.swapAxes;
-                console.log('[App.loadInitialSettings] Loaded sensorSettings from bridge:', this.state.sensorSettings);
-            } else if (localStorage.getItem('sensorSettings')) {
-                try {
-                    const storedSensorSettings = JSON.parse(localStorage.getItem('sensorSettings'));
-                    this.state.sensorSettings.smoothingAlpha = storedSensorSettings.smoothingAlpha ?? this.state.sensorSettings.smoothingAlpha;
-                    this.state.sensorSettings.invertPitchAxis = storedSensorSettings.invertPitchAxis ?? this.state.sensorSettings.invertPitchAxis;
-                    this.state.sensorSettings.invertRollAxis = storedSensorSettings.invertRollAxis ?? this.state.sensorSettings.invertRollAxis;
-                    this.state.sensorSettings.swapAxes = storedSensorSettings.swapAxes ?? this.state.sensorSettings.swapAxes;
-                    console.log('[App.loadInitialSettings] Loaded sensorSettings from localStorage:', this.state.sensorSettings);
-                } catch (e) {
-                    console.warn('[App.loadInitialSettings] Failed to parse sensorSettings from localStorage, using defaults.', e);
-                }
-            }
-            // ==================================
-
-                // === ЗАГРУЗКА rocketModeSettings ===
-                let rocketDefaults = {
-                    highlightActiveNotes: true,
-                    showDirectionalMarkers: true,
-                    markerStyle: "GlowFromNote",
-                    showOnlyForValidChords: false,
-                    animateMarkerFadeOut: true,
-                    showChordName: true,
-                    intensity: 0.5,
-                    autoPhases: true,
-                    phaseTransitionMode: 'activity',
-                    phaseDurations: { ignition: 30, liftOff: 60, burst: 90 },
-                    // === Новые поля для Rocket Status Panel ===
-                    chordBehavior: 'analyze', // 'analyze' | 'ignore' | 'fixed'
-                    nextSuggestionType: 'chords', // 'chords' | 'notes' | 'cadences' | 'improv'
-                    phaseHintMode: 'phaseAware', // 'phaseAware' | 'ignorePhase' | 'burstOnly'
-                    energyAffectsHints: true, // true | false
-                    keyBehavior: 'auto' // 'auto' | 'fixed' | 'ignore'
-                };
-                let loadedRocket = {};
-                try {
-                    loadedRocket = JSON.parse(localStorage.getItem('rocketModeSettings') || '{}');
-                } catch(e) { loadedRocket = {}; }
-                this.state.rocketModeSettings = { ...rocketDefaults, ...loadedRocket };
-                // ... если есть settings.rocketModeSettings из Bridge, применить его ...
-                if (settings && settings.rocketModeSettings) {
-                    try {
-                        const parsed = typeof settings.rocketModeSettings === 'string' ? JSON.parse(settings.rocketModeSettings) : settings.rocketModeSettings;
-                        this.state.rocketModeSettings = { ...rocketDefaults, ...parsed };
-                    } catch(e) { console.warn('[App] Failed to parse rocketModeSettings from bridge:', e); }
-                }
-                // =======================================================
-
-                console.log('[App.loadInitialSettings v6] Final rocketModeSettings:', this.state.rocketModeSettings);
-                console.log('[App.loadInitialSettings v6] Initial state updated:', this.state);
             } else {
-                 console.warn('[App.loadInitialSettings v6] Received null or empty settings from bridge. Using defaults.');
+                 console.warn('[App.loadInitialSettings] Received null or empty settings from bridge. Using defaults.');
             }
         } catch (error) {
-            console.error('[App.loadInitialSettings v6] Error loading initial settings:', error);
+            console.error('[App.loadInitialSettings] Error loading initial settings:', error);
         }
-        // После загрузки настроек Rocket Mode из localStorage/Bridge
-        const defaultRocketSettings = /* импортировать или получить из defaultAppSettings.json */ window.defaultRocketSettings || {};
-        const loadedRocketSettings = this.state.rocketModeSettings || {};
-        this.state.rocketModeSettings = {
-            ...defaultRocketSettings,
-            ...loadedRocketSettings,
-            displayMarkers: { ...defaultRocketSettings.displayMarkers, ...(loadedRocketSettings.displayMarkers || {}) },
-            phaseDurations: { ...defaultRocketSettings.phaseDurations, ...(loadedRocketSettings.phaseDurations || {}) }
-        };
-        if (this.state.padMode === 'rocket' && this.state.isInitialized && PadModeManager.getCurrentStrategy()?.getName() === 'rocket') {
-            PadModeManager.getCurrentStrategy().updateInternalSetting('all', this.state.rocketModeSettings);
-            this.updateZoneLayout();
-            this.updateRocketStatusPanel();
-        }
-
-        // === Глубокое объединение rocketModeSettings ===
-        const baseRocketDefaults = JSON.parse(JSON.stringify(this.state.rocketModeSettings));
-        let finalRocketSettings = baseRocketDefaults;
-        try {
-            const savedJsSettingsJson = localStorage.getItem('prismtoneAppSettings_js');
-            if (savedJsSettingsJson) {
-                const savedJsSettings = JSON.parse(savedJsSettingsJson);
-                if (savedJsSettings.rocketModeSettings) {
-                    finalRocketSettings = {
-                        ...baseRocketDefaults,
-                        ...savedJsSettings.rocketModeSettings,
-                        displayMarkers: {
-                            ...(baseRocketDefaults.displayMarkers || {}),
-                            ...(savedJsSettings.rocketModeSettings.displayMarkers || {})
-                        },
-                        phaseDurations: {
-                            ...(baseRocketDefaults.phaseDurations || {}),
-                            ...(savedJsSettings.rocketModeSettings.phaseDurations || {})
-                        }
-                    };
-                    console.log('[App.loadInitialSettings] Loaded and merged rocketModeSettings from localStorage.');
-                }
-            }
-        } catch (e) {
-            console.error('[App.loadInitialSettings] Error loading/merging JS-specific settings from localStorage:', e);
-        }
-        this.state.rocketModeSettings = finalRocketSettings;
-        console.log('[App.loadInitialSettings] Final initial rocketModeSettings:', JSON.parse(JSON.stringify(this.state.rocketModeSettings)));
-        // ... остальной код ...
-
-        // --- Загрузка presetYAxisEffectsConfig из начального звукового пресета ---
-        if (this.state.soundPreset && typeof moduleManager !== 'undefined' && moduleManager) { // Добавлена проверка moduleManager
-            const initialPresetModule = await moduleManager.getModule(this.state.soundPreset);
-            if (initialPresetModule?.data?.data?.yAxisEffectsSendConfig) {
-                this.state.presetYAxisEffectsConfig = JSON.parse(JSON.stringify(initialPresetModule.data.data.yAxisEffectsSendConfig));
-                console.log("[App.loadInitialSettings] Initial presetYAxisEffectsConfig set from:", this.state.soundPreset, this.state.presetYAxisEffectsConfig);
-            } else {
-                this.state.presetYAxisEffectsConfig = null;
-                console.log("[App.loadInitialSettings] No yAxisEffectsSendConfig in initial preset:", this.state.soundPreset);
-            }
-        } else {
-            this.state.presetYAxisEffectsConfig = null; // На случай, если soundPreset не определен или moduleManager еще нет
-            console.warn("[App.loadInitialSettings] Could not load initial presetYAxisEffectsConfig (soundPreset or moduleManager missing).");
-        }
-        // --- Конец загрузки presetYAxisEffectsConfig ---
-
-        await this._determineEffectiveYAxisControls(); // Определяем и применяем финальные Y-axis controls
-
-        console.log('[App.loadInitialSettings] Final initial state updated:', JSON.parse(JSON.stringify(this.state))); // Логируем всё состояние
-        this.state.yAxisDefinedByPreset = false; // потому что мы еще не знаем, откуда пришли загруженные yAxisControls
-
-        // Загрузка состояния панели аккордов
-        this.state.isChordPanelCollapsed = localStorage.getItem('isChordPanelCollapsed') === 'true';
-        this.state.chordPanelWidth = parseInt(localStorage.getItem('chordPanelWidth'), 10) || 320;
     },
 
     resumeAudio() {

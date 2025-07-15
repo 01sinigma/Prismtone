@@ -2,7 +2,7 @@
   "id": "Ambient_pad",
   "type": "soundpreset",
   "name": "Ambient Pad",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "A soft ambient pad based on samples with expressive controls.",
   "active": false,
   "data": {
@@ -12,7 +12,8 @@
         "instrument": "Ambient_pad",
         "attack": 0.5,
         "release": 2.5,
-        "curve": "exponential"
+        "curve": "exponential",
+        "volume": 0
       }
     },
     "oscillator": { "enabled": false },

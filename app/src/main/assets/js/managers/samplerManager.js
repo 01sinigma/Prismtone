@@ -11,7 +11,7 @@ const samplerManager = {
 
     /**
      * Асинхронно создает (или достает из кэша) и загружает экземпляр Tone.Sampler.
-     * @param {object} initialSettings - Настройки из пресета, например { instrument: 'piano', attack: 0.01, release: 1.2 }
+     * @param {object} initialSettings - Настройки из пресета, например { instrument: 'piano', attack: 0.01, release: 1.2, volume: -6 }
      * @returns {Promise<object>} Объект, соответствующий стандартному интерфейсу менеджера.
      */
     async create(initialSettings = {}) {
@@ -25,7 +25,7 @@ const samplerManager = {
             console.log(`[SamplerManager] Using cached Tone.Sampler for instrument: ${instrument}`);
             try {
                 const cachedSampler = await this._samplerCache.get(instrument);
-                // [Связь -> JSON] Применяем актуальные attack/release из нового пресета к кэшированному семплеру.
+                // [Связь -> JSON] Применяем актуальные параметры из нового пресета к кэшированному семплеру.
                 this.update({ samplerNode: cachedSampler }, samplerParams);
                 return {
                     nodes: { samplerNode: cachedSampler },
@@ -84,9 +84,8 @@ const samplerManager = {
                 const samplerNode = new Tone.Sampler({
                     urls: urls,
                     baseUrl: `https://appassets.androidplatform.net/assets/${assetPath}/`,
-                    attack: samplerParams.attack,
-                    release: samplerParams.release,
-                    curve: samplerParams.curve,
+                    // [ИЗМЕНЕНО] Применяем все параметры, включая volume
+                    ...samplerParams,
                     onload: () => {
                         console.log(`[SamplerManager] Sampler for '${instrument}' loaded successfully.`);
                         resolve(samplerNode);
@@ -124,11 +123,18 @@ const samplerManager = {
     update(nodes, newSettings) {
         if (!nodes?.samplerNode || !newSettings) return false;
         try {
-            nodes.samplerNode.set({
-                attack: newSettings.attack,
-                release: newSettings.release,
-                curve: newSettings.curve
-            });
+            // [ИЗМЕНЕНО] Используем .set() для обновления нескольких параметров, включая volume
+            const updatableParams = {};
+            if (newSettings.attack !== undefined) updatableParams.attack = newSettings.attack;
+            if (newSettings.release !== undefined) updatableParams.release = newSettings.release;
+            if (newSettings.curve !== undefined) updatableParams.curve = newSettings.curve;
+            // Громкость является свойством .volume типа Signal, поэтому обновляем его .value
+            if (newSettings.volume !== undefined) {
+                 nodes.samplerNode.volume.value = newSettings.volume;
+            }
+            
+            nodes.samplerNode.set(updatableParams);
+            
             return true;
         } catch (e) {
             console.error("[SamplerManager] Error updating sampler:", e);
