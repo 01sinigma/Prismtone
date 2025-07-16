@@ -4,6 +4,10 @@
   "name": "Deep Drone",
   "version": "1.0.0",
   "data": {
+    "portamento": {
+      "enabled": true,
+      "time": 0.1
+    },
     "oscillator": {
       "params": {
         "type": "fatsawtooth",
@@ -13,10 +17,10 @@
     },
     "amplitudeEnv": {
       "params": {
-        "attack": 2.0,
-        "decay": 1.0,
+        "attack": 2,
+        "decay": 1,
         "sustain": 0.8,
-        "release": 3.0
+        "release": 3
       }
     },
     "filter": {
@@ -48,6 +52,9 @@
     "yAxisControls": {
       "effects": {}
     },
-    "colors": { "primary": "#283593", "text": "#C5CAE9" }
+    "colors": {
+      "primary": "#283593",
+      "text": "#C5CAE9"
+    }
   }
 }

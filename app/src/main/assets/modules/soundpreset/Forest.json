@@ -15,7 +15,8 @@
         "instrument": "Forest",
         "attack": 0.4,
         "release": 2.0,
-        "curve": "exponential"
+        "curve": "exponential",
+        "volume": 6
       }
     },
     "amplitudeEnv": { "enabled": false },

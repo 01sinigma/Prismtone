@@ -4,6 +4,10 @@
   "name": "Vintage Lead",
   "version": "1.0.0",
   "data": {
+    "portamento": {
+      "enabled": true,
+      "time": 0.1
+    },
     "oscillator": {
       "params": {
         "type": "sawtooth",
@@ -50,6 +54,9 @@
         "filter_frequency": true
       }
     },
-    "colors": { "primary": "#FF6F00", "text": "#FFECB3" }
+    "colors": {
+      "primary": "#FF6F00",
+      "text": "#FFECB3"
+    }
   }
 }

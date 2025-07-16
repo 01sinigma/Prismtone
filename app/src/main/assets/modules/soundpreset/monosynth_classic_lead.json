@@ -2,7 +2,7 @@
   "id": "monosynth_classic_lead",
   "type": "soundpreset",
   "name": "Classic Mono Lead",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "A classic monophonic lead sound with fast envelopes and portamento.",
   "active": true,
   "data": {
@@ -27,6 +27,11 @@
         "Q": 2.5
       }
     },
+    "outputGain": {
+      "params": {
+        "gain": 0.5
+      }
+    },
     "filterEnvelope": {
       "enabled": true,
       "params": {
@@ -39,9 +44,7 @@
     },
     "portamento": {
       "enabled": true,
-      "params": {
-        "time": 0.08
-      }
+      "time": 0.08
     },
     "colors": { "primary": "#FBC02D", "text": "#3E2723" }
   }

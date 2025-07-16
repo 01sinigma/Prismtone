@@ -4,6 +4,10 @@
   "name": "Wobble Bass",
   "version": "1.0.0",
   "data": {
+    "portamento": {
+      "enabled": true,
+      "time": 0.1
+    },
     "oscillator": {
       "params": {
         "type": "square",
@@ -15,7 +19,7 @@
       "params": {
         "attack": 0.01,
         "decay": 0.2,
-        "sustain": 1.0,
+        "sustain": 1,
         "release": 0.1
       }
     },
@@ -50,6 +54,9 @@
         "filter_frequency_lfo_rate": true
       }
     },
-    "colors": { "primary": "#D50000", "text": "#FF8A80" }
+    "colors": {
+      "primary": "#D50000",
+      "text": "#FF8A80"
+    }
   }
 }

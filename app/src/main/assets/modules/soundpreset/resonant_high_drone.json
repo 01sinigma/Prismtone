@@ -6,6 +6,10 @@
   "description": "Evolving drone with pronounced filter resonance in lower-mid frequencies.",
   "active": true,
   "data": {
+    "portamento": {
+      "enabled": true,
+      "time": 0.1
+    },
     "oscillator": {
       "params": {
         "type": "fatsawtooth",
@@ -16,9 +20,9 @@
     "amplitudeEnv": {
       "params": {
         "attack": 2.5,
-        "decay": 1.0,
-        "sustain": 1.0,
-        "release": 4.0
+        "decay": 1,
+        "sustain": 1,
+        "release": 4
       }
     },
     "filter": {
@@ -30,15 +34,21 @@
         "rolloff": -24
       }
     },
-    "outputGain": { "params": { "gain": 0 } },
-    "pitchEnvelope": { "enabled": false },
+    "outputGain": {
+      "params": {
+        "gain": 0
+      }
+    },
+    "pitchEnvelope": {
+      "enabled": false
+    },
     "filterEnvelope": {
       "enabled": true,
       "params": {
-        "attack": 5.0,
-        "decay": 2.0,
+        "attack": 5,
+        "decay": 2,
         "sustain": 0.7,
-        "release": 3.0,
+        "release": 3,
         "amount": 2000
       }
     },
@@ -52,7 +62,9 @@
         "retrigger": false
       }
     },
-    "portamento": { "enabled": false },
-    "colors": { "primary": "#78909C", "text": "#ECEFF1" }
+    "colors": {
+      "primary": "#78909C",
+      "text": "#ECEFF1"
+    }
   }
 }

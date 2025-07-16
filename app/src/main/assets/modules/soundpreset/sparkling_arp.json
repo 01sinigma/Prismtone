@@ -4,6 +4,10 @@
   "name": "Sparkling Arp",
   "version": "1.0.0",
   "data": {
+    "portamento": {
+      "enabled": true,
+      "time": 0.1
+    },
     "oscillator": {
       "params": {
         "type": "fmtriangle",
@@ -15,7 +19,7 @@
       "params": {
         "attack": 0.005,
         "decay": 0.1,
-        "sustain": 0.0,
+        "sustain": 0,
         "release": 0.05
       }
     },
@@ -50,6 +54,9 @@
         "reverb_decay_time": true
       }
     },
-    "colors": { "primary": "#00B0FF", "text": "#E1F5FE" }
+    "colors": {
+      "primary": "#00B0FF",
+      "text": "#E1F5FE"
+    }
   }
 }

@@ -4,6 +4,10 @@
   "name": "Alien Communication",
   "version": "1.0.0",
   "data": {
+    "portamento": {
+      "enabled": true,
+      "time": 0.1
+    },
     "oscillator": {
       "params": {
         "type": "fmsine",
@@ -24,7 +28,7 @@
       "params": {
         "type": "bandpass",
         "frequency": 2000,
-        "Q": 2.0
+        "Q": 2
       }
     },
     "pitchEnvelope": {
@@ -50,6 +54,9 @@
         "fm_modulation_index": true
       }
     },
-    "colors": { "primary": "#64DD17", "text": "#004D40" }
+    "colors": {
+      "primary": "#64DD17",
+      "text": "#004D40"
+    }
   }
 }

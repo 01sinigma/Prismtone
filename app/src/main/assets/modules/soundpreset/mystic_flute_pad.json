@@ -6,6 +6,10 @@
   "description": "Pad imitating a breathy flute sound with a slow attack and custom Y-Axis effect send.",
   "active": true,
   "data": {
+    "portamento": {
+      "enabled": true,
+      "time": 0.1
+    },
     "oscillator": {
       "params": {
         "type": "fmtriangle",
@@ -28,18 +32,24 @@
       "params": {
         "type": "lowpass",
         "frequency": 2200,
-        "Q": 1.0
+        "Q": 1
       }
     },
-    "outputGain": { "params": { "gain": 0 } },
-    "pitchEnvelope": { "enabled": false },
+    "outputGain": {
+      "params": {
+        "gain": 0
+      }
+    },
+    "pitchEnvelope": {
+      "enabled": false
+    },
     "filterEnvelope": {
       "enabled": true,
       "params": {
         "attack": 0.7,
         "decay": 0.5,
         "sustain": 0.7,
-        "release": 1.0,
+        "release": 1,
         "amount": 1000
       }
     },
@@ -52,8 +62,6 @@
         "target": "filter.frequency"
       }
     },
-    "portamento": { "enabled": false },
-
     "yAxisControls": {
       "effects": {
         "minOutput": -30,
@@ -64,7 +72,9 @@
         "outputType": "db"
       }
     },
-
-    "colors": { "primary": "#4DB6AC", "text": "#FFFFFF" }
+    "colors": {
+      "primary": "#4DB6AC",
+      "text": "#FFFFFF"
+    }
   }
 }

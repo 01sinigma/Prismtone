@@ -6,6 +6,10 @@
   "description": "Metallic, bell-like tones using FM synthesis.",
   "active": true,
   "data": {
+    "portamento": {
+      "enabled": true,
+      "time": 0.1
+    },
     "oscillator": {
       "params": {
         "type": "fmsine",
@@ -30,7 +34,11 @@
         "Q": 0.7
       }
     },
-    "outputGain": { "params": { "gain": 0 } },
+    "outputGain": {
+      "params": {
+        "gain": 0
+      }
+    },
     "pitchEnvelope": {
       "enabled": true,
       "params": {
@@ -41,7 +49,9 @@
         "amount": 200
       }
     },
-    "filterEnvelope": { "enabled": false },
+    "filterEnvelope": {
+      "enabled": false
+    },
     "lfo1": {
       "enabled": true,
       "params": {
@@ -52,7 +62,9 @@
         "retrigger": false
       }
     },
-    "portamento": { "enabled": false },
-    "colors": { "primary": "#FFEE58", "text": "#3E2723" }
+    "colors": {
+      "primary": "#FFEE58",
+      "text": "#3E2723"
+    }
   }
 }

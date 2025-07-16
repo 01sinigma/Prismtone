@@ -6,6 +6,10 @@
   "description": "Slow evolving atmospheric pad.",
   "active": true,
   "data": {
+    "portamento": {
+      "enabled": true,
+      "time": 0.1
+    },
     "oscillator": {
       "params": {
         "type": "fatsine",
@@ -16,9 +20,9 @@
     "amplitudeEnv": {
       "params": {
         "attack": 2.5,
-        "decay": 1.0,
+        "decay": 1,
         "sustain": 0.9,
-        "release": 4.0
+        "release": 4
       }
     },
     "filter": {
@@ -30,13 +34,19 @@
         "rolloff": -12
       }
     },
-    "outputGain": { "params": { "gain": 0 } },
-    "pitchEnvelope": { "enabled": false },
+    "outputGain": {
+      "params": {
+        "gain": 0
+      }
+    },
+    "pitchEnvelope": {
+      "enabled": false
+    },
     "filterEnvelope": {
       "enabled": true,
       "params": {
-        "attack": 3.0,
-        "decay": 2.0,
+        "attack": 3,
+        "decay": 2,
         "sustain": 0.6,
         "release": 3.5,
         "amount": 2500
@@ -52,7 +62,9 @@
         "retrigger": false
       }
     },
-    "portamento": { "enabled": false },
-    "colors": { "primary": "#64B5F6", "text": "#0D47A1" }
+    "colors": {
+      "primary": "#64B5F6",
+      "text": "#0D47A1"
+    }
   }
 }

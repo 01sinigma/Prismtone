@@ -319,14 +319,6 @@ const synth = {
             safePresetData.portamento = { ...defaultPresetCopy.portamento, ...presetData.portamento };
         }
 
-        // Determine if sampler is being enabled/disabled, which forces recreation
-        const isSamplerBeingToggled = (voiceData) => {
-            const oldUsesSampler = voiceData?.currentPresetData?.sampler?.enabled === true;
-            const newUsesSampler = safePresetData.sampler?.enabled === true;
-            return oldUsesSampler !== newUsesSampler;
-        };
-
-
         // Use a for...of loop to allow await inside for sequential processing of voices
         for (let index = 0; index < this.voices.length; index++) {
             const voiceData = this.voices[index];
@@ -334,7 +326,7 @@ const synth = {
 
             try {
                 const oldPresetData = voiceData.currentPresetData || this.config.defaultPreset;
-                let needsRecreation = forceRecreation || !voiceData.components || isSamplerBeingToggled(voiceData);
+                let needsRecreation = forceRecreation || !voiceData.components;
 
                 const optionalComponents = ['pitchEnvelope', 'filterEnvelope', 'lfo1']; // Add other optional components here
                 if (!needsRecreation) { // Only check these if not already needing recreation
@@ -342,7 +334,7 @@ const synth = {
                         const oldEnabled = oldPresetData[optCompId]?.enabled ?? (this.config.defaultPreset[optCompId]?.enabled ?? false);
                         const newEnabled = safePresetData[optCompId]?.enabled ?? (this.config.defaultPreset[optCompId]?.enabled ?? false);
                         if (oldEnabled !== newEnabled) {
-                            if (this.config.debug) console.log(`[Synth AsyncQueue applyPreset] Reason for recreation: Optional component '${optCompId}' enabled state changed (${oldEnabled} -> ${newEnabled})`);
+                            if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Optional component '${optCompId}' enabled state changed (${oldEnabled} -> ${newEnabled})`);
                             needsRecreation = true;
                             break;
                         }
@@ -352,30 +344,32 @@ const synth = {
                     const oldPortaEnabled = oldPresetData.portamento?.enabled ?? (this.config.defaultPreset.portamento?.enabled ?? false);
                     const newPortaEnabled = safePresetData.portamento?.enabled ?? (this.config.defaultPreset.portamento?.enabled ?? false);
                     if (oldPortaEnabled !== newPortaEnabled) {
-                        if (this.config.debug) console.log(`[Synth AsyncQueue applyPreset] Reason for recreation: Portamento enabled state changed (${oldPortaEnabled} -> ${newPortaEnabled})`);
+                        if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Portamento enabled state changed (${oldPortaEnabled} -> ${newPortaEnabled})`);
                         needsRecreation = true;
                     }
                 }
 
-                // >>> НАЧАЛО ИЗМЕНЕНИЙ (ЗАДАЧА 1) <<<
-                const oldPreset = voiceData.currentPresetData || this.config.defaultPreset;
-                const oldUsesSampler = oldPreset?.sampler?.enabled === true;
-                const newUsesSampler = safePresetData.sampler?.enabled === true;
-                // Если тип источника изменился (синт <-> семплер)
-                if (oldUsesSampler !== newUsesSampler) {
-                    if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Source type changed (sampler: ${oldUsesSampler} -> ${newUsesSampler})`);
-                    needsRecreation = true;
-                }
-                // Если оба пресета - семплерные, но ИНСТРУМЕНТ разный
-                else if (newUsesSampler && oldUsesSampler) {
-                    const oldInstrument = oldPreset.sampler?.params?.instrument;
-                    const newInstrument = safePresetData.sampler?.params?.instrument;
-                    if (oldInstrument !== newInstrument) {
-                        if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Sampler instrument changed (${oldInstrument} -> ${newInstrument})`);
+                // === Start of Refined Recreation Logic ===
+                if (!needsRecreation) {
+                    const oldUsesSampler = oldPresetData?.sampler?.enabled === true;
+                    const newUsesSampler = safePresetData.sampler?.enabled === true;
+
+                    // Case 1: Source type changes (synth <-> sampler)
+                    if (oldUsesSampler !== newUsesSampler) {
+                        if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Source type changed (sampler: ${oldUsesSampler} -> ${newUsesSampler})`);
                         needsRecreation = true;
                     }
+                    // Case 2: Both are samplers, but the instrument changes
+                    else if (newUsesSampler && oldUsesSampler) {
+                        const oldInstrument = oldPresetData.sampler?.params?.instrument;
+                        const newInstrument = safePresetData.sampler?.params?.instrument;
+                        if (oldInstrument !== newInstrument) {
+                            if (this.config.debug) console.log(`[Synth applyPreset] Reason for recreation: Sampler instrument changed (${oldInstrument} -> ${newInstrument})`);
+                            needsRecreation = true;
+                        }
+                    }
                 }
-                // >>> КОНЕЦ ИЗМЕНЕНИЙ <<<
+                // === End of Refined Recreation Logic ===
 
                 if (needsRecreation) {
                     if (this.config.debug) console.log(`[Synth AsyncQueue applyPreset] RECREATING voice ${index}.`);
@@ -714,22 +708,25 @@ const synth = {
         const voiceData = this.voices[voiceIndex];
         if (!voiceData || !voiceData.components) return;
 
-        // [Контекст -> Упрощение] Мы убрали проверку freqChanged. Этот метод теперь только для модуляции.
+        // [Исправление] Возвращаем проверку изменения частоты
+        const freqChanged = Math.abs(activeVoiceDetails.frequency - frequency) > 0.1;
         const yChanged = Math.abs(activeVoiceDetails.lastY - yPosition) > 0.001;
 
-        if (!yChanged) {
-            return; // Нет изменений, выходим
-        }
+        if (freqChanged) {
+            // Если изменилась частота, используем логику смены ноты (легато)
+            this._executeSetNote(activeVoiceDetails.frequency, frequency, velocity, yPosition, touchId);
+        } else if (yChanged) {
+            // Если изменилась только Y-координата, обновляем только модуляцию
+            activeVoiceDetails.lastY = yPosition;
 
-        activeVoiceDetails.lastY = yPosition;
+            const yAxisControls = app?.state?.yAxisControls;
+            const calculatedVolume = yAxisControls?.volume ? this.calculateGenericYParameter(yPosition, yAxisControls.volume) : 0.7;
+            const calculatedSendLevel = yAxisControls?.effects ? this.calculateGenericYParameter(yPosition, yAxisControls.effects) : -Infinity;
 
-        const yAxisControls = app?.state?.yAxisControls;
-        const calculatedVolume = yAxisControls?.volume ? this.calculateGenericYParameter(yPosition, yAxisControls.volume) : 0.7;
-        const calculatedSendLevel = yAxisControls?.effects ? this.calculateGenericYParameter(yPosition, yAxisControls.effects) : -Infinity;
-
-        audioConfig.getManager('outputGain')?.update(voiceData.components.outputGain.nodes, { gain: calculatedVolume });
-        if (voiceData.fxSend) {
-            voiceData.fxSend.volume.rampTo(calculatedSendLevel, 0.02);
+            audioConfig.getManager('outputGain')?.update(voiceData.components.outputGain.nodes, { gain: calculatedVolume });
+            if (voiceData.fxSend) {
+                voiceData.fxSend.volume.rampTo(calculatedSendLevel, 0.02);
+            }
         }
     },
 
@@ -749,18 +746,36 @@ const synth = {
         const voiceData = this.voices[voiceIndex];
         if (!voiceData || !voiceData.components) return;
 
-        // [Контекст -> Логика] Определяем, используется ли семплер
         const useSampler = voiceData.currentPresetData?.sampler?.enabled === true;
         const soundSourceId = useSampler ? 'sampler' : 'oscillator';
         const soundSourceManager = audioConfig.getManager(soundSourceId);
         const soundSourceNodes = voiceData.components[soundSourceId]?.nodes;
-        
-        if (soundSourceManager && soundSourceNodes && typeof soundSourceManager.setNote === 'function') {
-            soundSourceManager.setNote(soundSourceNodes, oldFrequency, newFrequency, Tone.now(), velocity);
+
+        if (soundSourceManager && soundSourceNodes) {
+            if (useSampler) {
+                if (typeof soundSourceManager.setNote === 'function') {
+                    soundSourceManager.setNote(soundSourceNodes, oldFrequency, newFrequency, Tone.now(), velocity);
+                }
+            } else {
+                // Для осциллятора используем setNote для плавного перехода (портаменто)
+                if (typeof soundSourceManager.setNote === 'function') {
+                    soundSourceManager.setNote(soundSourceNodes, newFrequency, undefined, velocity);
+                } else {
+                    // Fallback, если setNote не реализован
+                    soundSourceManager.update(soundSourceNodes, { frequency: newFrequency });
+                }
+            }
         }
 
         this.activeVoices.set(touchId, { ...activeVoiceDetails, frequency: newFrequency, lastY: yPosition });
-        this._executeUpdateNote(newFrequency, velocity, yPosition, touchId);
+
+        const yAxisControls = app?.state?.yAxisControls;
+        const calculatedVolume = yAxisControls?.volume ? this.calculateGenericYParameter(yPosition, yAxisControls.volume) : 0.7;
+        const calculatedSendLevel = yAxisControls?.effects ? this.calculateGenericYParameter(yPosition, yAxisControls.effects) : -Infinity;
+        audioConfig.getManager('outputGain')?.update(voiceData.components.outputGain.nodes, { gain: calculatedVolume });
+        if (voiceData.fxSend) {
+            voiceData.fxSend.volume.rampTo(calculatedSendLevel, 0.02);
+        }
     },
 
     _executeTriggerRelease(touchId) {

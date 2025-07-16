@@ -2,7 +2,7 @@
   "id": "grand_piano",
   "type": "soundpreset",
   "name": "Grand Piano",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "A grand piano sound using samples.",
   "active": false,
   "data": {
@@ -13,7 +13,7 @@
         "attack": 0.01,
         "release": 1.2,
         "curve": "exponential",
-        "volume": 0
+        "volume": 3
       }
     },
     "oscillator": { "enabled": false },
