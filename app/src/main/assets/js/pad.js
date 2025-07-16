@@ -34,6 +34,7 @@ const pad = {
     _lastLabelVisibility: true, // НОВОЕ
     _lastLinesVisibility: true, // НОВОЕ
     _lastHighlightSharpsFlats: false, // НОВОЕ - для отслеживания состояния подсветки диезов/бемолей
+    _touchSanitizerInterval: null,
 
     // >>> OPTIMIZATION: Свойства для троттлинга pointermove <<<
     _isMoveProcessingQueued: false,
@@ -70,6 +71,7 @@ const pad = {
         window.addEventListener('resize', this.updateCachedRect.bind(this));
         this.isReady = true;
         console.log('[Pad v10.3] Initialized successfully.');
+        this.startTouchSanitizer();
     },
 
     /**
@@ -395,31 +397,6 @@ const pad = {
     },
 
     /**
-     * Clears all drawn zones and labels from the pad.
-     * Resets internal state related to displayed zones.
-     */
-    clearZones() {
-        if (!this.isReady || !this.zonesContainer || !this.labelsContainer) {
-            console.warn("[Pad.clearZones] Pad not ready or containers missing.");
-            return;
-        }
-        console.log("[Pad.clearZones] Clearing all zones and labels.");
-        this.zonesContainer.innerHTML = '';
-        this.labelsContainer.innerHTML = '';
-        this._currentDisplayedZones = [];
-        this._zoneMidiNoteToIndexMap.clear();
-        this.applyVisualHints([]); // Clear any visual hints
-
-        // Reset optimization flags as the state is now clean.
-        // _lastDrawnTonic is reset because the tonic highlighting is gone.
-        this._lastDrawnTonic = null;
-        // The visibility flags for labels/lines and highlightSharpsFlats reflect config,
-        // so they don't need to be reset here as they weren't part of the *drawn content* state
-        // that this._currentDisplayedZones represented.
-        console.log("[Pad.clearZones] Pad cleared.");
-    },
-
-    /**
      * Provides context for the PadModeStrategy, including app state and synth reference.
      * @returns {{appState: object, synthRef: object, musicTheoryServiceRef: object, padRef: object}}
      * @private
@@ -706,5 +683,65 @@ const pad = {
             this.config.throttleMoveEventsMs = ms;
             console.log(`[Pad.js] Движение касаний теперь обрабатывается не чаще, чем раз в ${ms} мс.`);
         }
+    },
+
+    /**
+     * Safely cleans up a single touch by its ID.
+     * Stops synth, notifies visualizer, and removes from internal tracking.
+     * @private
+     */
+    _cleanupTouch(pointerId) {
+        console.warn(`[Pad.Sanitizer] Cleaning up stuck touch: ${pointerId}`);
+        // Stop any sound associated with this touch
+        if (typeof synth !== 'undefined' && typeof synth.triggerRelease === 'function') {
+            synth.triggerRelease(pointerId);
+        }
+        // Notify the visualizer to remove the marker
+        if (typeof visualizer !== 'undefined' && typeof visualizer.notifyTouchUp === 'function') {
+            visualizer.notifyTouchUp(pointerId);
+        }
+        // Remove from internal tracking
+        this.activeTouchesInternal.delete(pointerId);
+    },
+
+    /**
+     * Periodically checks for and cleans up desynchronized touches.
+     * Compares internal state with the visualizer's state.
+     */
+    sanitizeStuckTouches() {
+        if (!this.isReady || typeof visualizer === 'undefined' || typeof visualizer.getActiveMarkers !== 'function') {
+            return;
+        }
+
+        const realTouchIds = new Set(this.activeTouchesInternal.keys());
+        const visualMarkerIds = visualizer.getActiveMarkers(); // This now returns a Set of numbers
+
+        // 1. Find "ghost" markers (visual marker exists, but no real touch)
+        for (const markerId of visualMarkerIds) {
+            if (!realTouchIds.has(markerId)) {
+                console.warn(`[Pad.Sanitizer] Found a ghost marker (ID: ${markerId}). Cleaning up.`);
+                this._cleanupTouch(markerId);
+            }
+        }
+
+        // 2. Find "zombie" touches (real touch exists, but no visual marker)
+        for (const touchId of realTouchIds) {
+            if (!visualMarkerIds.has(touchId)) {
+                console.warn(`[Pad.Sanitizer] Found a zombie touch (ID: ${touchId}). Cleaning up.`);
+                this._cleanupTouch(touchId);
+            }
+        }
+    },
+
+    /**
+     * Starts the periodic touch cleanup process.
+     */
+    startTouchSanitizer() {
+        if (this._touchSanitizerInterval) {
+            clearInterval(this._touchSanitizerInterval);
+        }
+        // Run every 2 seconds. A longer interval is safer and less performance-intensive.
+        this._touchSanitizerInterval = setInterval(this.sanitizeStuckTouches.bind(this), 2000);
+        console.log('[Pad] Stuck touch sanitizer started.');
     }
 };

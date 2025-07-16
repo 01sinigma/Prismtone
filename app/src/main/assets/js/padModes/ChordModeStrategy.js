@@ -161,40 +161,41 @@ const ChordModeStrategy = {
     _boundShowIntervalPopover: null,
     _boundSelectNextChord: null, 
 
-    // === НАЧАЛО ЗАМЕНЫ: _handleActiveTouchesOnChordSwitch ===
+    // === НАЧАЛО ИСПРАВЛЕНИЯ: _handleActiveTouchesOnChordSwitch ===
     _handleActiveTouchesOnChordSwitch() {
         console.log('[ChordModeStrategy] Auto-switch triggered. Handling active touches...');
         
         if (typeof pad === 'undefined' || !pad.activeTouchesInternal || pad.activeTouchesInternal.size === 0) {
             return null; // Возвращаем null, если нечего было сбрасывать
         }
-
-        const releasedTouches = new Map(pad.activeTouchesInternal); // <<<--- СОЗДАЕМ КОПИЮ КАСАНИЙ
+    
+        // Создаем копию, так как `pad._cleanupTouch` будет изменять оригинальную карту `pad.activeTouchesInternal` во время итерации
+        const releasedTouches = new Map(pad.activeTouchesInternal); 
         console.log(`[ChordModeStrategy] Found ${releasedTouches.size} active touches to clean up.`);
-
-        // 1. Используем глобальный метод synth для остановки всех нот.
-        if (typeof synth !== 'undefined' && synth.stopAllNotes) {
-            synth.stopAllNotes();
-        }
-
-        // 2. Уведомляем визуализатор об "отпускании" каждого касания
-        if (typeof visualizer !== 'undefined' && typeof visualizer.notifyTouchUp === 'function') {
-            releasedTouches.forEach((touchData, touchId) => { // Итерируем по копии
-                visualizer.notifyTouchUp(touchId);
+    
+        // ПРАВИЛЬНЫЙ СПОСОБ: Делегируем очистку каждому касанию модулю `pad`, который управляет состоянием.
+        // Это гарантирует, что synth, visualizer и pad.activeTouchesInternal остаются синхронизированными.
+        if (typeof pad !== 'undefined' && typeof pad._cleanupTouch === 'function') {
+            releasedTouches.forEach((touchData, touchId) => {
+                pad._cleanupTouch(touchId); // Вызываем безопасный метод очистки из pad.js
             });
+        } else {
+            // Резервный вариант на случай, если метод в pad.js будет переименован или удален.
+            console.error('[ChordModeStrategy] pad._cleanupTouch() is not available! Falling back to direct manipulation, which may cause bugs.');
+            if (pad.activeTouchesInternal) {
+                pad.activeTouchesInternal.clear();
+            }
         }
-
-        // 3. Очищаем состояние
+    
+        // Очищаем собственное отслеживание в этой стратегии
         this._activeNoteInfo.clear();
-        if (pad.activeTouchesInternal) { // Добавлена проверка на существование
-            pad.activeTouchesInternal.clear();
-        }
         
-        console.log('[ChordModeStrategy] All active touches have been handled and cleared from pad state.');
-
-        return releasedTouches; // <<<--- ВОЗВРАЩАЕМ КОПИЮ
+        console.log('[ChordModeStrategy] All active touches have been handled and cleared via pad module.');
+    
+        // Возвращаем состояние касаний, которые были до очистки, чтобы их можно было "восстановить" на новом аккорде.
+        return releasedTouches;
     },
-    // === КОНЕЦ ЗАМЕНЫ: _handleActiveTouchesOnChordSwitch ===
+    // === КОНЕЦ ИСПРАВЛЕНИЯ: _handleActiveTouchesOnChordSwitch ===
 
     // === НАЧАЛО: НОВЫЙ УНИВЕРСАЛЬНЫЙ МЕТОД ПЕРЕКЛЮЧЕНИЯ АККОРДОВ ===
     _switchChord(direction) {
@@ -1732,21 +1733,8 @@ const ChordModeStrategy = {
 
     _stopTimer() {
         if (!this._timerState.isActive) return;
-        
-        // --- ОСТАНОВКА И СКРЫТИЕ АНИМАЦИЙ ---
-        if (this._timerToggleButton) {
-            this._timerToggleButton.classList.remove('timer-active');
-        }
-        if (this._timerProgressContainer) {
-            this._timerProgressContainer.classList.remove('timer-active');
-            this._timerProgressContainer.style.display = 'none';
-        }
-        // Сброс анимаций, чтобы они не продолжались в фоне или не мешали следующему запуску
-        if (this._timerProgressBarLeft) this._timerProgressBarLeft.style.animation = 'none';
-        if (this._timerProgressBarRight) this._timerProgressBarRight.style.animation = 'none';
-        if (this._timerProgressRing) this._timerProgressRing.style.animation = 'none';
-        // --- КОНЕЦ ОСТАНОВКИ АНИМАЦИЙ ---
-        
+
+        // [Контекст -> Логика] Останавливаем запланированное событие в Tone.Transport
         if (this._timerState.scheduleId !== null && typeof Tone !== 'undefined' && Tone.Transport) {
             Tone.Transport.clear(this._timerState.scheduleId);
         }
@@ -1754,73 +1742,108 @@ const ChordModeStrategy = {
         this._timerState.isActive = false;
         this._timerState.scheduleId = null;
 
+        // >>> НАЧАЛО ИЗМЕНЕНИЙ <<<
+        // [Связь -> CSS] Удаляем активный класс, который запускает анимацию.
+        this._timerToggleButton?.classList.remove('timer-active');
+        this._timerProgressContainer?.classList.remove('timer-active');
+        // [Контекст -> Производительность] Скрываем контейнер прогресс-бара, чтобы он не занимал место.
+        if (this._timerProgressContainer) {
+            this._timerProgressContainer.style.display = 'none';
+        }
+        
+        // [Контекст -> CSS] ЯВНО СБРАСЫВАЕМ АНИМАЦИИ. Это ключевой шаг для подготовки к следующему запуску.
+        // Мы возвращаем свойство 'animation' в его исходное состояние.
+        if (this._timerProgressRing) this._timerProgressRing.style.animation = 'none';
+        if (this._timerProgressBarLeft) this._timerProgressBarLeft.style.animation = 'none';
+        if (this._timerProgressBarRight) this._timerProgressBarRight.style.animation = 'none';
+        // >>> КОНЕЦ ИЗМЕНЕНИЙ <<<
+        
+        // Обновляем текст на кнопке
         if (this._timerToggleButton) {
-            this._timerToggleButton.classList.remove('active'); // Старый класс для состояния кнопки
             const span = this._timerToggleButton.querySelector('span');
-            const buttonText = (typeof i18n !== 'undefined' && i18n.translate) ? i18n.translate('start_timer_label', 'Auto-Switch') : 'Auto-Switch';
+            const buttonText = i18n.translate('start_timer_label', 'Auto-Switch');
             if (span) span.textContent = buttonText;
         }
-        console.log('[ChordStrategy] Timer stopped.');
+        console.log('[ChordStrategy] Timer stopped and animations reset.');
     },
 
     _startTimer() {
-        this._stopTimer(); // Сначала останавливаем любой предыдущий таймер
-
+        this._stopTimer(); // Гарантированно останавливаем и сбрасываем любой предыдущий таймер.
+    
         if (!this._timerModal || !this._bpmInput || !this._secondsInput || !this.appRef) return;
-
+    
+        // 1. Получаем настройки из UI
         const selectedRadio = this._timerModal.querySelector('input[name="timer-mode"]:checked');
         this._timerState.mode = selectedRadio.value;
         this._timerState.bpm = parseInt(this._bpmInput.value, 10);
         this._timerState.seconds = parseFloat(this._secondsInput.value);
-
+    
         let intervalInSeconds;
+        let intervalForTone;
+    
+        // 2. Корректно вычисляем интервал в секундах для обоих режимов
         if (this._timerState.mode === 'rhythm') {
-            if (isNaN(this._timerState.bpm) || this._timerState.bpm < 20 || this._timerState.bpm > 300) { 
-                alert('Invalid BPM value.'); return;
+            if (isNaN(this._timerState.bpm) || this._timerState.bpm < 20 || this._timerState.bpm > 300) {
+                alert('Invalid BPM value.');
+                return;
             }
-            this.appRef.setBpm(this._timerState.bpm); 
-            intervalInSeconds = Tone.Time(this._timerState.interval).toSeconds();
-        } else { 
-            if (isNaN(this._timerState.seconds) || this._timerState.seconds < 0.5) { 
-                alert('Invalid seconds value.'); return;
+            this.appRef.setBpm(this._timerState.bpm);
+            intervalForTone = this._timerState.interval;
+            intervalInSeconds = Tone.Time(intervalForTone).toSeconds();
+        } else { // 'seconds' mode
+            if (isNaN(this._timerState.seconds) || this._timerState.seconds < 0.5) {
+                alert('Invalid seconds value.');
+                return;
             }
+            intervalForTone = this._timerState.seconds;
             intervalInSeconds = this._timerState.seconds;
         }
-
+    
         this._timerState.isActive = true;
-        const intervalForTone = this._timerState.mode === 'rhythm' ? this._timerState.interval : this._timerState.seconds;
-
         const animationDurationString = `${intervalInSeconds}s`;
-
-        // Функция для принудительного перезапуска анимации
+    
+        // 3. Создаем самодостаточную функцию перезапуска анимации
         const restartAnimation = (element, animationName) => {
             if (element) {
+                // ШАГ 1: Сбрасываем анимацию, чтобы убрать предыдущее состояние
                 element.style.animation = 'none';
-                void element.offsetWidth; // Магический трюк для вызова DOM reflow
+                // ШАГ 2: "Магический трюк" для принудительного применения сброса стилей
+                void element.offsetWidth;
+                // ШАГ 3: Устанавливаем новую анимацию, которую браузер воспримет как новую
                 element.style.animation = `${animationName} ${animationDurationString} linear forwards`;
             }
         };
-
-        // Применяем анимации к элементам
-        if (this._timerProgressContainer) this._timerProgressContainer.classList.add('timer-active');
-        if (this._timerToggleButton) this._timerToggleButton.classList.add('timer-active');
-
+    
+        // 4. Показываем UI элементы таймера
+        if (this._timerProgressContainer) {
+            this._timerProgressContainer.style.display = 'flex';
+            this._timerProgressContainer.classList.add('timer-active');
+        }
+        if (this._timerToggleButton) {
+            this._timerToggleButton.classList.add('timer-active');
+        }
+    
+        // 5. Запускаем анимацию в первый раз, СРАЗУ ПОСЛЕ нажатия "Start"
         restartAnimation(this._timerProgressRing, 'countdown-ring-fill');
-        if (this._timerProgressBarLeft) restartAnimation(this._timerProgressBarLeft, 'progress-bar-expand');
-        if (this._timerProgressBarRight) restartAnimation(this._timerProgressBarRight, 'progress-bar-expand');
-
+        restartAnimation(this._timerProgressBarLeft, 'progress-bar-expand');
+        restartAnimation(this._timerProgressBarRight, 'progress-bar-expand');
+    
+        // 6. Планируем ПОВТОРЯЮЩЕЕСЯ событие
         try {
             this._timerState.scheduleId = Tone.Transport.scheduleRepeat(time => {
+                // Используем Tone.Draw.schedule для синхронизации с рендерингом
                 Tone.Draw.schedule(() => {
-                    this._selectNextChord(); 
-                    // При каждой смене аккорда перезапускаем анимации для синхронизации
+                    // При каждом тике таймера:
+                    // - Сначала меняем аккорд
+                    this._selectNextChord();
+                    // - Затем перезапускаем анимации для нового интервала
                     restartAnimation(this._timerProgressRing, 'countdown-ring-fill');
-                    if (this._timerProgressBarLeft) restartAnimation(this._timerProgressBarLeft, 'progress-bar-expand');
-                    if (this._timerProgressBarRight) restartAnimation(this._timerProgressBarRight, 'progress-bar-expand');
+                    restartAnimation(this._timerProgressBarLeft, 'progress-bar-expand');
+                    restartAnimation(this._timerProgressBarRight, 'progress-bar-expand');
                 }, time);
-            }, intervalForTone);
+            }, intervalForTone); // Первый вызов произойдет ЧЕРЕЗ intervalForTone
     
-            if (Tone.Transport.state !== 'started') { 
+            if (Tone.Transport.state !== 'started') {
                 Tone.Transport.start();
             }
         } catch (e) {
@@ -1828,12 +1851,13 @@ const ChordModeStrategy = {
             this._timerState.isActive = false;
             return;
         }
-
+    
+        // 7. Обновляем текст на кнопке
         if (this._timerToggleButton) {
             const span = this._timerToggleButton.querySelector('span');
             if (span) span.textContent = i18n.translate('stop_timer_label', 'Stop');
         }
-        console.log(`[ChordStrategy] Timer started. Interval: ${intervalForTone} (${intervalInSeconds.toFixed(2)}s)`);
+        console.log(`[ChordStrategy] Timer started. Interval: ${intervalForTone}. Animation duration: ${animationDurationString}`);
         this._hideTimerModal();
     },
 

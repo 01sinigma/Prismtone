@@ -1173,6 +1173,15 @@ const visualizer = {
     },
 
     /**
+     * Returns a Set of active touch pointer IDs that the visualizer is currently tracking.
+     * Used by the pad sanitizer to detect desynchronization.
+     * @returns {Set<number>} A set of pointer IDs.
+     */
+    getActiveMarkers() {
+        return new Set(this.activeTouchPointsMap.keys());
+    },
+
+    /**
      * Disposes of visualizer resources, stops the animation loop, and removes event listeners.
      * Should be called when the visualizer is no longer needed to prevent memory leaks.
      */
