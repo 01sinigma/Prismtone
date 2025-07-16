@@ -6,6 +6,7 @@
   "description": "A soft ambient pad based on samples with expressive controls.",
   "active": false,
   "data": {
+    "baseVolume": 0.9,
     "sampler": {
       "enabled": true,
       "params": {
@@ -13,7 +14,7 @@
         "attack": 0.5,
         "release": 2.5,
         "curve": "exponential",
-        "volume": -9
+        "volume": 1.0
       }
     },
     "oscillator": { "enabled": false },

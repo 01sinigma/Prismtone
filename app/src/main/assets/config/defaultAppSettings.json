@@ -12,7 +12,6 @@
   "showLines": true,
   "highlightSharpsFlats": true,
   "masterVolumeCeiling": 1.0,
-  "enablePolyphonyVolumeScaling": true,
   "vibrationEnabled": true,
   "vibrationIntensity": "weak",
   "sensorSettings": {

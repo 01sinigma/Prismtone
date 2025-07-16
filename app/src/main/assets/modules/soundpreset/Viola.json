@@ -1,9 +1,9 @@
 {
-  "id": "Forest",
+  "id": "Viola",
   "type": "soundpreset",
-  "name": "Forest",
+  "name": "Viola",
   "version": "2.0.0",
-  "description": "A soft Forest based on samples with expressive controls.",
+  "description": "A soft viola based on samples with expressive controls.",
   "active": false,
   "data": {
     "baseVolume": 0.9,
@@ -13,7 +13,7 @@
     "sampler": {
       "enabled": true,
       "params": {
-        "instrument": "Forest",
+        "instrument": "Viola",
         "attack": 0.4,
         "release": 2.0,
         "curve": "exponential",

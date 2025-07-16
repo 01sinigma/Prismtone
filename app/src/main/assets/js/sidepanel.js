@@ -22,21 +22,13 @@ const sidePanel = {
     noteNamesToggle: null,
     linesToggle: null,
     multiTouchToggle: null,
-    // === НОВОЕ: Ссылка на переключатель Polyphony Volume Scaling ===
-    enablePolyphonyScalingToggle: null,
-    // ============================================================
-    // === НОВОЕ: Ссылка на переключатель Highlight Sharps/Flats ===
     highlightSharpsFlatsToggle: null,
-    // ============================================================
     padModeSelect: null,
-    padModeSelectorDisplay: null,       // Для отображения выбранного режима
-    modeSpecificControlsContainer: null, // Контейнер для настроек режима
+    padModeSelectorDisplay: null,
+    modeSpecificControlsContainer: null,
 
-    // === Rocket Mode UI ===
     rocketModeEnableToggle: null,
-    // ...
 
-    // Gyroscope settings UI elements
     smoothingAlphaSlider: null,
     smoothingAlphaValue: null,
     invertPitchAxisToggle: null,
@@ -55,7 +47,7 @@ const sidePanel = {
             effects: document.getElementById('effects-panel'),
             soundLibrary: document.getElementById('sound-library-panel'),
             padModes: document.getElementById('pad-modes-panel'),
-            'chord-mode-panel': document.getElementById('chord-mode-panel') // Добавляем панель аккордов
+            'chord-mode-panel': document.getElementById('chord-mode-panel')
         };
 
         let allPanelsFound = true;
@@ -92,25 +84,15 @@ const sidePanel = {
         this.noteNamesToggle = document.getElementById('show-note-names-toggle');
         this.linesToggle = document.getElementById('show-lines-toggle');
         this.multiTouchToggle = document.getElementById('toggle-multi-touch');
-        // === ИНИЦИАЛИЗАЦИЯ ПЕРЕКЛЮЧАТЕЛЯ ===
-        console.log('[SidePanel.init] Attempting to get element by ID: enable-polyphony-volume-scaling-toggle', document.getElementById('enable-polyphony-volume-scaling-toggle'));
-        this.enablePolyphonyScalingToggle = document.getElementById('enable-polyphony-volume-scaling-toggle');
-        if (!this.enablePolyphonyScalingToggle) console.warn("[SidePanel.init] Enable Polyphony Scaling toggle ('enable-polyphony-volume-scaling-toggle') NOT FOUND.");
-        else console.log("[SidePanel.init] Found Enable Polyphony Scaling toggle.");
-        // ===================================
 
-        // === ИНИЦИАЛИЗАЦИЯ НОВОГО ПЕРЕКЛЮЧАТЕЛЯ Highlight Sharps/Flats ===
-        console.log('[SidePanel.init] Attempting to get element by ID: highlight-sharps-flats-toggle', document.getElementById('highlight-sharps-flats-toggle'));
         this.highlightSharpsFlatsToggle = document.getElementById('highlight-sharps-flats-toggle');
         if (!this.highlightSharpsFlatsToggle) console.warn("[SidePanel.init] Highlight Sharps/Flats toggle ('highlight-sharps-flats-toggle') NOT FOUND.");
         else console.log("[SidePanel.init] Found Highlight Sharps/Flats toggle.");
-        // ==============================================================
 
         this.padModeSelect = document.getElementById('pad-mode-select');
 
         this.masterVolumeCeilingSlider = document.getElementById('master-volume-ceiling-slider');
         this.masterVolumeCeilingValue = document.getElementById('master-volume-ceiling-value');
-        this.enablePolyphonyVolumeScalingToggle = document.getElementById('enable-polyphony-volume-scaling-toggle');
         this.resetSettingsButton = document.getElementById('reset-settings-button');
         this.restartAudioButton = document.getElementById('restart-audio-button');
         this.reloadAppButton = document.getElementById('reload-app-button');
@@ -126,9 +108,7 @@ const sidePanel = {
         if (!this.padModeSelectorDisplay) console.error("[SidePanel.init PadModes] Pad Mode Selector Display not found!");
         if (!this.modeSpecificControlsContainer) console.error("[SidePanel.init PadModes] Mode Specific Controls Container not found!");
 
-        // === Rocket Mode UI ===
         this.rocketModeEnableToggle = document.getElementById('rocket-mode-enable-toggle');
-        // ...
 
         this.vibrationToggle = document.getElementById('vibration-toggle');
         this.vibrationIntensityControls = document.getElementById('vibration-intensity-controls');
@@ -136,7 +116,6 @@ const sidePanel = {
             this.vibrationButtons = this.vibrationIntensityControls.querySelectorAll('button');
         }
 
-        // Gyroscope settings
         this.smoothingAlphaSlider = document.getElementById('smoothing-alpha-slider');
         this.smoothingAlphaValue = document.getElementById('smoothing-alpha-value');
         this.invertPitchAxisToggle = document.getElementById('invert-pitch-axis-toggle');
@@ -278,27 +257,15 @@ const sidePanel = {
                 }
             });
         }
-        if (this.multiTouchToggle) { /* this.multiTouchToggle.addEventListener('change', () => { app.toggleMultiTouch(this.multiTouchToggle.checked); }); */ } // Мультитач пока disabled
+        if (this.multiTouchToggle) { /* this.multiTouchToggle.addEventListener('change', () => { app.toggleMultiTouch(this.multiTouchToggle.checked); }); */ }
 
-        // === ОБРАБОТЧИК ДЛЯ Polyphony Volume Scaling Toggle ===
-        if (this.enablePolyphonyScalingToggle) {
-            this.enablePolyphonyScalingToggle.addEventListener('change', () => {
-                if (app && typeof app.setEnablePolyphonyVolumeScaling === 'function') {
-                    app.setEnablePolyphonyVolumeScaling(this.enablePolyphonyScalingToggle.checked);
-                }
-            });
-        } else { console.warn("[SidePanel.addEventListeners v3] Enable Polyphony Scaling toggle not found."); }
-        // ====================================================
-
-        // === ОБРАБОТЧИК ДЛЯ Highlight Sharps/Flats Toggle ===
         if (this.highlightSharpsFlatsToggle) {
             this.highlightSharpsFlatsToggle.addEventListener('change', () => {
                 if (app && typeof app.toggleHighlightSharpsFlats === 'function') {
                     app.toggleHighlightSharpsFlats(!!this.highlightSharpsFlatsToggle.checked);
                 }
             });
-        } else { console.warn("[SidePanel.addEventListeners v3] Highlight Sharps/Flats toggle not found."); }
-        // ====================================================
+        }
 
         const fxChainSelect = document.getElementById('fx-chain-select');
         if (fxChainSelect) {
@@ -408,7 +375,6 @@ const sidePanel = {
             });
         }
 
-        // === Rocket Mode UI ===
         if (this.rocketModeEnableToggle && this.modeSpecificControlsContainer) {
             this.rocketModeEnableToggle.addEventListener('change', async (e) => {
                 const isEnabled = e.target.checked;
@@ -422,7 +388,6 @@ const sidePanel = {
                 }
             });
         }
-        // ...
 
         if (this.vibrationToggle) {
             this.vibrationToggle.addEventListener('change', (e) => {
@@ -437,7 +402,6 @@ const sidePanel = {
             });
         }
 
-        // Gyroscope Settings Listeners
         if (this.smoothingAlphaSlider) {
             this.smoothingAlphaSlider.addEventListener('input', (e) => {
                 const value = parseFloat(e.target.value);
@@ -452,7 +416,7 @@ const sidePanel = {
                     app.state.sensorSettings.smoothingAlpha = value;
                     if (window.PrismtoneBridge && window.PrismtoneBridge.updateSensorSettings) {
                         window.PrismtoneBridge.updateSensorSettings(JSON.stringify(app.state.sensorSettings));
-                    } else if (bridgeFix && bridgeFix.callBridge) { // Fallback for older bridgeFix style
+                    } else if (bridgeFix && bridgeFix.callBridge) {
                         bridgeFix.callBridge('updateSensorSettings', JSON.stringify(app.state.sensorSettings));
                     }
                 }
@@ -689,7 +653,7 @@ const sidePanel = {
         });
     },
 
-    updateSettingsControls(langId, themeId, vizId, touchEffectId, showNames, showGrid, enablePolyScaling, highlightSharps, currentPadMode, rocketSettings, enableVibration, vibrationIntensity) {
+    updateSettingsControls(langId, themeId, vizId, touchEffectId, showNames, showGrid, highlightSharps, currentPadMode, rocketSettings, enableVibration, vibrationIntensity) {
         if (this.languageSelect && this.languageSelect.options.length > 0) { if (this.languageSelect.querySelector(`option[value="${langId}"]`)) this.languageSelect.value = langId; else { this.languageSelect.selectedIndex = 0; } }
         if (this.themeSelect && this.themeSelect.options.length > 0) { if (this.themeSelect.querySelector(`option[value="${themeId}"]`)) this.themeSelect.value = themeId; else { this.themeSelect.selectedIndex = 0; } }
         if (this.visualizerSelect && this.visualizerSelect.options.length > 0) { if (this.visualizerSelect.querySelector(`option[value="${vizId}"]`)) this.visualizerSelect.value = vizId; else { this.visualizerSelect.selectedIndex = 0; } }
@@ -707,9 +671,7 @@ const sidePanel = {
         if (this.noteNamesToggle) this.noteNamesToggle.checked = showNames;
         if (this.linesToggle) this.linesToggle.checked = showGrid;
         if (this.highlightSharpsFlatsToggle) this.highlightSharpsFlatsToggle.checked = highlightSharps;
-        if (this.enablePolyphonyScalingToggle) this.enablePolyphonyScalingToggle.checked = enablePolyScaling;
 
-        // >>> НАЧАЛО НОВОЙ ЛОГИКИ ОБНОВЛЕНИЯ UI ВИБРАЦИИ <<<
         if (this.vibrationToggle) {
             this.vibrationToggle.checked = enableVibration;
         }
@@ -719,7 +681,6 @@ const sidePanel = {
         this.vibrationButtons.forEach(button => {
             button.classList.toggle('active', button.dataset.intensity === vibrationIntensity);
         });
-        // >>> КОНЕЦ НОВОЙ ЛОГИКИ ОБНОВЛЕНИЯ UI ВИБРАЦИИ <<<
 
         if (this.padModeSelect && this.padModeSelect.options.length > 0) {
             if (currentPadMode && this.padModeSelect.querySelector(`option[value="${currentPadMode}"]`)) {
@@ -732,7 +693,6 @@ const sidePanel = {
         this.displayModeSpecificControls(currentPadMode);
         console.log(`[SidePanel.updateSettingsControls] Updated UI for ... Vibration: ${enableVibration}, Intensity: ${vibrationIntensity}`);
 
-        // Update Gyroscope settings UI
         if (app && app.state && app.state.sensorSettings) {
             if (this.smoothingAlphaSlider) this.smoothingAlphaSlider.value = app.state.sensorSettings.smoothingAlpha;
             if (this.smoothingAlphaValue) this.smoothingAlphaValue.textContent = parseFloat(app.state.sensorSettings.smoothingAlpha).toFixed(2);
@@ -769,11 +729,8 @@ const sidePanel = {
     },
 
     showPanel(panelId) {
-        // Если открываем панель, которая НЕ является панелью аккордов
         if (panelId !== 'chord-mode-panel') {
-            // Прячем ВСЕ панели, кроме панели аккордов
             this.hideAllPanels(); 
-            // И СВОРАЧИВАЕМ панель аккордов, если мы в режиме 'chord'
             if (app.state.padMode === 'chord') {
                 app.toggleChordPanel(true);
             }
@@ -781,7 +738,6 @@ const sidePanel = {
         
         const panel = this.panels[panelId];
         if (panel) {
-            // Если мы показываем панель аккордов, убедимся, что она развернута
             if (panelId === 'chord-mode-panel') {
                 app.toggleChordPanel(false);
             }
@@ -809,7 +765,6 @@ const sidePanel = {
             topbar.deactivateAllButtons();
         }
         for (const id in this.panels) {
-            // Панель аккордов управляется отдельно, здесь ее не трогаем
             if (id !== exceptId && id !== 'chord-mode-panel' && this.panels[id]) {
                 this.hidePanel(id);
             }

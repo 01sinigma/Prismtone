@@ -27,7 +27,6 @@ const app = {
         showNoteNames: true,
         showLines: true,
         masterVolumeCeiling: 1.0,
-        enablePolyphonyVolumeScaling: true,
         currentTonic: "C4",
         highlightSharpsFlats: true, // Включено по умолчанию
         yAxisControls: {
@@ -565,7 +564,6 @@ const app = {
                 this.state.showNoteNames = settings.showNoteNames ?? this.state.showNoteNames;
                 this.state.showLines = settings.showLines ?? this.state.showLines;
                 this.state.masterVolumeCeiling = settings.masterVolumeCeiling ?? this.state.masterVolumeCeiling;
-                this.state.enablePolyphonyVolumeScaling = settings.enablePolyphonyVolumeScaling ?? this.state.enablePolyphonyVolumeScaling;
                 this.state.highlightSharpsFlats = settings.highlightSharpsFlats ?? this.state.highlightSharpsFlats;
                 this.state.currentTonic = settings.currentTonic || this.state.currentTonic;
 
@@ -1275,23 +1273,6 @@ const app = {
     },
 
     /**
-     * Enables or disables polyphony volume scaling in the synthesizer.
-     * @param {boolean} isEnabled - True to enable, false to disable.
-     */
-    setEnablePolyphonyVolumeScaling(isEnabled) {
-        const enabled = typeof isEnabled === 'boolean' ? isEnabled : !!isEnabled; // Ensure boolean
-        if (this.state.enablePolyphonyVolumeScaling === enabled) return;
-        this.state.enablePolyphonyVolumeScaling = enabled;
-        console.log('[App] Enable Polyphony Volume Scaling toggled to:', this.state.enablePolyphonyVolumeScaling);
-        if (synth && synth.isReady) {
-            synth.applyMasterVolumeSettings(); // Re-apply settings as this affects volume calculation
-        }
-        bridgeFix.callBridge('setSetting', 'enablePolyphonyVolumeScaling', this.state.enablePolyphonyVolumeScaling.toString())
-           .catch(err => console.error("[App] Bridge setSetting enablePolyphonyVolumeScaling failed:", err));
-        this._updateSidePanelSettingsUI();
-    },
-
-    /**
      * Sets a specific Y-axis control parameter.
      * @param {'volume' | 'effects'} group - The control group ('volume' or 'effects').
      * @param {string} controlName - The specific parameter name (e.g., 'minOutput', 'curveType').
@@ -1837,7 +1818,6 @@ const app = {
                 this.state.touchEffect,
                 this.state.showNoteNames,
                 this.state.showLines,
-                this.state.enablePolyphonyVolumeScaling,
                 this.state.highlightSharpsFlats,
                 this.state.padMode,
                 this.state.rocketModeSettings,

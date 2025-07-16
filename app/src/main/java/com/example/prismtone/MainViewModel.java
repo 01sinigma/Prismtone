@@ -31,7 +31,6 @@ public class MainViewModel extends ViewModel {
     private static final String PREF_KEY_SHOW_NOTE_NAMES = "show_note_names";
     private static final String PREF_KEY_SHOW_LINES = "show_lines";
     private static final String PREF_KEY_MASTER_VOLUME_CEILING = "master_volume_ceiling";
-    private static final String PREF_KEY_ENABLE_POLY_SCALING = "enable_poly_scaling";
     private static final String PREF_KEY_HIGHLIGHT_SHARPS = "highlight_sharps";
     private static final String PREF_KEY_YAXIS_CONTROLS = "yaxis_controls";
     // endregion
@@ -85,7 +84,6 @@ public class MainViewModel extends ViewModel {
         setGenericSetting(PREF_KEY_SHOW_NOTE_NAMES, prefs.getBoolean(PREF_KEY_SHOW_NOTE_NAMES, true));
         setGenericSetting(PREF_KEY_SHOW_LINES, prefs.getBoolean(PREF_KEY_SHOW_LINES, true));
         setGenericSetting(PREF_KEY_MASTER_VOLUME_CEILING, (double) prefs.getFloat(PREF_KEY_MASTER_VOLUME_CEILING, 1.0f));
-        setGenericSetting(PREF_KEY_ENABLE_POLY_SCALING, prefs.getBoolean(PREF_KEY_ENABLE_POLY_SCALING, true));
         setGenericSetting(PREF_KEY_HIGHLIGHT_SHARPS, prefs.getBoolean(PREF_KEY_HIGHLIGHT_SHARPS, true));
 
         String yAxisJson = prefs.getString(PREF_KEY_YAXIS_CONTROLS, null);
@@ -115,7 +113,6 @@ public class MainViewModel extends ViewModel {
 
         if (getSetting(PREF_KEY_SHOW_NOTE_NAMES) instanceof Boolean) editor.putBoolean(PREF_KEY_SHOW_NOTE_NAMES, (Boolean) getSetting(PREF_KEY_SHOW_NOTE_NAMES));
         if (getSetting(PREF_KEY_SHOW_LINES) instanceof Boolean) editor.putBoolean(PREF_KEY_SHOW_LINES, (Boolean) getSetting(PREF_KEY_SHOW_LINES));
-        if (getSetting(PREF_KEY_ENABLE_POLY_SCALING) instanceof Boolean) editor.putBoolean(PREF_KEY_ENABLE_POLY_SCALING, (Boolean) getSetting(PREF_KEY_ENABLE_POLY_SCALING));
         if (getSetting(PREF_KEY_HIGHLIGHT_SHARPS) instanceof Boolean) editor.putBoolean(PREF_KEY_HIGHLIGHT_SHARPS, (Boolean) getSetting(PREF_KEY_HIGHLIGHT_SHARPS));
         if (getSetting(PREF_KEY_MASTER_VOLUME_CEILING) instanceof Double) editor.putFloat(PREF_KEY_MASTER_VOLUME_CEILING, ((Double) getSetting(PREF_KEY_MASTER_VOLUME_CEILING)).floatValue());
 

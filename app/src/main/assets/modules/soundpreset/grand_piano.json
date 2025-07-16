@@ -6,6 +6,7 @@
   "description": "A grand piano sound using samples.",
   "active": false,
   "data": {
+    "baseVolume": 0.9,
     "sampler": {
       "enabled": true,
       "params": {
@@ -13,7 +14,7 @@
         "attack": 0.01,
         "release": 1.2,
         "curve": "exponential",
-        "volume": 3
+        "volume": 1.0
       }
     },
     "oscillator": { "enabled": false },
