@@ -1,25 +1,29 @@
 {
   "id": "Ambient_pad",
   "type": "soundpreset",
-  "name": "Ambient Pad",
-  "version": "2.0.2",
-  "description": "A soft ambient pad based on samples with expressive controls.",
+  "name": "Ambient_pad",
+  "version": "2.0.0",
+  "description": "A soft Ambient_pad based on samples with expressive controls.",
   "active": false,
   "data": {
     "baseVolume": 0.9,
+    "oscillator": {
+      "enabled": false
+    },
     "sampler": {
       "enabled": true,
       "params": {
         "instrument": "Ambient_pad",
-        "attack": 0.5,
-        "release": 2.5,
+        "attack": 0.4,
+        "release": 2.0,
         "curve": "exponential",
         "volume": 1.0
       }
     },
-    "oscillator": { "enabled": false },
     "amplitudeEnv": { "enabled": false },
     "filter": { "enabled": false },
+    "pitchEnvelope": { "enabled": false },
+    "lfo1": { "enabled": false },
     "outputGain": {
       "params": {
         "gain": 0.8

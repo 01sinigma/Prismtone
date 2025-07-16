@@ -1,0 +1,16 @@
+[
+  { "id": 36, "name": "Bass Drum", "descriptor": "kick" },
+  { "id": 38, "name": "Snare Drum", "descriptor": "snare" },
+  { "id": 42, "name": "Closed Hi-Hat", "descriptor": "closed_hat" },
+  { "id": 46, "name": "Open Hi-Hat", "descriptor": "open_hat" },
+  { "id": 45, "name": "Low Tom", "descriptor": "low_tom" },
+  { "id": 48, "name": "Mid Tom", "descriptor": "mid_tom" },
+  { "id": 50, "name": "High Tom", "descriptor": "high_tom" },
+  { "id": 49, "name": "Crash Cymbal", "descriptor": "crash" },
+  { "id": 51, "name": "Ride Cymbal", "descriptor": "ride" },
+  { "id": 39, "name": "Clap", "descriptor": "clap" },
+  { "id": 40, "name": "Rimshot", "descriptor": "rimshot" },
+  { "id": 70, "name": "Maracas", "descriptor": "maracas" },
+  { "id": 67, "name": "Agogo", "descriptor": "agogo" },
+  { "id": 43, "name": "Floor Tom", "descriptor": "floor_tom" }
+]

@@ -1,0 +1,23 @@
+[
+  {
+    "kitId": "808_classic",
+    "name": "808 Classic Kit",
+    "path": "audio/samples/808_kit/",
+    "mapping": {
+      "kick": "kick.wav",
+      "snare": "snare.wav",
+      "closed_hat": "closed_hat.wav",
+      "open_hat": "open_hat.wav",
+      "low_tom": "low_tom.wav",
+      "mid_tom": "mid_tom.wav",
+      "high_tom": "high_tom.wav",
+      "crash": "crash.wav",
+      "ride": "ride.wav",
+      "clap": "clap.wav",
+      "rimshot": "rimshot.wav",
+      "maracas": "maracas.wav",
+      "agogo": "agogo.wav",
+      "floor_tom": "floor_tom.wav"
+    }
+  }
+]
