@@ -35,7 +35,7 @@
     },
     "outputGain": {
       "params": {
-        "gain": 0
+        "gain": 0.8
       }
     },
     "pitchEnvelope": {

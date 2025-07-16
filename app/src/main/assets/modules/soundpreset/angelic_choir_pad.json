@@ -29,7 +29,7 @@
         "Q": 1.8
       }
     },
-    "outputGain": { "params": { "gain": 0 } },
+    "outputGain": { "params": { "gain": 0.8 } },
     "pitchEnvelope": { "enabled": false },
     "filterEnvelope": {
       "enabled": true,

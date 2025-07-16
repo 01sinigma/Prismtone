@@ -31,6 +31,11 @@
         "Q": 0.7
       }
     },
+    "outputGain": {
+      "params": {
+        "gain": 0.8
+      }
+    },
     "pitchEnvelope": {
       "enabled": false,
       "params": {

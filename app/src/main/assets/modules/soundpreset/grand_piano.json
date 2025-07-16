@@ -19,6 +19,11 @@
     "oscillator": { "enabled": false },
     "amplitudeEnv": { "enabled": false },
     "filter": { "enabled": false },
+    "outputGain": {
+      "params": {
+        "gain": 0.8
+      }
+    },
     "colors": {
       "primary": "#E0E0E0",
       "text": "#000000"

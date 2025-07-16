@@ -29,7 +29,7 @@
     },
     "outputGain": {
       "params": {
-        "gain": 0.5
+        "gain": 0.8
       }
     },
     "filterEnvelope": {

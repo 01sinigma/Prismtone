@@ -31,7 +31,7 @@
         "rolloff": -24
       }
     },
-    "outputGain": { "params": { "gain": 0.35 } },
+    "outputGain": { "params": { "gain": 0.8 } },
     "pitchEnvelope": { "enabled": false },
     "filterEnvelope": {
       "enabled": true,

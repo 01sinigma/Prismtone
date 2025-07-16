@@ -23,6 +23,11 @@
     "filter": { "enabled": false },
     "pitchEnvelope": { "enabled": false },
     "lfo1": { "enabled": false },
+    "outputGain": {
+      "params": {
+        "gain": 0.8
+      }
+    },
     "colors": {
       "primary": "#4A708B",
       "text": "#E0E0E0"
