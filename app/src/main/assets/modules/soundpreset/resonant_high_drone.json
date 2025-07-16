@@ -63,8 +63,8 @@
       }
     },
     "colors": {
-      "primary": "#78909C",
-      "text": "#ECEFF1"
+      "primary": "#00000000",
+      "text": "#FF8A80"
     }
   }
 }

@@ -58,8 +58,8 @@
       "effects": {}
     },
     "colors": {
-      "primary": "#283593",
-      "text": "#C5CAE9"
+      "primary": "#00000000",
+      "text": "#6A4C93"
     }
   }
 }

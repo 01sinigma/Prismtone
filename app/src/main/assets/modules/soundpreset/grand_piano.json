@@ -26,8 +26,8 @@
       }
     },
     "colors": {
-      "primary": "#E0E0E0",
-      "text": "#000000"
+      "primary": "#00000000",
+      "text": "#8D6E63"
     }
   }
 }

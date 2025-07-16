@@ -55,8 +55,8 @@
       }
     },
     "colors": {
-      "primary": "#26A69A",
-      "text": "#FFFFFF"
+      "primary": "#00000000",
+      "text": "#26A69A"
     }
   }
 }

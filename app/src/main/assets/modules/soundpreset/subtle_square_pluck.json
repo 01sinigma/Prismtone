@@ -53,8 +53,8 @@
       "enabled": false
     },
     "colors": {
-      "primary": "#80CBC4",
-      "text": "#004D40"
+      "primary": "#00000000",
+      "text": "#FFCC02"
     }
   }
 }

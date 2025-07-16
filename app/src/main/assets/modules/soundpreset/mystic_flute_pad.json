@@ -73,8 +73,8 @@
       }
     },
     "colors": {
-      "primary": "#4DB6AC",
-      "text": "#FFFFFF"
+      "primary": "#00000000",
+      "text": "#B39DDB"
     }
   }
 }

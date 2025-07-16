@@ -46,6 +46,9 @@
       "enabled": true,
       "time": 0.08
     },
-    "colors": { "primary": "#FBC02D", "text": "#3E2723" }
+    "colors": {
+      "primary": "#00000000",
+      "text": "#FF6F00"
+    }
   }
 }

@@ -62,8 +62,8 @@
       "enabled": false
     },
     "colors": {
-      "primary": "#4DD0E1",
-      "text": "#006064"
+      "primary": "#00000000",
+      "text": "#E1F5FE"
     }
   }
 }
