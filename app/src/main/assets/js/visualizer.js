@@ -49,6 +49,18 @@ const visualizer = {
     _hexToRgbCache: {}, // Глобальный кеш для hexToRgb
     _colorWithAlphaCache: {}, // Глобальный кеш для getColorWithAlpha
 
+    // [НОВОЕ] Свойства для отслеживания жестов
+    _gestureState: {
+        isPinching: false,
+        initialPinchDistance: 0,
+        
+        isRotating: false,
+        initialRotationAngle: 0,
+        
+        lastTap: { time: 0, x: 0, y: 0, count: 0 },
+        lastPointerDown: { time: 0, x: 0, y: 0 }
+    },
+
     // Добавить новый вспомогательный метод в visualizer.js
     _resetCanvasContext() {
         if (!this.ctx) return;
@@ -624,89 +636,109 @@ const visualizer = {
         }
     },
 
+    _updateGestureState() {
+        // [Контекст -> Инициализация] Создаем объект gestureState, который будет передан в рендерер.
+        const gestureState = {
+            pinch: { isActive: false, scale: 1.0, velocity: 0, center: { x: 0, y: 0 } },
+            rotate: { isActive: false, rotation: 0, center: { x: 0, y: 0 } },
+            taps: [], // Для быстрых одиночных кликов
+            swipes: [] // Для быстрых движений
+        };
+
+        const activeTouches = Array.from(this.activeTouchPointsMap.values());
+
+        // [Контекст -> Логика] Распознавание жестов для двух пальцев (щипок и поворот).
+        if (activeTouches.length === 2) {
+            const t1 = activeTouches[0];
+            const t2 = activeTouches[1];
+            
+            const dx = t1.x - t2.x;
+            const dy = t1.y - t2.y;
+            const currentDistance = Math.hypot(dx, dy);
+            const currentAngle = Math.atan2(dy, dx);
+            const centerX = (t1.x + t2.x) / 2;
+            const centerY = (t1.y + t2.y) / 2;
+
+            if (!this._gestureState.isPinching && !this._gestureState.isRotating) {
+                // [Связь -> Начало жеста] Первый кадр, когда мы обнаружили два пальца.
+                // Запоминаем начальные значения.
+                this._gestureState.isPinching = true;
+                this._gestureState.isRotating = true;
+                this._gestureState.initialPinchDistance = currentDistance;
+                this._gestureState.initialRotationAngle = currentAngle;
+            }
+
+            // [Связь -> Расчет жеста] Рассчитываем текущие значения для кадра.
+            gestureState.pinch.isActive = true;
+            gestureState.pinch.scale = this._gestureState.initialPinchDistance > 1 ? currentDistance / this._gestureState.initialPinchDistance : 1.0;
+            gestureState.pinch.center = { x: centerX, y: centerY };
+
+            gestureState.rotate.isActive = true;
+            gestureState.rotate.rotation = currentAngle - this._gestureState.initialRotationAngle;
+            gestureState.rotate.center = { x: centerX, y: centerY };
+            
+            // [Связь -> Обновление] Обновляем "предыдущий" угол для расчета в следующем кадре.
+            this._gestureState.initialRotationAngle = currentAngle;
+
+        } else {
+            // [Связь -> Завершение жеста] Если количество пальцев не равно двум, сбрасываем состояние.
+            this._gestureState.isPinching = false;
+            this._gestureState.isRotating = false;
+        }
+        
+        // [Контекст -> TODO] Здесь можно добавить логику распознавания тапов и свайпов,
+        // анализируя время и расстояние между onTouchDown и onTouchUp.
+        // Пока оставляем пустыми.
+
+        return gestureState;
+    },
+
     /**
      * The main drawing function, called on each animation frame by `fpsManager`.
      * Clears the canvas, then calls the `draw` methods of the active main visualizer renderer,
      * the active touch effect renderer, and the pad hints renderer.
      */
     draw() {
-        if (this.debugMode && this._padHintsToDraw && this._padHintsToDraw.length > 0) {
-            console.log(`[Visualizer.draw DBG] _padHintsToDraw (${this._padHintsToDraw.length}) items:`);
-            this._padHintsToDraw.forEach((h, i) => {
-                if (h) { // Check if hint object exists
-                    console.log(`  [Visualizer DBG] Hint ${i}: zoneIndex=${h.zoneIndex}, type='${h.type}', style='${h.style}', color='${h.color}', note='${h.noteName || (h.notes ? h.notes.join(',') : 'N/A')}'`);
-                } else {
-                    console.log(`  [Visualizer DBG] Hint ${i}: null or undefined`);
-                }
-            });
-        }
-        if (!this.isReady || !this.ctx || !this.canvas || this.canvas.width === 0 || this.canvas.height === 0) return;
-
+        if (!this.isReady || !this.ctx || !this.canvas) return;
+    
+        // [НОВОЕ] В самом начале кадра вызываем наш анализатор жестов.
+        const gestureState = this._updateGestureState();
+    
         const audioData = (this.analyser && this.isReady) ? this.analyser.getValue() : null;
         const activeTouchStates = (typeof pad !== 'undefined' && pad.getActiveTouchStates) ? pad.getActiveTouchStates() : [];
-
-        // >>> NEW: Получаем данные о наклоне из app.state <<<
         const deviceTilt = (app && app.state && app.state.deviceTilt) ? app.state.deviceTilt : { pitch: 0, roll: 0 };
-
+    
         this.ctx.save();
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-        // 1. Основной визуализатор
+    
+        let finalHapticRequest = null;
+    
+        // 1. Собираем запрос от основного визуализатора
         if (this.activeRenderer && typeof this.activeRenderer.draw === 'function') {
             try {
-                // >>> NEW: Передаем deviceTilt в рендерер <<<
-                this.activeRenderer.draw(audioData, activeTouchStates, deviceTilt);
-            } catch (e) {
-                console.error(`[Visualizer] Error in activeRenderer.draw for ${this.currentVizType}:`, e);
-            }
-        }
-        // 1. Рисуем fading-маркеры (fade-out)
-        if (Array.isArray(this._fadingPadHints) && this._fadingPadHints.length > 0) {
-            const now = performance.now();
-            this._fadingPadHints = this._fadingPadHints.filter(hint => {
-                if (!hint) return false; // Safety check
-                const elapsed = now - (hint.fadeOutStart || now);
-                const duration = hint.fadeOutDuration || 600; // мс, можно сделать настройкой
-                const fadeAlpha = 1 - Math.min(1, elapsed / duration);
-                if (fadeAlpha <= 0.01) return false;
-
-                const zoneData = pad && pad._currentDisplayedZones && pad._currentDisplayedZones[hint.zoneIndex];
-                if (zoneData) {
-                    const zoneRect = {
-                        x: Math.round(zoneData.startX * this.canvas.width),
-                        y: 0,
-                        width: Math.round((zoneData.endX - zoneData.startX) * this.canvas.width),
-                        height: this.canvas.height // height is typically an integer already
-                    };
-                    const styleRendererMethodName = `_renderMarker_${hint.style}`;
-                    if (typeof this[styleRendererMethodName] === 'function') {
-                        this[styleRendererMethodName](zoneRect, hint, [], fadeAlpha * 0.7);
-                    } else {
-                        this._renderMarker_GlowFromNote(zoneRect, hint, [], fadeAlpha * 0.7); // Fallback
-                    }
+                const result = this.activeRenderer.draw(audioData, activeTouchStates, deviceTilt, gestureState);
+                if (result && result.hapticRequest) {
+                    finalHapticRequest = result.hapticRequest;
                 }
-                return true;
-            });
+            } catch(e) { console.error(`[Visualizer] Error in activeRenderer.draw for ${this.currentVizType}:`, e); }
         }
-        // 2. RocketMode: гармонические маркеры и подсветка
-        const originalCompositeOp = this.ctx.globalCompositeOperation;
-        // PERFORMANCE NOTE: 'lighter' globalCompositeOperation can be expensive.
-        // If performance issues persist, consider alternatives or limiting its scope.
-        this.ctx.globalCompositeOperation = 'lighter';
-        try {
-            this._drawHarmonicMarkers(activeTouchStates);
-        } catch (e) {
-            if (this.debugMode) console.error(`[Visualizer.draw] Error in _drawHarmonicMarkers:`, e);
-        }
-        this.ctx.globalCompositeOperation = originalCompositeOp;
-        // 3. Эффекты касания
+        
+        // 2. Собираем запрос от эффекта касания (он может переопределить запрос от основного)
         if (this.activeTouchEffectRenderer && typeof this.activeTouchEffectRenderer.drawActiveEffects === 'function') {
             try {
-                this.activeTouchEffectRenderer.drawActiveEffects();
-            } catch (e) {
-                if (this.debugMode) console.error(`[Visualizer v4.1] Error in activeTouchEffectRenderer.drawActiveEffects for ${this.currentTouchEffectType}:`, e);
-            }
+                // [ИЗМЕНЕНО] Передаем `gestureState` и сюда
+                const result = this.activeTouchEffectRenderer.drawActiveEffects(gestureState);
+                if (result && result.hapticRequest) {
+                    finalHapticRequest = result.hapticRequest; // Эффект касания имеет приоритет
+                }
+            } catch(e) { if (this.debugMode) console.error(`[Visualizer v4.1] Error in activeTouchEffectRenderer.drawActiveEffects for ${this.currentTouchEffectType}:`, e); }
         }
+    
+        // 3. Передаем финальный запрос в сервис вибрации
+        if (typeof VibrationService !== 'undefined' && VibrationService.processHapticRequest) {
+            VibrationService.processHapticRequest(finalHapticRequest);
+        }
+        
         this.ctx.restore();
     },
 

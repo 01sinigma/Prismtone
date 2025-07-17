@@ -1,0 +1,37 @@
+{
+  "id": "Cristal_ice",
+  "type": "soundpreset",
+  "name": "Cristal Ice",
+  "version": "1.0.0",
+  "description": "A cold, crystalline sound, like a shard of ice.",
+  "active": false,
+  "data": {
+    "baseVolume": 0.9,
+    "oscillator": {
+      "enabled": false
+    },
+    "sampler": {
+      "enabled": true,
+      "params": {
+        "instrument": "Cristal ice",
+        "attack": 0.1,
+        "release": 1.5,
+        "curve": "linear",
+        "volume": 1.0
+      }
+    },
+    "amplitudeEnv": { "enabled": false },
+    "filter": { "enabled": false },
+    "pitchEnvelope": { "enabled": false },
+    "lfo1": { "enabled": false },
+    "outputGain": {
+      "params": {
+        "gain": 0.8
+      }
+    },
+    "colors": {
+      "primary": "#00BCD4",
+      "text": "#000000"
+    }
+  }
+}

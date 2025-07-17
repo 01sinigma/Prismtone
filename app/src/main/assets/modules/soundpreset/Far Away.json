@@ -1,0 +1,37 @@
+{
+  "id": "Far Away",
+  "type": "soundpreset",
+  "name": "Far Away",
+  "version": "2.0.0",
+  "description": "A soft Far Away based on samples with expressive controls.",
+  "active": false,
+  "data": {
+    "baseVolume": 0.9,
+    "oscillator": {
+      "enabled": false
+    },
+    "sampler": {
+      "enabled": true,
+      "params": {
+        "instrument": "Far Away",
+        "attack": 0.4,
+        "release": 2.0,
+        "curve": "exponential",
+        "volume": 1.0
+      }
+    },
+    "amplitudeEnv": { "enabled": false },
+    "filter": { "enabled": false },
+    "pitchEnvelope": { "enabled": false },
+    "lfo1": { "enabled": false },
+    "outputGain": {
+      "params": {
+        "gain": 0.8
+      }
+    },
+    "colors": {
+      "primary": "#5C6BC0",
+      "text": "#000000"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "id": "Shamisen",
+  "type": "soundpreset",
+  "name": "Shamisen",
+  "version": "1.0.0",
+  "description": "The traditional Japanese three-stringed lute with a distinctive sound.",
+  "active": false,
+  "data": {
+    "baseVolume": 0.9,
+    "oscillator": {
+      "enabled": false
+    },
+    "sampler": {
+      "enabled": true,
+      "params": {
+        "instrument": "Shamisen",
+        "attack": 0.05,
+        "release": 1.5,
+        "curve": "exponential",
+        "volume": 1.0
+      }
+    },
+    "amplitudeEnv": { "enabled": false },
+    "filter": { "enabled": false },
+    "pitchEnvelope": { "enabled": false },
+    "lfo1": { "enabled": false },
+    "outputGain": {
+      "params": {
+        "gain": 0.8
+      }
+    },
+    "colors": {
+      "primary": "#FF9800",
+      "text": "#000000"
+    }
+  }
+}

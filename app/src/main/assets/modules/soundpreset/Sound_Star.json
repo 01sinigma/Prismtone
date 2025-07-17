@@ -1,0 +1,37 @@
+{
+  "id": "Sound_Star",
+  "type": "soundpreset",
+  "name": "Sound Star",
+  "version": "1.0.0",
+  "description": "A bright, shining sound, like a star in the night sky.",
+  "active": false,
+  "data": {
+    "baseVolume": 0.9,
+    "oscillator": {
+      "enabled": false
+    },
+    "sampler": {
+      "enabled": true,
+      "params": {
+        "instrument": "Sound Star",
+        "attack": 0.2,
+        "release": 2.0,
+        "curve": "exponential",
+        "volume": 1.0
+      }
+    },
+    "amplitudeEnv": { "enabled": false },
+    "filter": { "enabled": false },
+    "pitchEnvelope": { "enabled": false },
+    "lfo1": { "enabled": false },
+    "outputGain": {
+      "params": {
+        "gain": 0.8
+      }
+    },
+    "colors": {
+      "primary": "#FF5722",
+      "text": "#000000"
+    }
+  }
+}

@@ -52,7 +52,9 @@ class MagneticShardsEffect {
             this.shards.push({
                 x: Math.random() * this.canvas.width,
                 y: Math.random() * this.canvas.height,
-                angle: Math.random() * Math.PI * 2 // Начальный случайный угол
+                angle: Math.random() * Math.PI * 2, // Начальный случайный угол
+                vx: 0, // Скорость по X
+                vy: 0  // Скорость по Y
             });
         }
     }
@@ -64,10 +66,13 @@ class MagneticShardsEffect {
     onTouchUp() {}
 
     /**
-     * Основной цикл отрисовки.
+     * [ИЗМЕНЕНО] Главный цикл отрисовки. Теперь принимает gestureState.
+     * @returns {{hapticRequest: object}|null}
      */
-    drawActiveEffects() {
-        if (!this.ctx || !this.canvas || !this.globalVisualizerRef) return;
+    drawActiveEffects(gestureState) { // <<< ПРИНИМАЕТ НОВЫЙ АРГУМЕНТ
+        if (!this.ctx || !this.canvas || !this.globalVisualizerRef) return null;
+
+        let hapticRequest = null; // <<< Инициализируем запрос
 
         // Получаем текущие данные о касаниях и наклоне
         const activeTouches = Array.from(this.globalVisualizerRef.activeTouchPointsMap.values());
@@ -114,6 +119,34 @@ class MagneticShardsEffect {
 
                 shard.angle += angleDiff * 0.1; // 0.1 - скорость поворота
             }
+            
+            // --- НОВАЯ ЛОГИКА ---
+            // Реагируем на жест "щипок", чтобы "разбросать" опилки
+            if (gestureState && gestureState.pinch.isActive) {
+                const dx = shard.x - gestureState.pinch.center.x;
+                const dy = shard.y - gestureState.pinch.center.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist > 1) {
+                    const force = (gestureState.pinch.scale - 1.0) * (this.settings.pinchExplosionForce || 50);
+                    shard.vx += (dx / dist) * force;
+                    shard.vy += (dy / dist) * force;
+                }
+            }
+    
+            // Обновляем позицию на основе скорости
+            shard.x += shard.vx;
+            shard.y += shard.vy;
+    
+            // Затухание скорости
+            shard.vx *= 0.95; 
+            shard.vy *= 0.95;
+    
+            // Возвращение в пределы экрана
+            if (shard.x < 0) shard.x = this.canvas.width;
+            if (shard.x > this.canvas.width) shard.x = 0;
+            if (shard.y < 0) shard.y = this.canvas.height;
+            if (shard.y > this.canvas.height) shard.y = 0;
+
 
             // 3. Отрисовываем "опилку" с новым углом
             this.ctx.save();
@@ -128,8 +161,15 @@ class MagneticShardsEffect {
 
             this.ctx.restore();
         });
+        
+        // Запрашиваем вибрацию при сильном "щипке"
+        if (gestureState && gestureState.pinch.isActive && gestureState.pinch.scale > 1.2) {
+            hapticRequest = { type: 'pulse', intensity: 0.6, duration: 30 };
+        }
+        
+        return { hapticRequest }; // <<< ВОЗВРАЩАЕМ ЗАПРОС
     }
-
+    
     dispose() {
         this.shards = [];
     }

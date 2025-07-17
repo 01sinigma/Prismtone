@@ -1,0 +1,37 @@
+{
+  "id": "Doom_Bass",
+  "type": "soundpreset",
+  "name": "Doom Bass",
+  "version": "1.0.0",
+  "description": "A dark, heavily distorted bass sound for doom metal.",
+  "active": false,
+  "data": {
+    "baseVolume": 0.9,
+    "oscillator": {
+      "enabled": false
+    },
+    "sampler": {
+      "enabled": true,
+      "params": {
+        "instrument": "Doom Bass",
+        "attack": 0.1,
+        "release": 2.5,
+        "curve": "exponential",
+        "volume": 1.0
+      }
+    },
+    "amplitudeEnv": { "enabled": false },
+    "filter": { "enabled": false },
+    "pitchEnvelope": { "enabled": false },
+    "lfo1": { "enabled": false },
+    "outputGain": {
+      "params": {
+        "gain": 0.9
+      }
+    },
+    "colors": {
+      "primary": "#424242",
+      "text": "#000000"
+    }
+  }
+}

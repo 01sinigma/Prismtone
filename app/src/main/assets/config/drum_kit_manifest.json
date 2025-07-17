@@ -1,0 +1,28 @@
+[
+  {
+    "kitId": "808_classic",
+    "name": "808 Classic",
+    "path": "audio/samples/808_kit/",
+    "image_preview_path": "img/kits/808.png",
+    "mapping": {
+      "kick": "kick.wav",
+      "snare_electric": "snare.wav",
+      "closed_hat": "hihat_closed.wav",
+      "open_hat": "hihat_open.wav",
+      "tom_floor_low": "tom1.wav",
+      "clap": "clap.wav"
+    }
+  },
+  {
+    "kitId": "acoustic_rock",
+    "name": "Acoustic Rock",
+    "path": "audio/samples/acoustic_rock/",
+    "image_preview_path": "img/kits/acoustic.png",
+    "mapping": {
+      "kick_acoustic": "kick.wav",
+      "snare_acoustic": "snare.wav",
+      "closed_hat": "hihat.wav",
+      "crash_1": "crash.wav"
+    }
+  }
+] 

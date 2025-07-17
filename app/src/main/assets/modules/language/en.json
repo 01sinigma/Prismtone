@@ -218,6 +218,7 @@
       "oscillator_type": "Oscillator Type",
       "pad_mode_classic": "Classic",
       "pad_mode_chord": "Chord Mode",
+      "pad_mode_drum": "Drum Pad",
       "pad_mode_label": "Pad Mode",
       "pad_mode_rocket": "Rocket Mode",
       "pad_mode_select_title": "Select Pad Mode",

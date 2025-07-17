@@ -30,6 +30,57 @@ const VibrationService = {
         console.log(`[VibrationService v2] Intensity level set to '${level}' (multiplier: ${this.intensityMultiplier})`);
     },
 
+    /**
+     * [НОВОЕ] Обрабатывает декларативный запрос на вибрацию.
+     * @param {object | null} request - Объект запроса { type, intensity, duration, pattern }
+     */
+    processHapticRequest(request) {
+        if (!this.isEnabled || !request) {
+            // Если вибрация выключена или запроса нет, ничего не делаем.
+            // Если был непрерывный виброотклик, его нужно остановить.
+            if (this.isVibratingContinuously) {
+                this.stop();
+            }
+            return;
+        }
+
+        switch (request.type) {
+            case 'pulse':
+                // [Связь -> Логика] Короткий одиночный импульс.
+                // Игнорируем, если уже идет непрерывная вибрация, чтобы не прерывать ее.
+                if (!this.isVibratingContinuously) {
+                    const duration = request.duration || 50;
+                    const amplitude = (request.intensity || 0.7) * 255;
+                    this._vibrateOneShot(duration, amplitude);
+                }
+                break;
+            
+            case 'continuous':
+                // [Связь -> Логика] Непрерывная вибрация с заданной интенсивностью.
+                const amplitude = (request.intensity || 0.5) * 255;
+                this._vibratePattern(amplitude); // Этот метод уже обрабатывает запуск/остановку.
+                break;
+                
+            case 'pattern':
+                // [Связь -> Логика] Вибрация по заданному паттерну.
+                if (Array.isArray(request.pattern)) {
+                    // Преобразуем паттерн для bridge. Амплитуды пока чередуются.
+                    const timings = request.pattern;
+                    const amplitudes = timings.map((_, i) => (i % 2 === 0) ? 255 : 0);
+                    this.stop(); // Останавливаем предыдущую
+                    bridgeFix.callBridge('vibratePattern', JSON.stringify(timings), JSON.stringify(amplitudes), -1);
+                }
+                break;
+
+            default:
+                // [Связь -> Защита] Неизвестный тип запроса.
+                if (this.isVibratingContinuously) {
+                    this.stop(); // Если тип не распознан, останавливаем непрерывную вибрацию.
+                }
+                break;
+        }
+    },
+
     // Приватный метод для одиночных импульсов
     _vibrateOneShot(duration, amplitude) {
         const finalAmplitude = Math.max(1, Math.min(255, Math.round(amplitude * this.intensityMultiplier)));
